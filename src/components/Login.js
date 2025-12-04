@@ -93,7 +93,7 @@ export default function Login() {
           <div className="verification-notice">
             <p><strong>Email not verified</strong></p>
             <p>You can check your email <strong>{email}</strong> and click the verification link.</p>
-            <p className="verification-hint"> Check your <strong>Spam/Junk(Thư rác)</strong></p>
+            <p className="verification-hint"> Check your <strong>Spam/Junk(Trash)</strong></p>
             <button 
               type="button"
               onClick={handleResendVerification}

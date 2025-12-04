@@ -113,10 +113,11 @@ Lưu thông tin đơn hàng:
   profileId: "profile123",
   packageId: "1month",
   packageName: "Premium 1 Tháng",
+  
   days: 30,
   amount: 99000,
   orderId: "PREMIUM_user123_1234567890",
-  status: "pending", // pending, completed, failed
+  status: "pending", 
   paymentMethod: "momo",
   createdAt: Timestamp,
   completedAt: Timestamp

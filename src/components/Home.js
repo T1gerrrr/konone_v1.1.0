@@ -13,6 +13,7 @@ export default function Home() {
   const pricingRef = useRef(null);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Scroll animation observer
   useEffect(() => {
@@ -102,8 +103,8 @@ export default function Home() {
             <span className="logo-text">KonOne</span>
           </div>
           <nav className="header-nav">
-            <a href="#features" className="nav-link">{t(language, 'home.features')}</a>
-            <a href="#pricing" className="nav-link">{t(language, 'home.pricing')}</a>
+          
+        
             <div className="language-selector-header">
               <select 
                 value={language} 
@@ -128,8 +129,8 @@ export default function Home() {
             </a>
             {currentUser ? (
               <>
-                <Link to="/community" className="nav-link">{t(language, 'home.community')}</Link>
-                <Link to="/dashboard" className="nav-link">{t(language, 'home.dashboard')}</Link>
+                {/* <Link to="/community" className="nav-link">{t(language, 'home.community')}</Link>
+                <Link to="/dashboard" className="nav-link">{t(language, 'home.dashboard')}</Link> */}
               </>
             ) : (
               <>
@@ -178,7 +179,12 @@ export default function Home() {
             <div className="hero-profile-card hero-card-1">
               <div className="hero-profile-cover"></div>
               <div className="hero-profile-info">
-                <div className="hero-profile-avatar">👤</div>
+                <div className="hero-profile-avatar">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
                 <div className="hero-profile-name">KonOne</div>
                 <div className="hero-profile-price">@KonOne</div>
               </div>
@@ -186,7 +192,12 @@ export default function Home() {
             <div className="hero-profile-card hero-card-2">
               <div className="hero-profile-cover hero-cover-2"></div>
               <div className="hero-profile-info">
-                <div className="hero-profile-avatar">👤</div>
+                <div className="hero-profile-avatar">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
                 <div className="hero-profile-name">KonOne</div>
                 <div className="hero-profile-price">@KonOne</div>
               </div>
@@ -194,7 +205,12 @@ export default function Home() {
             <div className="hero-profile-card hero-card-3">
               <div className="hero-profile-cover hero-cover-3"></div>
               <div className="hero-profile-info">
-                <div className="hero-profile-avatar">👤</div>
+                <div className="hero-profile-avatar">
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                    <circle cx="12" cy="7" r="4"/>
+                  </svg>
+                </div>
                 <div className="hero-profile-name">KonOne</div>
                 <div className="hero-profile-price">@KonOne</div>
               </div>
@@ -461,7 +477,7 @@ export default function Home() {
               <div className="footer-column">
                 <h4 className="footer-column-title">Resources</h4>
                 <ul className="footer-link-list">
-                  <li><a href="#features">Help Center</a></li>
+            
                   <li><a href="#features">Changelog</a></li>
                   <li><Link to="/premium">Redeem Code</Link></li>
                   <li><a href="#features">Salad.com Product</a></li>

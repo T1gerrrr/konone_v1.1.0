@@ -91,7 +91,7 @@ export default function Dashboard() {
       <aside className="dashboard-sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <span className="logo-icon">✈</span>
+            <span className="logo-icon"></span>
             <span className="logo-text">KONONE</span>
           </div>
         </div>
@@ -231,61 +231,53 @@ export default function Dashboard() {
               )}
             </div>
 
-            {/* Statistics Section */}
-            <section className="account-statistics">
-              <h2>{t(language, 'dashboard.statistics')}</h2>
-              <div className="stats-cards">
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
-                      <circle cx="12" cy="12" r="3"></circle>
-                    </svg>
-                  </div>
-                  <div className="stat-content">
-                    <div className="stat-value">{profile?.views || 0}</div>
-                    <div className="stat-label">{t(language, 'dashboard.views')}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-                    </svg>
-                  </div>
-                  <div className="stat-content">
-                    <div className="stat-value">{profile?.likes || 0}</div>
-                    <div className="stat-label">{t(language, 'dashboard.likes')}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-                    </svg>
-                  </div>
-                  <div className="stat-content">
-                    <div className="stat-value">{profile?.score || 0}</div>
-                    <div className="stat-label">{t(language, 'dashboard.score')}</div>
-                  </div>
-                </div>
-
-                <div className="stat-card">
-                  <div className="stat-icon">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                      <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                    </svg>
-                  </div>
-                  <div className="stat-content">
-                    <div className="stat-value">{profile?.achievements || 0}</div>
-                    <div className="stat-label">{t(language, 'dashboard.achievements')}</div>
+            {/* Profile Card Preview */}
+            {profile?.username && (
+              <div className="profile-card-preview-section">
+                <h3>{t(language, 'dashboard.profilePreview') || 'Profile Preview'}</h3>
+                <div 
+                  className="profile-card-3d-preview"
+                  style={{
+                    borderColor: profile.cardColor ? `${profile.cardColor}66` : 'rgba(128, 128, 128, 0.11)'
+                  }}
+                >
+                  {profile.coverImage && (
+                    <div 
+                      className="preview-cover"
+                      style={{
+                        backgroundImage: `url(${profile.coverImage})`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        height: '150px'
+                      }}
+                    />
+                  )}
+                  <div className="preview-content">
+                    {profile.avatar ? (
+                      <img 
+                        src={profile.avatar} 
+                        alt={profile.displayName || profile.username}
+                        className="preview-avatar"
+                      />
+                    ) : (
+                      <div className="preview-avatar-placeholder">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                          <circle cx="12" cy="7" r="4"/>
+                        </svg>
+                      </div>
+                    )}
+                    <h4 className="preview-name">{profile.displayName || profile.username}</h4>
+                    {profile.bio && (
+                      <p className="preview-bio">{profile.bio.substring(0, 100)}...</p>
+                    )}
                   </div>
                 </div>
               </div>
-            </section>
+            )}
+
+            {/* Statistics Section */}
+            
 
             {/* Quick Actions */}
             <div className="quick-actions">

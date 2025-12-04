@@ -94,43 +94,37 @@ export async function handleMoMoCallback(callbackData) {
 export const PREMIUM_PACKAGES = {
   '1month': {
     id: '1month',
-    name: 'Premium 1 Tháng',
+    name: 'Premium 1 Month',
+    description: 'Get Nitro Discord 30 days.',
     days: 30,
-    price: 99000, // 99,000 VNĐ
-    originalPrice: 129000,
-    discount: '23%',
+    price: 39000, // 99,000 VNĐ
+    originalPrice: 60000,
+    discount: '50%',
     popular: false,
   },
   '3months': {
     id: '3months',
-    name: 'Premium 3 Tháng',
+    name: 'Premium 3 Months',
+    description: 'Get Nitro Discord 90 days.',
     days: 90,
-    price: 249000, // 249,000 VNĐ
-    originalPrice: 387000,
-    discount: '36%',
+    price: 105000, // 249,000 VNĐ
+    originalPrice: 150000,
+    discount: '30%',
     popular: true,
-    savings: 'Tiết kiệm 138,000đ',
+    
   },
   '1year': {
     id: '1year',
-    name: 'Premium 1 Năm',
+    name: 'Premium 1 Year',
+    description: 'Get Nitro Discord 365 days.',
     days: 365,
-    price: 799000, // 799,000 VNĐ
-    originalPrice: 1548000,
-    discount: '48%',
+    price: 409000, // 799,000 VNĐ
+    originalPrice: 609000,
+    discount: '35%',
     popular: false,
-    savings: 'Tiết kiệm 749,000đ',
+    
   },
-  'lifetime': {
-    id: 'lifetime',
-    name: 'Premium Vĩnh Viễn',
-    days: 9999,
-    price: 2990000, // 2,990,000 VNĐ
-    originalPrice: null,
-    discount: null,
-    popular: false,
-    badge: 'Best Value',
-  },
+
 };
 
 /**

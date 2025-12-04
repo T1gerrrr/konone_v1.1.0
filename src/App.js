@@ -11,6 +11,7 @@ import ProfileEditor from './components/ProfileEditor';
 import PublicProfile from './components/PublicProfile';
 import Premium from './components/Premium';
 import Community from './components/Community';
+import ProfileTemplate from './components/ProfileTemplate';
 import './App.css';
 
 function App() {
@@ -45,6 +46,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <Premium />
+                  </PrivateRoute>
+                } 
+              />
+              <Route 
+                path="/profile-template" 
+                element={
+                  <PrivateRoute>
+                    <ProfileTemplate />
                   </PrivateRoute>
                 } 
               />

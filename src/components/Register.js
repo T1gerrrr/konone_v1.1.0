@@ -41,7 +41,7 @@ export default function Register() {
         console.log('Verification email sent successfully');
         console.log('Email result:', emailResult);
         setEmailSent(true);
-        setSuccess('Đăng ký thành công! Email xác thực đã được gửi đến ' + email + '. Vui lòng kiểm tra hộp thư (kể cả thư mục Spam/Junk(Thư rác)). Email có thể mất 1-5 phút để đến.');
+        setSuccess('Register success! Verification email has been sent to ' + email + '. Please check your email (including Spam/Junk(Trash)). Email may take 1-5 minutes to arrive.');
       } catch (emailError) {
         console.error('❌ Error sending verification email:', emailError);
         console.error('Error code:', emailError.code);

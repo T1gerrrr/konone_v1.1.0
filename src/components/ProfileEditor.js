@@ -26,6 +26,9 @@ export default function ProfileEditor() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
   const [profileId, setProfileId] = useState(null);
   const [activeSection, setActiveSection] = useState('customize');
   const [profileOpacity, setProfileOpacity] = useState(50);
@@ -39,6 +42,8 @@ export default function ProfileEditor() {
   const [textBorderWidth, setTextBorderWidth] = useState(0);
   const [textBorderColor, setTextBorderColor] = useState('#ffffff');
   const [textBorderStyle, setTextBorderStyle] = useState('solid');
+  const [selectedSocialLink, setSelectedSocialLink] = useState('');
+  const [viewCount, setViewCount] = useState(0);
   
   const [formData, setFormData] = useState({
     username: '',
@@ -49,6 +54,7 @@ export default function ProfileEditor() {
     location: '',
     website: '',
     avatar: '',
+    avatarFrame: '', // Khung avatar
     coverImage: '',
     backgroundImage: '',
     backgroundVideo: '', // Premium: YouTube video as background
@@ -66,7 +72,8 @@ export default function ProfileEditor() {
     status: '',
     turma: '',
     hashtags: [],
-    cardColor: '' // Màu thẻ, để trống sẽ dùng màu mặc định
+    cardColor: '', // Màu thẻ, để trống sẽ dùng màu mặc định
+    cursorIcon: '' // Custom cursor icon
   });
 
   useEffect(() => {
@@ -96,6 +103,7 @@ export default function ProfileEditor() {
             location: profileData.location || '',
             website: profileData.website || '',
             avatar: profileData.avatar || '',
+            avatarFrame: profileData.avatarFrame || '',
             coverImage: profileData.coverImage || '',
             backgroundImage: profileData.backgroundImage || '',
             backgroundVideo: profileData.backgroundVideo || '',
@@ -112,7 +120,8 @@ export default function ProfileEditor() {
             status: profileData.status || '',
             turma: profileData.turma || '',
             hashtags: Array.isArray(profileData.hashtags) ? profileData.hashtags : [],
-            cardColor: profileData.cardColor || ''
+            cardColor: profileData.cardColor || '',
+            cursorIcon: profileData.cursorIcon || ''
           });
           
           // Load profile opacity and blur
@@ -125,6 +134,9 @@ export default function ProfileEditor() {
           setTextBorderWidth(profileData.textBorderWidth || 0);
           setTextBorderColor(profileData.textBorderColor || '#ffffff');
           setTextBorderStyle(profileData.textBorderStyle || 'solid');
+          
+          // Load view count
+          setViewCount(profileData.viewCount || 0);
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -149,7 +161,16 @@ export default function ProfileEditor() {
       return null;
     }
     
+    // Set uploading state for specific type
+    if (type === 'avatar') {
+      setUploadingAvatar(true);
+    } else if (type === 'coverImage') {
+      setUploadingCover(true);
+    } else if (type === 'backgroundImage') {
+      setUploadingBackground(true);
+    }
     setUploading(true);
+    
     try {
       const folder = `profiles/${currentUser.uid}/${type}`;
       const url = await uploadToCloudinary(file, folder);
@@ -160,6 +181,13 @@ export default function ProfileEditor() {
       return null;
     } finally {
       setUploading(false);
+      if (type === 'avatar') {
+        setUploadingAvatar(false);
+      } else if (type === 'coverImage') {
+        setUploadingCover(false);
+      } else if (type === 'backgroundImage') {
+        setUploadingBackground(false);
+      }
     }
   }
 
@@ -226,6 +254,7 @@ export default function ProfileEditor() {
         location: String(formData.location || ''),
         website: String(formData.website || ''),
         avatar: String(formData.avatar || ''),
+        avatarFrame: String(formData.avatarFrame || ''),
         coverImage: String(formData.coverImage || ''),
         backgroundImage: String(formData.backgroundImage || ''),
         backgroundVideo: String(formData.backgroundVideo || ''),
@@ -237,6 +266,7 @@ export default function ProfileEditor() {
         turma: String(formData.turma || ''),
         hashtags: cleanHashtags,
         cardColor: String(formData.cardColor || ''),
+        cursorIcon: String(formData.cursorIcon || ''),
         profileOpacity: Number(profileOpacity) || 50,
         profileBlur: Number(profileBlur) || 50,
         textFontFamily: String(textFontFamily || 'Arial'),
@@ -326,7 +356,7 @@ export default function ProfileEditor() {
       {/* Sidebar */}
       <aside className="editor-sidebar">
         <div className="sidebar-header">
-          <div className="logo-icon">✈</div>
+          <div className="logo-icon"></div>
           <span className="logo-text">KonOne</span>
           <div className="language-selector-editor">
             <select 
@@ -348,16 +378,11 @@ export default function ProfileEditor() {
           <div className={`nav-item ${activeSection === 'customize' ? 'active' : ''}`} onClick={() => setActiveSection('customize')}>
             <span className="nav-icon"></span> {t(language, 'profileEditor.customize')}
           </div>
-          <div className={`nav-item ${activeSection === 'card' ? 'active' : ''}`} onClick={() => setActiveSection('card')}>
-            <span className="nav-icon"></span> Tùy chỉnh thẻ
-          </div>
        
         </nav>
 
         <div className="sidebar-footer">
-          <button className="footer-btn help-btn">
-            <span className="btn-icon"></span> Help Center
-          </button>
+      
           <button 
             className="footer-btn my-page-btn"
             onClick={() => profileLink && window.open(profileLink, '_blank')}
@@ -375,6 +400,12 @@ export default function ProfileEditor() {
           <div className="user-info">
             <div className="user-name">{formData.username || 'No username'}</div>
             <div className="user-uid">UID {currentUser?.uid?.slice(0, 8) || 'N/A'}</div>
+            <div className="user-views" style={{ fontSize: '12px', color: '#999', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+              </svg>
+              {viewCount.toLocaleString()} views
+            </div>
             <span className="user-menu">⋯</span>
           </div>
         </div>
@@ -404,11 +435,17 @@ export default function ProfileEditor() {
                     </button>
                   )}
                 </div>
-                <div className="media-preview">
+                <div className="media-preview" style={{ position: 'relative' }}>
+                  {uploadingBackground && (
+                    <div className="uploading-overlay">
+                      <div className="spinner"></div>
+                      <p>{language === 'vi' ? 'Đang tải...' : 'Uploading...'}</p>
+                    </div>
+                  )}
                   {formData.backgroundImage ? (
                     <>
                       <img src={formData.backgroundImage} alt="Background" />
-                      <span className="file-format">.WEBP</span>
+                      <span className="file-format">UPLOAD</span>
                     </>
                   ) : (
                     <div className="media-placeholder">
@@ -416,10 +453,14 @@ export default function ProfileEditor() {
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleImageChange(e, 'backgroundImage')}
-                        disabled={uploading}
+                        disabled={uploadingBackground}
                         className="media-input"
                       />
-                      <span className="placeholder-icon">📷</span>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
                       <span className="placeholder-text">Click to upload a file</span>
                     </div>
                   )}
@@ -441,8 +482,12 @@ export default function ProfileEditor() {
                       placeholder="YouTube URL"
                       className="audio-input"
                     />
-                    <span className="placeholder-icon">🎵</span>
-                    <span className="placeholder-text">Click to open audio manager</span>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
+                      <path d="M9 18V5l12-2v13"/>
+                      <circle cx="6" cy="18" r="3"/>
+                      <circle cx="18" cy="16" r="3"/>
+                    </svg>
+                    <span className="placeholder-text">Only enter the YouTube URL here</span>
                   </div>
                 </div>
               </div>
@@ -451,7 +496,14 @@ export default function ProfileEditor() {
               <div className="media-card">
                 <div className="media-card-header">
                   <span className="media-label">Background Video</span>
-                  {!isPremium && <span className="premium-badge">💎 Premium</span>}
+                  {!isPremium && (
+                    <span className="premium-badge">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                      </svg>
+                      Premium
+                    </span>
+                  )}
                   {formData.backgroundVideo && (
                     <button
                       type="button"
@@ -466,7 +518,7 @@ export default function ProfileEditor() {
                 <div className="media-preview">
                   {formData.backgroundVideo ? (
                     <div className="video-preview">
-                      <span className="video-icon">🎥</span>
+                      
                       <span className="video-text">YouTube Video Background</span>
                       <span className="file-format">VIDEO</span>
                     </div>
@@ -481,9 +533,9 @@ export default function ProfileEditor() {
                         className="audio-input"
                         disabled={!isPremium}
                       />
-                      <span className="placeholder-icon">🎥</span>
+              
                       <span className="placeholder-text">
-                        {isPremium ? 'YouTube video as background overlay' : 'Unlock Premium to add background video'}
+                        {isPremium ? 'Only enter the YouTube URL here' : 'Unlock Premium to add background video'}
                       </span>
                     </div>
                   )}
@@ -494,7 +546,13 @@ export default function ProfileEditor() {
                   )}
                 </div>
               </div>
+              </div>
+            </div>
 
+            {/* Avatar & Frame & Cover Group */}
+            <div style={{ marginBottom: '32px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', paddingLeft: '8px' }}>Avatar, Frame & Cover</h3>
+              <div className="media-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
               {/* Profile Avatar */}
               <div className="media-card">
                 <div className="media-card-header">
@@ -509,28 +567,192 @@ export default function ProfileEditor() {
                     </button>
                   )}
                 </div>
-                <div className="media-preview">
+                <div className="media-preview" style={{ 
+                  aspectRatio: '1/1', 
+                  borderRadius: '50%', 
+                  overflow: 'hidden',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  position: 'relative'
+                }}>
+                  {uploadingAvatar && (
+                    <div className="uploading-overlay">
+                      <div className="spinner"></div>
+                      <p>{language === 'vi' ? 'Đang tải...' : 'Uploading...'}</p>
+                    </div>
+                  )}
                   {formData.avatar ? (
                     <>
-                      <img src={formData.avatar} alt="Avatar" />
-                      <span className="file-format">.WEBP</span>
+                      <img src={formData.avatar} alt="Avatar" style={{ 
+                        width: '100%', 
+                        height: '100%', 
+                        objectFit: 'cover',
+                        borderRadius: '50%'
+                      }} />
+                      <span className="file-format">UPLOAD</span>
                     </>
                   ) : (
-                    <div className="media-placeholder">
+                    <div className="media-placeholder" style={{ borderRadius: '50%' }}>
                       <input
                         type="file"
                         accept="image/*"
                         onChange={(e) => handleImageChange(e, 'avatar')}
-                        disabled={uploading}
+                        disabled={uploadingAvatar}
                         className="media-input"
                       />
-                      <span className="placeholder-icon">👤</span>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
                       <span className="placeholder-text">Click to upload a file</span>
                     </div>
                   )}
                 </div>
               </div>
 
+              {/* Avatar Frame Selection */}
+              <div className="media-card">
+                  <div className="media-card-header">
+                    <span className="media-label">Avatar Frame</span>
+                  </div>
+                  <div className="media-preview" style={{ padding: '20px', minHeight: 'auto', aspectRatio: 'auto' }}>
+                    <select
+                      value={formData.avatarFrame}
+                      onChange={(e) => setFormData(prev => ({ ...prev, avatarFrame: e.target.value }))}
+                      className="custom-select"
+                      style={{ width: '100%', marginBottom: '20px' }}
+                    >
+                      <option value="">No Frame</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_1.png">Khung 1</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_2.png">Khung 2</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_3.png">Khung 3</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_4.png">Khung 4</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_5.png">Khung 5</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_6.png">Khung 6</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_8.png">Khung 7</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_9.png">Khung 8</option>
+                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">Khung 9</option>
+                    </select>
+                    
+                    {/* Frame Preview */}
+                    {formData.avatarFrame && (
+                      <div style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '20px',
+                        background: 'rgba(0, 0, 0, 0.1)',
+                        borderRadius: '8px'
+                      }}>
+                        <div style={{ fontSize: '14px', color: '#999', marginBottom: '10px' }}>Preview:</div>
+                        <div style={{ 
+                          position: 'relative',
+                          width: '150px',
+                          height: '150px',
+                          borderRadius: '50%',
+                          overflow: 'hidden',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}>
+                          {formData.avatar ? (
+                            <>
+                              <img 
+                                src={formData.avatar} 
+                                alt="Avatar Preview" 
+                                style={{
+                                  width: '80%',
+                                  height: '80%',
+                                  objectFit: 'cover',
+                                  borderRadius: '50%'
+                                }}
+                              />
+                              <img 
+                                src={formData.avatarFrame} 
+                                alt="Frame Preview" 
+                                style={{
+                                  position: 'absolute',
+                                  top: '50%',
+                                  left: '50%',
+                                  transform: 'translate(-50%, -50%)',
+                                  width: '115%',
+                                  height: '115%',
+                                  objectFit: 'contain',
+                                  pointerEvents: 'none'
+                                }}
+                              />
+                            </>
+                          ) : (
+                            <div style={{
+                              width: '100%',
+                              height: '100%',
+                              background: '#333',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '48px'
+                            }}>
+                              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                              </svg>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              {/* Cover Image / Banner (Premium) */}
+              <div className="media-card">
+                <div className="media-card-header">
+                  <span className="media-label">Cover Image / Banner</span>
+                  {formData.coverImage && (
+                    <button
+                      type="button"
+                      className="remove-btn"
+                      onClick={() => handleRemoveImage('coverImage')}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+                <div className="media-preview" style={{ position: 'relative' }}>
+                  {uploadingCover && (
+                    <div className="uploading-overlay">
+                      <div className="spinner"></div>
+                      <p>{language === 'vi' ? 'Đang tải...' : 'Uploading...'}</p>
+                    </div>
+                  )}
+                  {formData.coverImage ? (
+                    <>
+                      <img src={formData.coverImage} alt="Cover" />
+                      <span className="file-format">UPLOAD</span>
+                    </>
+                  ) : (
+                    <div className="media-placeholder">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageChange(e, 'coverImage')}
+                        disabled={uploadingCover}
+                        className="media-input"
+                      />
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="8.5" cy="8.5" r="1.5"/>
+                        <polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                      <span className="placeholder-text">
+                        Click to upload cover image
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
 
             {/* Premium Banner */}
@@ -560,16 +782,41 @@ export default function ProfileEditor() {
               />
             </div>
 
-            {/* Discord Presence */}
-            <div className="form-group locked-feature">
+            {/* Card Color */}
+            <div className="form-group">
               <label>
-                <span>Discord Presence</span>
-                <span className="lock-icon"></span>
+                <span>Card Color</span>
+                <span className="form-hint">(Border in card)</span>
               </label>
-              <div className="locked-content">
-                Click here to connect your Discord and unlock this feature.
+              <div className="color-picker-container">
+                <input
+                  type="color"
+                  name="cardColor"
+                  value={formData.cardColor || '#C71585'}
+                  onChange={handleChange}
+                  className="color-picker-input"
+                />
+                <input
+                  type="text"
+                  name="cardColor"
+                  value={formData.cardColor || ''}
+                  onChange={handleChange}
+                  placeholder="#C71585 (default)"
+                  className="color-text-input"
+                />
+                <button
+                  type="button"
+                  onClick={() => setFormData(prev => ({ ...prev, cardColor: '' }))}
+                  className="color-reset-btn"
+                  title="Reset to default"
+                >
+                  Reset
+                </button>
               </div>
             </div>
+
+            {/* Discord Presence */}
+           
 
             {/* Profile Opacity */}
             {/* <div className="form-group slider-group">
@@ -640,16 +887,16 @@ export default function ProfileEditor() {
                   className="custom-select"
                 >
                   <option value="none">Choose an option</option>
-                  <option value="snow">❄️ Snow</option>
-                  <option value="particles">✨ Particles</option>
-                  <option value="confetti">🎊 Confetti</option>
-                  <option value="fireworks">🎆 Fireworks</option>
-                  <option value="rain">🌧️ Rain (Premium)</option>
-                  <option value="stars">⭐ Stars (Premium)</option>
-                  <option value="leaves">🍃 Leaves (Premium)</option>
-                  <option value="aurora">🌌 Aurora (Premium)</option>
-                  <option value="matrix">💚 Matrix (Premium)</option>
-                  <option value="nebula">🌠 Nebula (Premium)</option>
+                  <option value="snow">Snow</option>
+                  <option value="particles">Particles</option>
+                  <option value="confetti">Confetti</option>
+                  <option value="fireworks">Fireworks</option>
+                  <option value="rain">Rain (Premium)</option>
+                  <option value="stars">Stars (Premium)</option>
+                  <option value="leaves">Leaves (Premium)</option>
+                  <option value="aurora">Aurora (Premium)</option>
+                  <option value="matrix">Matrix (Premium)</option>
+                  <option value="nebula">Nebula (Premium)</option>
                 </select>
                 {showPreview && previewEffect && previewEffect !== 'none' && (
                   <div className="effect-preview-modal" onClick={() => setShowPreview(false)}>
@@ -709,7 +956,12 @@ export default function ProfileEditor() {
                 <div className="form-group">
                   <label>
                     <span>Font Family</span>
-                    <span className="premium-badge">💎 Premium</span>
+                    <span className="premium-badge">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                      </svg>
+                      Premium
+                    </span>
                   </label>
                   <select
                     value={textFontFamily}
@@ -738,7 +990,12 @@ export default function ProfileEditor() {
                 <div className="form-group">
                   <label>
                     <span>3D Text Effect</span>
-                    <span className="premium-badge">💎 Premium</span>
+                    <span className="premium-badge">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                      </svg>
+                      Premium
+                    </span>
                   </label>
                   <div className="checkbox-group">
                     <label className="checkbox-label">
@@ -752,99 +1009,33 @@ export default function ProfileEditor() {
                   </div>
                 </div>
 
-                {/* Text Border */}
-                <div className="form-group">
-                  <label>
-                    <span>Text Border</span>
-                    <span className="premium-badge">💎 Premium</span>
-                  </label>
-                  <div className="border-controls">
-                    <div className="border-control-row">
-                      <label>Width (px)</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="10"
-                        value={textBorderWidth}
-                        onChange={(e) => setTextBorderWidth(e.target.value)}
-                        className="slider"
-                      />
-                      <span className="slider-value">{textBorderWidth}px</span>
-                    </div>
-                    <div className="border-control-row">
-                      <label>Color</label>
-                      <input
-                        type="color"
-                        value={textBorderColor}
-                        onChange={(e) => setTextBorderColor(e.target.value)}
-                        className="color-picker"
-                      />
-                      <input
-                        type="text"
-                        value={textBorderColor}
-                        onChange={(e) => setTextBorderColor(e.target.value)}
-                        className="color-input"
-                        placeholder="#ffffff"
-                      />
-                    </div>
-                    <div className="border-control-row">
-                      <label>Style</label>
-                      <select
-                        value={textBorderStyle}
-                        onChange={(e) => setTextBorderStyle(e.target.value)}
-                        className="custom-select"
-                      >
-                        <option value="solid">Solid</option>
-                        <option value="dashed">Dashed</option>
-                        <option value="dotted">Dotted</option>
-                        <option value="double">Double</option>
-                        <option value="groove">Groove</option>
-                        <option value="ridge">Ridge</option>
-                        <option value="inset">Inset</option>
-                        <option value="outset">Outset</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
+        
+               
               </>
             )}
 
-            {/* Username Effects */}
-            <div className="form-group">
+            {/* Custom Cursor */}
+            {/* <div className="form-group">
               <label>
-                <span>Username Effects</span>
-                <span className="star-icon"></span>
-                {!isPremium && <span className="premium-badge">Premium</span>}
+                <span>Custom Cursor</span>
+                <span className="premium-badge">💎 Premium</span>
               </label>
-              <select className="custom-select" disabled={!isPremium}>
-                <option>Choose an option</option>
-                <option value="glow">✨ Glow</option>
-                <option value="sparkle">🌟 Sparkle</option>
+              <select
+                value={formData.cursorIcon}
+                onChange={(e) => setFormData(prev => ({ ...prev, cursorIcon: e.target.value }))}
+                className="custom-select"
+                disabled={!isPremium}
+              >
+                <option value="">Default Cursor</option>
+                <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">Icon 1</option>
               </select>
               {!isPremium && (
                 <div className="premium-lock-message">
-                   Unlock Premium for exclusive username effects! <Link to="/premium" className="premium-link">Unlock Premium</Link>
+                  Unlock Premium to customize cursor! <Link to="/premium" className="premium-link">Unlock Premium</Link>
                 </div>
               )}
-            </div>
+            </div> */}
 
-            {/* Location */}
-            <div className="form-group">
-              <label>
-                <span>Location</span>
-                <span className="location-icon"></span>
-              </label>
-              <input
-                type="text"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                placeholder="My Location"
-              />
-            </div>
-
-            {/* Glow Settings */}
-          
             {/* Username and Display Name */}
             <div className="form-row">
               <div className="form-group">
@@ -873,160 +1064,57 @@ export default function ProfileEditor() {
             </div>
 
             {/* Social Links */}
-            <div className="form-row">
-              <div className="form-group">
-                <label>Facebook</label>
-                <input
-                  type="url"
-                  name="social.facebook"
-                  value={formData.socialLinks.facebook}
-                  onChange={handleChange}
-                  placeholder="https://facebook.com/..."
-                />
-              </div>
-              <div className="form-group">
-                <label>Instagram</label>
-                <input
-                  type="url"
-                  name="social.instagram"
-                  value={formData.socialLinks.instagram}
-                  onChange={handleChange}
-                  placeholder="https://instagram.com/..."
-                />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>Twitter</label>
-                <input
-                  type="url"
-                  name="social.twitter"
-                  value={formData.socialLinks.twitter}
-                  onChange={handleChange}
-                  placeholder="https://twitter.com/..."
-                />
-              </div>
-              <div className="form-group">
-                <label>LinkedIn</label>
-                <input
-                  type="url"
-                  name="social.linkedin"
-                  value={formData.socialLinks.linkedin}
-                  onChange={handleChange}
-                  placeholder="https://linkedin.com/in/..."
-                />
-              </div>
-            </div>
-
-            <div className="form-row">
-              <div className="form-group">
-                <label>TikTok</label>
-                <input
-                  type="url"
-                  name="social.tiktok"
-                  value={formData.socialLinks.tiktok}
-                  onChange={handleChange}
-                  placeholder="https://tiktok.com/@..."
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Card Customization Section */}
-          {activeSection === 'card' && (
-            <div className="card-customization-section">
-              <h2 className="section-title">Tùy chỉnh thẻ Profile</h2>
-              
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Chức danh / Job Title</label>
-                  <input
-                    type="text"
-                    name="jobTitle"
-                    value={formData.jobTitle}
-                    onChange={handleChange}
-                    placeholder="Ví dụ: Product Designer, Developer..."
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Trạng thái / Status</label>
-                  <input
-                    type="text"
-                    name="status"
-                    value={formData.status}
-                    onChange={handleChange}
-                    placeholder="Ví dụ: Cursando, Available, Busy..."
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Turma / Lớp</label>
-                  <input
-                    type="text"
-                    name="turma"
-                    value={formData.turma}
-                    onChange={handleChange}
-                    placeholder="Ví dụ: #0001, Class A..."
-                  />
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Hashtags (mỗi hashtag trên một dòng)</label>
-                  <textarea
-                    name="hashtags"
-                    value={formData.hashtags.join('\n')}
-                    onChange={(e) => {
-                      const tags = e.target.value.split('\n').filter(tag => tag.trim() !== '');
-                      setFormData(prev => ({ ...prev, hashtags: tags }));
-                    }}
-                    placeholder="Ví dụ:&#10;#cursodefigma&#10;#feuxdesign&#10;#design"
-                    rows={5}
-                  />
-                  <small className="form-hint">Nhập mỗi hashtag trên một dòng. Ví dụ: #cursodefigma</small>
-                </div>
-              </div>
-
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Màu thẻ (để trống sẽ dùng màu mặc định)</label>
-                  <div className="color-picker-container">
-                    <input
-                      type="color"
-                      name="cardColor"
-                      value={formData.cardColor || '#DC2626'}
-                      onChange={handleChange}
-                      className="color-picker-input"
-                    />
-                    <input
-                      type="text"
-                      name="cardColor"
-                      value={formData.cardColor}
-                      onChange={handleChange}
-                      placeholder="#DC2626 hoặc để trống"
-                      className="color-text-input"
-                    />
+            <div className="form-group">
+              <label>Social Links</label>
+              <select
+                value={selectedSocialLink}
+                onChange={(e) => setSelectedSocialLink(e.target.value)}
+                className="custom-select"
+              >
+                <option value="">Choose an option</option>
+                <option value="facebook">Facebook</option>
+                <option value="instagram">Instagram</option>
+                <option value="twitter">Twitter</option>
+                <option value="linkedin">LinkedIn</option>
+                <option value="tiktok">TikTok</option>
+              </select>
+              {selectedSocialLink && (
+                <div className="form-group" style={{ marginTop: '10px' }}>
+                  <label>
+                    {selectedSocialLink.charAt(0).toUpperCase() + selectedSocialLink.slice(1)} URL
                     <button
                       type="button"
-                      onClick={() => setFormData(prev => ({ ...prev, cardColor: '' }))}
-                      className="color-reset-btn"
-                      title="Đặt lại màu mặc định"
+                      onClick={() => setSelectedSocialLink('')}
+                      style={{
+                        marginLeft: '10px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#999',
+                        cursor: 'pointer',
+                        fontSize: '14px'
+                      }}
+                      title="Đóng"
                     >
-                      ↻
+                      ✕
                     </button>
-                  </div>
-                  <small className="form-hint">Chọn màu chủ đạo cho thẻ. Để trống để dùng màu đỏ-tím mặc định.</small>
+                  </label>
+                  <input
+                    type="url"
+                    name={`social.${selectedSocialLink}`}
+                    value={formData.socialLinks[selectedSocialLink] || ''}
+                    onChange={handleChange}
+                    placeholder={
+                      selectedSocialLink === 'facebook' ? 'https://facebook.com/...' :
+                      selectedSocialLink === 'instagram' ? 'https://instagram.com/...' :
+                      selectedSocialLink === 'twitter' ? 'https://twitter.com/...' :
+                      selectedSocialLink === 'linkedin' ? 'https://linkedin.com/in/...' :
+                      'https://tiktok.com/@...'
+                    }
+                  />
                 </div>
-              </div>
+              )}
             </div>
-          )}
+          </div>
 
           {/* Form Actions */}
           <div className="form-actions">

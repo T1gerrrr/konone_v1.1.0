@@ -203,8 +203,8 @@
 }
 
 .verification-notice {
-  background: rgba(139, 92, 246, 0.15);
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: rgba(141, 141, 141, 0.15);
+  border: 1px solid rgba(53, 53, 53, 0.3);
   border-radius: 12px;
   padding: 20px;
   margin-bottom: 20px;
@@ -224,7 +224,7 @@
   color: rgba(255, 255, 255, 0.7) !important;
   margin-top: 10px !important;
   padding: 10px;
-  background: rgba(139, 92, 246, 0.1);
+  background: rgba(246, 92, 92, 0.1);
   border-radius: 8px;
 }
 
@@ -236,7 +236,7 @@
 .resend-btn {
   margin-top: 12px;
   padding: 10px 20px;
-  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  background: linear-gradient(135deg, #f65c5c 0%, #993838 100%);
   color: white;
   border: none;
   border-radius: 8px;
@@ -244,13 +244,13 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.3s;
-  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+
 }
 
 .resend-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  background: linear-gradient(135deg, #ff9696 0%, #ff7c7c 100%);
   transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(139, 92, 246, 0.4);
+ 
 }
 
 .resend-btn:disabled {

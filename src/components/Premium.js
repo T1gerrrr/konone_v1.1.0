@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, updateDoc, doc, addDoc } from 'firebase/firestore';
+import { collection, query, where, getDocs, updateDoc, doc, addDoc, getDoc, setDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createMoMoPayment, PREMIUM_PACKAGES, formatVND } from '../services/momoPayment';
 import { t } from '../translations';
@@ -20,14 +20,17 @@ export default function Premium() {
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('payment'); // 'payment' or 'code'
+  const [activeTab, setActiveTab] = useState('buy'); // 'buy' or 'activate'
 
   // Valid activation codes (in production, these should be stored in Firestore)
   const VALID_CODES = {
-    'PREMIUM2024': { days: 30, name: 'Premium 1 Month' },
-    'PREMIUM2024YEAR': { days: 365, name: 'Premium 1 Year' },
-    'PREMIUMFOREVER': { days: 9999, name: 'Premium Lifetime' },
-    'TESTCODE': { days: 7, name: 'Test Premium 7 Days' }
+    'PREMIUM2024': { days: 30, name: 'Premium 1 Month', maxUses: null },
+    'PREMIUM2025': { days: 30, name: 'Premium 1 Month', maxUses: null },
+    'PREMIUM2026': { days: 30, name: 'Premium 1 Month', maxUses: null },
+    'PREMIUM2024YEAR': { days: 365, name: 'Premium 1 Year', maxUses: null },
+    'PREMIUMFOREVER': { days: 9999, name: 'Premium Lifetime', maxUses: null },
+    'TESTCODE': { days: 7, name: 'Test Premium 7 Days', maxUses: null },
+    'TIGERKON2025': { days: 30, name: 'Premium 1 Month', maxUses: 20 }
   };
 
   useEffect(() => {
@@ -83,6 +86,26 @@ export default function Premium() {
         return;
       }
 
+      // Check code usage limit if maxUses is set
+      if (codeData.maxUses !== null && codeData.maxUses !== undefined) {
+        const codeRef = doc(db, 'premiumCodes', code);
+        const codeDoc = await getDoc(codeRef);
+        
+        let currentUses = 0;
+        if (codeDoc.exists()) {
+          currentUses = codeDoc.data().usedCount || 0;
+        }
+        
+        if (currentUses >= codeData.maxUses) {
+          setMessage(language === 'vi' 
+            ? `Code đã hết lượt sử dụng (${currentUses}/${codeData.maxUses})` 
+            : `Code has reached usage limit (${currentUses}/${codeData.maxUses})`);
+          setMessageType('error');
+          setLoading(false);
+          return;
+        }
+      }
+
       // Calculate expiration date
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + codeData.days);
@@ -95,6 +118,27 @@ export default function Premium() {
         premiumCode: code,
         updatedAt: new Date()
       });
+
+      // Update code usage count if maxUses is set
+      if (codeData.maxUses !== null && codeData.maxUses !== undefined) {
+        const codeRef = doc(db, 'premiumCodes', code);
+        const codeDoc = await getDoc(codeRef);
+        
+        if (codeDoc.exists()) {
+          await updateDoc(codeRef, {
+            usedCount: increment(1),
+            lastUsedAt: new Date()
+          });
+        } else {
+          await setDoc(codeRef, {
+            code: code,
+            usedCount: 1,
+            maxUses: codeData.maxUses,
+            createdAt: new Date(),
+            lastUsedAt: new Date()
+          });
+        }
+      }
 
       setMessage(t(language, 'premium.activateSuccess', { days: codeData.days }));
       setMessageType('success');
@@ -235,21 +279,21 @@ export default function Premium() {
         {/* Payment Tabs */}
         <div className="payment-tabs">
           <button 
-            className={`tab-button ${activeTab === 'payment' ? 'active' : ''}`}
-            onClick={() => setActiveTab('payment')}
+            className={`tab-button ${activeTab === 'buy' ? 'active' : ''}`}
+            onClick={() => setActiveTab('buy')}
           >
-            {t(language, 'premium.paymentTab')}
+            Buy Plan
           </button>
           <button 
-            className={`tab-button ${activeTab === 'code' ? 'active' : ''}`}
-            onClick={() => setActiveTab('code')}
+            className={`tab-button ${activeTab === 'activate' ? 'active' : ''}`}
+            onClick={() => setActiveTab('activate')}
           >
-            {t(language, 'premium.codeTab')}
+            Active Code
           </button>
         </div>
 
         {/* Payment Section */}
-        {activeTab === 'payment' && (
+        {activeTab === 'buy' && (
           <div className="payment-section">
             <h2 className="section-title">{t(language, 'premium.selectPackage')}</h2>
             <div className="packages-grid">
@@ -263,6 +307,7 @@ export default function Premium() {
                   {pkg.badge && <div className="package-badge special">{pkg.badge}</div>}
                   <div className="package-header">
                     <h3 className="package-name">{pkg.name}</h3>
+                
                     <div className="package-price">
                       <span className="price-main">{formatVND(pkg.price)}</span>
                       {pkg.originalPrice && (
@@ -270,8 +315,11 @@ export default function Premium() {
                       )}
                     </div>
                     {pkg.discount && (
-                      <div className="package-discount">Giảm {pkg.discount}</div>
+                      <div className="package-discount">Discount {pkg.discount}</div>
                     )}
+                        <div className="package-description">
+                      {pkg.description}
+                    </div>
                     {pkg.savings && (
                       <div className="package-savings">{pkg.savings}</div>
                     )}
@@ -293,7 +341,7 @@ export default function Premium() {
               ))}
             </div>
             
-            {message && activeTab === 'payment' && (
+            {message && activeTab === 'buy' && (
               <div className={`message ${messageType}`}>
                 {message}
               </div>
@@ -302,7 +350,7 @@ export default function Premium() {
         )}
 
         {/* Activation Code Section */}
-        {activeTab === 'code' && (
+        {activeTab === 'activate' && (
         <div className="activation-section">
           <h2 className="section-title">{t(language, 'premium.activateByCode')}</h2>
           <div className="activation-form">

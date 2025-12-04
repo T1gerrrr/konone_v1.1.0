@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { collection, query, where, getDocs } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { 
   SnowEffect, 
@@ -25,11 +25,16 @@ export default function PublicProfile() {
   const [isPlaying, setIsPlaying] = useState(true);
   const [volume, setVolume] = useState(50);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
+  const [profileDocId, setProfileDocId] = useState(null);
+  const viewCountUpdated = useRef(false);
 
   // Get YouTube video ID (before early returns)
   const youtubeVideoId = profile?.musicUrl ? getYouTubeVideoId(profile.musicUrl) : null;
 
   useEffect(() => {
+    // Reset view count flag khi username thay đổi
+    viewCountUpdated.current = false;
+    
     async function fetchProfile() {
       try {
         // Normalize username to lowercase for query
@@ -45,9 +50,34 @@ export default function PublicProfile() {
         if (querySnapshot.empty) {
           setError('Không tìm thấy hồ sơ này');
         } else {
-          const profileData = querySnapshot.docs[0].data();
+          const profileDoc = querySnapshot.docs[0];
+          const profileData = profileDoc.data();
           console.log('Profile data found:', profileData);
-          setProfile(profileData);
+          setProfileDocId(profileDoc.id);
+          
+          // Tăng view count chỉ 1 lần
+          if (!viewCountUpdated.current) {
+            viewCountUpdated.current = true;
+            try {
+              const profileRef = doc(db, 'profiles', profileDoc.id);
+              await updateDoc(profileRef, {
+                viewCount: increment(1)
+              });
+              // Cập nhật view count trong profile data để hiển thị ngay
+              const currentViewCount = profileData.viewCount || 0;
+              setProfile({
+                ...profileData,
+                viewCount: currentViewCount + 1
+              });
+            } catch (viewError) {
+              console.error('Error updating view count:', viewError);
+              // Nếu lỗi, vẫn hiển thị profile với view count cũ
+              setProfile(profileData);
+            }
+          } else {
+            // Nếu đã tăng rồi, chỉ set profile data
+            setProfile(profileData);
+          }
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
@@ -162,6 +192,62 @@ export default function PublicProfile() {
     const newVolume = parseInt(e.target.value, 10);
     setVolume(newVolume);
   }
+
+  // Apply custom cursor if available
+  useEffect(() => {
+    if (!profile) return;
+    
+    // Check if user has premium
+    const isPremium = profile.isPremium && profile.premiumExpiresAt?.toDate ? 
+      profile.premiumExpiresAt.toDate() > new Date() : 
+      (profile.isPremium && profile.premiumExpiresAt ? new Date(profile.premiumExpiresAt) > new Date() : false);
+    
+    if (profile.cursorIcon && isPremium) {
+      console.log('Applying custom cursor:', profile.cursorIcon);
+      // Remove existing style if any
+      const existingStyle = document.getElementById('custom-cursor-style');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+      
+      // Apply cursor to the entire document body when on this page
+      document.body.style.cursor = `url(${profile.cursorIcon}) 16 16, auto`;
+      
+      // Also apply to all elements in public-profile with higher specificity
+      const style = document.createElement('style');
+      style.id = 'custom-cursor-style';
+      style.textContent = `
+        body {
+          cursor: url(${profile.cursorIcon}) 16 16, auto !important;
+        }
+        .public-profile,
+        .public-profile * {
+          cursor: url(${profile.cursorIcon}) 16 16, auto !important;
+        }
+        .public-profile button,
+        .public-profile a,
+        .public-profile input[type="range"] {
+          cursor: url(${profile.cursorIcon}) 16 16, pointer !important;
+        }
+      `;
+      document.head.appendChild(style);
+      
+      return () => {
+        document.body.style.cursor = '';
+        const existingStyle = document.getElementById('custom-cursor-style');
+        if (existingStyle) {
+          existingStyle.remove();
+        }
+      };
+    } else {
+      // Reset cursor if no custom cursor
+      document.body.style.cursor = '';
+      const existingStyle = document.getElementById('custom-cursor-style');
+      if (existingStyle) {
+        existingStyle.remove();
+      }
+    }
+  }, [profile?.cursorIcon, profile?.isPremium, profile?.premiumExpiresAt]);
 
   if (loading) {
     return (
@@ -295,7 +381,15 @@ export default function PublicProfile() {
               className="music-toggle-btn"
               title={isPlaying ? 'Tắt nhạc' : 'Bật nhạc'}
             >
-              {isPlaying ? '🔊' : '🔇'}
+              {isPlaying ? (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/>
+                </svg>
+              ) : (
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/>
+                </svg>
+              )}
             </button>
             {showVolumeControl && (
               <div className="volume-slider-container">
@@ -317,34 +411,62 @@ export default function PublicProfile() {
 
       {/* Profile Content - Centered Card with 3D Effect */}
       <div className="profile-container">
-        {/* Hanging String and Hook */}
-        <div className="card-hanger">
-          <div className="hanger-hook"></div>
-          <div className="hanger-string"></div>
-        </div>
-        <div className={`profile-card-3d ${(profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0)) ? 'custom-card-layout' : ''}`}>
-          {/* Profile Cover Image (Banner) */}
-          <div 
-            className="profile-card-cover"
-            style={{
-              backgroundImage: profile.coverImage 
-                ? `url(${profile.coverImage})` 
-                : (profile.backgroundImage 
-                  ? `url(${profile.backgroundImage})` 
-                  : `linear-gradient(135deg, #DC2626 0%, #C71585 100%)`)
-            }}
-          >
+        {/* Hanging String and Hook - Only show when there's a coverImage banner */}
+        {profile.coverImage && (
+          <div className="card-hanger">
+            <div className="hanger-hook"></div>
+            <div className="hanger-string"></div>
+          </div>
+        )}
+        <div 
+          className={`profile-card-3d ${(profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0)) ? 'custom-card-layout' : ''}`}
+          style={{
+            borderColor: cardColor ? `${cardColor}66` : undefined
+          }}
+        >
+          {/* Profile Cover Image (Banner) - Only show if coverImage exists */}
+          {profile.coverImage && (
+            <div 
+              className="profile-card-cover"
+              style={{
+                backgroundImage: `url(${profile.coverImage})`,
+                zIndex: 0,
+                position: 'relative'
+              }}
+            >
             {/* Text Overlay on Banner for Custom Card */}
             {(profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0)) && (
-              <div className="card-overlay-content">
+              <div className="card-overlay-content" style={{ position: 'relative', zIndex: 1 }}>
                 {/* Avatar on Banner */}
                 {profile.avatar ? (
-                  <div className="profile-avatar-container-overlay">
-                    <img src={profile.avatar} alt={profile.displayName} className="profile-avatar-overlay" />
+                  <div className="profile-avatar-container-overlay" style={{ position: 'relative', zIndex: 9998 }}>
+                    <img src={profile.avatar} alt={profile.displayName} className="profile-avatar-overlay" style={{ position: 'relative', zIndex: 1 }} />
+                    {profile.avatarFrame && (
+                      <img 
+                        src={profile.avatarFrame} 
+                        alt="Avatar Frame" 
+                        style={{
+                          position: 'absolute',
+                          top: '50%',
+                          left: '50%',
+                          transform: 'translate(-50%, -50%)',
+                          width: '140%',
+                          height: '140%',
+                          objectFit: 'contain',
+                          pointerEvents: 'none',
+                          zIndex: 9999
+                        }}
+                      />
+                    )}
                   </div>
                 ) : (
                   <div className="profile-avatar-container-overlay">
-                    <div className="profile-avatar-placeholder-overlay">👤</div>
+                    <div className="profile-avatar-placeholder-overlay">
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                        <circle cx="12" cy="7" r="4"/>
+                      </svg>
+                    </div>
                   </div>
                 )}
 
@@ -378,19 +500,42 @@ export default function PublicProfile() {
                 )}
               </div>
             )}
-          </div>
+            </div>
+          )}
           
           {/* Profile Info Section */}
           {!(profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0)) ? (
             <div className="profile-card-info">
               {/* Avatar overlapping cover */}
               {profile.avatar ? (
-                <div className="profile-avatar-container">
-                  <img src={profile.avatar} alt={profile.displayName} className="profile-avatar" />
+                <div className="profile-avatar-container" style={{ position: 'relative', zIndex: 9998 }}>
+                  <img src={profile.avatar} alt={profile.displayName} className="profile-avatar" style={{ position: 'relative', zIndex: 1 }} />
+                  {profile.avatarFrame && (
+                    <img 
+                      src={profile.avatarFrame} 
+                      alt="Avatar Frame" 
+                      style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        width: '140%',
+                        height: '140%',
+                        objectFit: 'contain',
+                        pointerEvents: 'none',
+                        zIndex: 9999
+                      }}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="profile-avatar-container">
-                  <div className="profile-avatar-placeholder">👤</div>
+                  <div className="profile-avatar-placeholder">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                      <circle cx="12" cy="7" r="4"/>
+                    </svg>
+                  </div>
                 </div>
               )}
               
@@ -417,6 +562,22 @@ export default function PublicProfile() {
               {profile.username && (
                 <div className="profile-username">@{profile.username}</div>
               )}
+              
+              {/* {profile.viewCount !== undefined && (
+                <div className="profile-views" style={{ 
+                  fontSize: '14px', 
+                  color: 'rgba(255, 255, 255, 0.7)', 
+                  marginTop: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+                    <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                  </svg>
+                  <span>{profile.viewCount.toLocaleString()} lượt xem</span>
+                </div>
+              )} */}
               
               {profile.bio && (
                 <p 
@@ -527,6 +688,34 @@ export default function PublicProfile() {
           </div>
         )}
       </div>
+
+      {/* View Count - Bottom Left */}
+      {profile.viewCount !== undefined && (
+        <div 
+          className="profile-views-bottom-left"
+          style={{
+            position: 'fixed',
+            bottom: '20px',
+            left: '20px',
+            fontSize: '14px',
+            color: 'rgba(255, 255, 255, 0.8)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            background: 'rgba(0, 0, 0, 0.4)',
+            padding: '8px 12px',
+            borderRadius: '20px',
+            backdropFilter: 'blur(10px)',
+            zIndex: 10,
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.3)'
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+          </svg>
+          <span>{profile.viewCount.toLocaleString()} views</span>
+        </div>
+      )}
     </div>
   );
 }

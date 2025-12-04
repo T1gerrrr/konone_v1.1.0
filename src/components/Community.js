@@ -145,13 +145,6 @@ export default function Community() {
           {/* Profiles Grid */}
           {!loading && !error && (
             <>
-              <div className="community-stats">
-                <span>
-                  {filteredProfiles.length === 1 
-                    ? t(language, 'community.profileCount', { count: filteredProfiles.length })
-                    : t(language, 'community.profilesCount', { count: filteredProfiles.length })}
-                </span>
-              </div>
 
               {filteredProfiles.length === 0 ? (
                 <div className="community-empty">
