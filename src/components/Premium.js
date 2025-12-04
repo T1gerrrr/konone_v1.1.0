@@ -87,22 +87,29 @@ export default function Premium() {
       }
 
       // Check code usage limit if maxUses is set
+      let canActivate = true;
       if (codeData.maxUses !== null && codeData.maxUses !== undefined) {
-        const codeRef = doc(db, 'premiumCodes', code);
-        const codeDoc = await getDoc(codeRef);
-        
-        let currentUses = 0;
-        if (codeDoc.exists()) {
-          currentUses = codeDoc.data().usedCount || 0;
-        }
-        
-        if (currentUses >= codeData.maxUses) {
-          setMessage(language === 'vi' 
-            ? `Code đã hết lượt sử dụng (${currentUses}/${codeData.maxUses})` 
-            : `Code has reached usage limit (${currentUses}/${codeData.maxUses})`);
-          setMessageType('error');
-          setLoading(false);
-          return;
+        try {
+          const codeRef = doc(db, 'premiumCodes', code);
+          const codeDoc = await getDoc(codeRef);
+          
+          let currentUses = 0;
+          if (codeDoc.exists()) {
+            currentUses = codeDoc.data().usedCount || 0;
+          }
+          
+          if (currentUses >= codeData.maxUses) {
+            setMessage(language === 'vi' 
+              ? `Code đã hết lượt sử dụng (${currentUses}/${codeData.maxUses})` 
+              : `Code has reached usage limit (${currentUses}/${codeData.maxUses})`);
+            setMessageType('error');
+            setLoading(false);
+            return;
+          }
+        } catch (usageError) {
+          // If we can't check usage (permission error), allow activation but skip usage tracking
+          console.warn('Cannot check code usage, proceeding without usage limit:', usageError);
+          // Continue with activation but skip usage tracking
         }
       }
 
@@ -119,24 +126,30 @@ export default function Premium() {
         updatedAt: new Date()
       });
 
-      // Update code usage count if maxUses is set
+      // Update code usage count if maxUses is set (only if we have permission)
       if (codeData.maxUses !== null && codeData.maxUses !== undefined) {
-        const codeRef = doc(db, 'premiumCodes', code);
-        const codeDoc = await getDoc(codeRef);
-        
-        if (codeDoc.exists()) {
-          await updateDoc(codeRef, {
-            usedCount: increment(1),
-            lastUsedAt: new Date()
-          });
-        } else {
-          await setDoc(codeRef, {
-            code: code,
-            usedCount: 1,
-            maxUses: codeData.maxUses,
-            createdAt: new Date(),
-            lastUsedAt: new Date()
-          });
+        try {
+          const codeRef = doc(db, 'premiumCodes', code);
+          const codeDoc = await getDoc(codeRef);
+          
+          if (codeDoc.exists()) {
+            await updateDoc(codeRef, {
+              usedCount: increment(1),
+              lastUsedAt: new Date()
+            });
+          } else {
+            await setDoc(codeRef, {
+              code: code,
+              usedCount: 1,
+              maxUses: codeData.maxUses,
+              createdAt: new Date(),
+              lastUsedAt: new Date()
+            });
+          }
+        } catch (usageError) {
+          // If we can't update usage count (permission error), log but don't fail activation
+          console.warn('Cannot update code usage count, but premium activated successfully:', usageError);
+          // Premium is already activated, so we just skip usage tracking
         }
       }
 

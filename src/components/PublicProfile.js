@@ -171,6 +171,75 @@ export default function PublicProfile() {
     }
   }, [volume]);
 
+  // Handle visibility change to prevent YouTube player from showing other videos
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // When tab is hidden, pause the player if playing
+        if (window.youtubePlayer && isPlaying) {
+          try {
+            window.youtubePlayer.pauseVideo();
+          } catch (e) {
+            console.error('Error pausing video:', e);
+          }
+        }
+        // Hide player element completely when tab is hidden
+        const playerElement = document.getElementById('youtube-player');
+        if (playerElement) {
+          playerElement.style.display = 'none';
+          playerElement.style.visibility = 'hidden';
+        }
+      } else {
+        // When tab is visible again, ensure player is hidden and resume if needed
+        const playerElement = document.getElementById('youtube-player');
+        if (playerElement) {
+          playerElement.style.display = 'none';
+          playerElement.style.visibility = 'hidden';
+        }
+        // Resume if it was playing before
+        if (window.youtubePlayer && isPlaying && !showEnterOverlay) {
+          try {
+            // Small delay to ensure player is ready
+            setTimeout(() => {
+              if (window.youtubePlayer) {
+                window.youtubePlayer.playVideo();
+              }
+            }, 100);
+          } catch (e) {
+            console.error('Error resuming video:', e);
+          }
+        }
+      }
+    };
+
+    // Also handle window focus/blur
+    const handleWindowFocus = () => {
+      const playerElement = document.getElementById('youtube-player');
+      if (playerElement) {
+        playerElement.style.display = 'none';
+        playerElement.style.visibility = 'hidden';
+      }
+    };
+
+    const handleWindowBlur = () => {
+      const playerElement = document.getElementById('youtube-player');
+      if (playerElement) {
+        playerElement.style.display = 'none';
+        playerElement.style.visibility = 'hidden';
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleWindowFocus);
+    window.addEventListener('blur', handleWindowBlur);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleWindowFocus);
+      window.removeEventListener('blur', handleWindowBlur);
+    };
+  }, [isPlaying, showEnterOverlay]);
+
   function toggleMusic() {
     if (!window.youtubePlayer) return;
     
@@ -277,13 +346,53 @@ export default function PublicProfile() {
   const handleEnter = () => {
     setShowEnterOverlay(false);
     // Start music if available
-    if (youtubeVideoId && window.youtubePlayer) {
-      try {
-        window.youtubePlayer.playVideo();
-        setIsPlaying(true);
-      } catch (e) {
-        console.error('Error playing music:', e);
-      }
+    if (youtubeVideoId) {
+      const playMusic = () => {
+        if (window.youtubePlayer) {
+          try {
+            // Check if player is ready
+            const playerState = window.youtubePlayer.getPlayerState();
+            if (playerState === window.YT.PlayerState.UNSTARTED || 
+                playerState === window.YT.PlayerState.PAUSED ||
+                playerState === window.YT.PlayerState.CUED) {
+              window.youtubePlayer.playVideo();
+              setIsPlaying(true);
+            }
+          } catch (e) {
+            console.error('Error playing music:', e);
+            // Retry after a short delay
+            setTimeout(() => {
+              if (window.youtubePlayer) {
+                try {
+                  window.youtubePlayer.playVideo();
+                  setIsPlaying(true);
+                } catch (retryError) {
+                  console.error('Error retrying music:', retryError);
+                }
+              }
+            }, 500);
+          }
+        } else {
+          // Wait for player to be ready
+          const checkPlayer = setInterval(() => {
+            if (window.youtubePlayer) {
+              clearInterval(checkPlayer);
+              try {
+                window.youtubePlayer.playVideo();
+                setIsPlaying(true);
+              } catch (e) {
+                console.error('Error playing music after wait:', e);
+              }
+            }
+          }, 100);
+          
+          // Stop checking after 5 seconds
+          setTimeout(() => clearInterval(checkPlayer), 5000);
+        }
+      };
+      
+      // Small delay to ensure overlay is hidden
+      setTimeout(playMusic, 100);
     }
   };
 
@@ -395,7 +504,9 @@ export default function PublicProfile() {
             height: '1px',
             opacity: 0,
             pointerEvents: 'none',
-            zIndex: -1
+            zIndex: -1,
+            visibility: 'hidden',
+            display: 'none'
           }}
         ></div>
       )}

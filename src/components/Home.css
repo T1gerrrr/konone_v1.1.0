@@ -150,6 +150,17 @@
   box-shadow: 0 10px 20px rgba(220, 38, 38, 0.4);
 }
 
+.logout-btn-header {
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.logout-btn-header:hover {
+  background: linear-gradient(135deg, #B91C1C 0%, #991B1B 100%);
+}
+
 .discord-nav-button {
   display: flex;
   align-items: center;

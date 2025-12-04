@@ -1,12 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../translations';
 import './Home.css';
 
 export default function Home() {
-  const { currentUser } = useAuth();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
   const { language, changeLanguage } = useLanguage();
   const showcaseRef = useRef(null);
   const statsRef = useRef(null);
@@ -129,8 +130,21 @@ export default function Home() {
             </a>
             {currentUser ? (
               <>
-                {/* <Link to="/community" className="nav-link">{t(language, 'home.community')}</Link>
-                <Link to="/dashboard" className="nav-link">{t(language, 'home.dashboard')}</Link> */}
+                <Link to="/dashboard" className="nav-link">{t(language, 'home.dashboard')}</Link>
+                <button 
+                  onClick={async () => {
+                    try {
+                      await logout();
+                      navigate('/');
+                      window.location.reload();
+                    } catch (error) {
+                      console.error('Logout error:', error);
+                    }
+                  }}
+                  className="nav-button logout-btn-header"
+                >
+                  {t(language, 'home.logout')}
+                </button>
               </>
             ) : (
               <>

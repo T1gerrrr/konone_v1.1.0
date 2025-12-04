@@ -9,6 +9,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [successWithTooltip, setSuccessWithTooltip] = useState(false);
   const [loading, setLoading] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const { signup, sendVerificationEmail } = useAuth();
@@ -21,9 +22,10 @@ export default function Register() {
       return setError('Mật khẩu không khớp');
     }
 
-    try {
+      try {
       setError('');
       setSuccess('');
+      setSuccessWithTooltip(false);
       setLoading(true);
       const userCredential = await signup(email, password);
       
@@ -41,7 +43,8 @@ export default function Register() {
         console.log('Verification email sent successfully');
         console.log('Email result:', emailResult);
         setEmailSent(true);
-        setSuccess('Register success! Verification email has been sent to ' + email + '. Please check your email (including Spam/Junk(Trash)). Email may take 1-5 minutes to arrive.');
+        setSuccess('Register success! Verification email has been sent to ' + email + '. Please check your email (including ');
+        setSuccessWithTooltip(true);
       } catch (emailError) {
         console.error('❌ Error sending verification email:', emailError);
         console.error('Error code:', emailError.code);
@@ -51,11 +54,13 @@ export default function Register() {
         // Xử lý lỗi too-many-requests
         if (emailError.code === 'auth/too-many-requests') {
           setEmailSent(false);
+          setSuccessWithTooltip(false);
           setError('Đã gửi quá nhiều email trong thời gian ngắn. Vui lòng đợi 1-2 giờ rồi thử lại từ Dashboard. Hoặc kiểm tra email đã gửi trước đó trong hộp thư.');
           setSuccess('Đăng ký thành công! Bạn có thể đăng nhập và gửi lại email xác thực sau 1-2 giờ.');
         } else {
           // Vẫn cho phép đăng ký thành công nhưng báo lỗi email
           setEmailSent(false);
+          setSuccessWithTooltip(false);
           setError('⚠️ Không thể gửi email xác thực: ' + emailError.message + ' (Code: ' + emailError.code + '). Bạn có thể gửi lại sau.');
           setSuccess('Đăng ký thành công! Nhưng email xác thực chưa được gửi. Bạn có thể gửi lại từ Dashboard.');
         }
@@ -103,7 +108,19 @@ export default function Register() {
       <div className="auth-card">
         <h2>REGISTER</h2>
         {error && <div className="error-message">{error}</div>}
-        {success && <div className="success-message">{success}</div>}
+        {success && (
+          <div className="success-message">
+            {successWithTooltip ? (
+              <>
+                {success}
+                <strong className="spam-tooltip-trigger">Spam/Junk(Trash)</strong>
+                . Email may take 1-5 minutes to arrive.
+              </>
+            ) : (
+              success
+            )}
+          </div>
+        )}
         {emailSent && (
           <div className="verification-notice">
             <p>Email verification has been sent to <strong>{email}</strong></p>

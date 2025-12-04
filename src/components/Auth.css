@@ -293,6 +293,60 @@
   width: 100%;
 }
 
+/* Spam Tooltip with Image */
+.spam-tooltip-trigger {
+  position: relative;
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+
+.spam-tooltip-trigger::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 10px;
+  width: 0;
+  height: 0;
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+  border-top: 10px solid rgba(0, 0, 0, 0.9);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+}
+
+.spam-tooltip-trigger::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 20px;
+  width: 400px;
+  height: 300px;
+  background-image: url('https://raw.githubusercontent.com/T1gerrrr/konone_v1.1.0/refs/heads/main/thurac.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border: 3px solid rgba(255, 255, 255, 0.9);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+  z-index: 1000;
+}
+
+.spam-tooltip-trigger:hover::before,
+.spam-tooltip-trigger:hover::after {
+  opacity: 1;
+}
+
 /* Responsive */
 @media (max-width: 480px) {
   .auth-card {
@@ -313,6 +367,13 @@
   .auth-button {
     padding: 14px;
     font-size: 15px;
+  }
+
+  .spam-tooltip-trigger::after {
+    width: 300px;
+    height: 225px;
+    left: 50%;
+    transform: translateX(-50%);
   }
 }
 
