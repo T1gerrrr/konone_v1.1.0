@@ -22,10 +22,11 @@ export default function PublicProfile() {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(true);
+  const [isPlaying, setIsPlaying] = useState(false); // Start with false, will play after Enter
   const [volume, setVolume] = useState(50);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
   const [profileDocId, setProfileDocId] = useState(null);
+  const [showEnterOverlay, setShowEnterOverlay] = useState(true);
   const viewCountUpdated = useRef(false);
 
   // Get YouTube video ID (before early returns)
@@ -115,7 +116,7 @@ export default function PublicProfile() {
         player = new window.YT.Player('youtube-player', {
           videoId: youtubeVideoId,
           playerVars: {
-            autoplay: 1,
+            autoplay: 0, // Don't autoplay, wait for Enter button
             loop: 1,
             playlist: youtubeVideoId,
             controls: 0,
@@ -126,7 +127,7 @@ export default function PublicProfile() {
           events: {
             onReady: (event) => {
               event.target.setVolume(volume);
-              setIsPlaying(true);
+              setIsPlaying(false); // Don't auto play
               window.youtubePlayer = event.target;
             }
           }
@@ -272,6 +273,20 @@ export default function PublicProfile() {
   // Card color - default to magenta if not set
   const cardColor = profile.cardColor || '#C71585';
 
+  // Handle Enter button click
+  const handleEnter = () => {
+    setShowEnterOverlay(false);
+    // Start music if available
+    if (youtubeVideoId && window.youtubePlayer) {
+      try {
+        window.youtubePlayer.playVideo();
+        setIsPlaying(true);
+      } catch (e) {
+        console.error('Error playing music:', e);
+      }
+    }
+  };
+
   // Check if user has premium
   const isPremium = profile.isPremium && profile.premiumExpiresAt?.toDate ? 
     profile.premiumExpiresAt.toDate() > new Date() : 
@@ -352,6 +367,23 @@ export default function PublicProfile() {
 
       {/* Effects */}
       {renderEffect()}
+
+      {/* Enter Overlay */}
+      {showEnterOverlay && !loading && profile && (
+        <div className="enter-overlay">
+          <div className="enter-overlay-content">
+            <button 
+              className="enter-button"
+              onClick={handleEnter}
+            >
+              <span className="enter-text">Click</span>
+              {/* <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="enter-icon">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+              </svg> */}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* YouTube Music Player (Hidden) */}
       {youtubeVideoId && (
