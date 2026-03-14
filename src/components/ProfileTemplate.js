@@ -1,17 +1,14 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate } from 'react-router-dom';
 import { uploadToCloudinary } from '../config/cloudinary';
 import './ProfileTemplate.css';
 
 export default function ProfileTemplate() {
   const { currentUser } = useAuth();
-  const { language } = useLanguage();
   const navigate = useNavigate();
-  const [uploading, setUploading] = useState(false);
   const [uploadingSection, setUploadingSection] = useState(null);
-  
+
   // Template data
   const [templateData, setTemplateData] = useState({
     background: '',
@@ -33,7 +30,7 @@ export default function ProfileTemplate() {
 
   async function handleImageUpload(file, section) {
     if (!file) return;
-    
+
     if (!file.type.startsWith('image/')) {
       alert('Vui lòng chọn file ảnh');
       return;
@@ -43,8 +40,7 @@ export default function ProfileTemplate() {
       alert('Kích thước ảnh không được vượt quá 10MB');
       return;
     }
-    
-    setUploading(true);
+
     setUploadingSection(section);
     try {
       const folder = `profiles/${currentUser.uid}/template/${section}`;
@@ -57,7 +53,6 @@ export default function ProfileTemplate() {
       console.error('Upload error:', error);
       alert('Lỗi khi tải ảnh lên: ' + error.message);
     } finally {
-      setUploading(false);
       setUploadingSection(null);
     }
   }
@@ -128,7 +123,7 @@ export default function ProfileTemplate() {
           <div className="template-preview-container">
             <div className="template-preview">
               {/* Background - Clickable */}
-              <div 
+              <div
                 className={`template-background ${templateData.background ? 'has-image' : ''}`}
                 onClick={() => handleSectionClick('background')}
                 style={{
@@ -150,7 +145,7 @@ export default function ProfileTemplate() {
                   </div>
                 )}
                 {templateData.background && (
-                  <button 
+                  <button
                     className="remove-image-btn"
                     onClick={(e) => {
                       e.stopPropagation();
@@ -172,7 +167,7 @@ export default function ProfileTemplate() {
               {/* Content Area */}
               <div className="template-content">
                 {/* Avatar Section - Clickable */}
-                <div 
+                <div
                   className={`template-avatar-section ${templateData.avatar ? 'has-image' : ''}`}
                   onClick={() => handleSectionClick('avatar')}
                 >
@@ -183,7 +178,7 @@ export default function ProfileTemplate() {
                   ) : templateData.avatar ? (
                     <>
                       <img src={templateData.avatar} alt="Avatar" />
-                      <button 
+                      <button
                         className="remove-image-btn small"
                         onClick={(e) => {
                           e.stopPropagation();
@@ -217,7 +212,7 @@ export default function ProfileTemplate() {
                 {/* Sections Grid */}
                 <div className="template-sections-grid">
                   {/* Section 1 */}
-                  <div 
+                  <div
                     className={`template-section ${templateData.section1 ? 'has-image' : ''}`}
                     onClick={() => handleSectionClick('section1')}
                   >
@@ -228,7 +223,7 @@ export default function ProfileTemplate() {
                     ) : templateData.section1 ? (
                       <>
                         <img src={templateData.section1} alt="Section 1" />
-                        <button 
+                        <button
                           className="remove-image-btn small"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -254,7 +249,7 @@ export default function ProfileTemplate() {
                   </div>
 
                   {/* Section 2 */}
-                  <div 
+                  <div
                     className={`template-section ${templateData.section2 ? 'has-image' : ''}`}
                     onClick={() => handleSectionClick('section2')}
                   >
@@ -265,7 +260,7 @@ export default function ProfileTemplate() {
                     ) : templateData.section2 ? (
                       <>
                         <img src={templateData.section2} alt="Section 2" />
-                        <button 
+                        <button
                           className="remove-image-btn small"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -291,7 +286,7 @@ export default function ProfileTemplate() {
                   </div>
 
                   {/* Section 3 */}
-                  <div 
+                  <div
                     className={`template-section ${templateData.section3 ? 'has-image' : ''}`}
                     onClick={() => handleSectionClick('section3')}
                   >
@@ -302,7 +297,7 @@ export default function ProfileTemplate() {
                     ) : templateData.section3 ? (
                       <>
                         <img src={templateData.section3} alt="Section 3" />
-                        <button 
+                        <button
                           className="remove-image-btn small"
                           onClick={(e) => {
                             e.stopPropagation();
@@ -328,7 +323,7 @@ export default function ProfileTemplate() {
                   </div>
 
                   {/* Section 4 */}
-                  <div 
+                  <div
                     className={`template-section ${templateData.section4 ? 'has-image' : ''}`}
                     onClick={() => handleSectionClick('section4')}
                   >
@@ -339,7 +334,7 @@ export default function ProfileTemplate() {
                     ) : templateData.section4 ? (
                       <>
                         <img src={templateData.section4} alt="Section 4" />
-                        <button 
+                        <button
                           className="remove-image-btn small"
                           onClick={(e) => {
                             e.stopPropagation();

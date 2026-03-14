@@ -14,9 +14,8 @@ import {
   ConfettiEffect,
   NebulaEffect
 } from './Effects';
-import { getYouTubeEmbedUrl, getYouTubeVideoId } from '../utils/youtube';
+import { getYouTubeVideoId } from '../utils/youtube';
 import { useLanguage } from '../contexts/LanguageContext';
-import { t } from '../translations';
 import './PublicProfile.css';
 
 export default function PublicProfile() {
@@ -28,7 +27,6 @@ export default function PublicProfile() {
   const [isPlaying, setIsPlaying] = useState(false); // Start with false, will play after Enter
   const [volume, setVolume] = useState(50);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
-  const [profileDocId, setProfileDocId] = useState(null);
   const [showEnterOverlay, setShowEnterOverlay] = useState(true);
   const viewCountUpdated = useRef(false);
 
@@ -57,8 +55,6 @@ export default function PublicProfile() {
           const profileDoc = querySnapshot.docs[0];
           const profileData = profileDoc.data();
           console.log('Profile data found:', profileData);
-          setProfileDocId(profileDoc.id);
-
           // Tăng view count chỉ 1 lần
           if (!viewCountUpdated.current) {
             viewCountUpdated.current = true;
@@ -156,7 +152,7 @@ export default function PublicProfile() {
         } catch (e) { }
       }
     };
-  }, [youtubeVideoId]); // Removed volume from dependencies
+  }, [youtubeVideoId, volume]);
 
   // Update volume when changed - Separate effect to avoid reinitializing player
   useEffect(() => {
@@ -320,7 +316,7 @@ export default function PublicProfile() {
         existingStyle.remove();
       }
     }
-  }, [profile?.cursorIcon, profile?.isPremium, profile?.premiumExpiresAt]);
+  }, [profile?.cursorIcon, profile?.isPremium, profile?.premiumExpiresAt, profile]);
 
   if (loading) {
     return (
@@ -467,6 +463,7 @@ export default function PublicProfile() {
             allow="autoplay; encrypted-media"
             allowFullScreen
             className="background-video"
+            title="Background Video"
           />
           <div className="video-overlay"></div>
         </div>

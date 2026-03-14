@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { collection, getDocs, query, orderBy, limit, startAfter } from 'firebase/firestore';
+import { Link } from 'react-router-dom';
+import { collection, getDocs, query, orderBy, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -10,7 +10,6 @@ import './Community.css';
 export default function Community() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
-  const navigate = useNavigate();
   const [profiles, setProfiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -23,12 +22,12 @@ export default function Community() {
         const profilesRef = collection(db, 'profiles');
         // Get profiles ordered by updatedAt descending
         const q = query(
-          profilesRef, 
+          profilesRef,
           orderBy('updatedAt', 'desc'),
           limit(50)
         );
         const querySnapshot = await getDocs(q);
-        
+
         const profilesList = [];
         querySnapshot.forEach((doc) => {
           const data = doc.data();
@@ -40,7 +39,7 @@ export default function Community() {
             });
           }
         });
-        
+
         setProfiles(profilesList);
       } catch (error) {
         console.error('Error fetching profiles:', error);
@@ -51,7 +50,7 @@ export default function Community() {
     }
 
     fetchProfiles();
-  }, []);
+  }, [language]);
 
   // Filter profiles based on search term
   const filteredProfiles = profiles.filter(profile => {
@@ -74,14 +73,14 @@ export default function Community() {
       <header className="community-header">
         <div className="community-header-content">
           <Link to="/" className="community-logo">
-            <img 
-              src="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png" 
-              alt="KonOne Logo" 
+            <img
+              src="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png"
+              alt="KonOne Logo"
               className="logo-icon"
             />
             <span className="logo-text">KonOne</span>
           </Link>
-          
+
           <div className="community-header-actions">
             {currentUser ? (
               <>
@@ -150,7 +149,7 @@ export default function Community() {
                 <div className="community-empty">
                   <p>{t(language, 'community.noProfiles')}</p>
                   {searchTerm && (
-                    <button 
+                    <button
                       onClick={() => setSearchTerm('')}
                       className="clear-search-btn"
                     >
@@ -163,7 +162,7 @@ export default function Community() {
                   {filteredProfiles.map((profile) => {
                     const cardColor = getCardColor(profile);
                     const hasCustomCard = profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0);
-                    
+
                     return (
                       <Link
                         key={profile.id}
@@ -172,13 +171,13 @@ export default function Community() {
                       >
                         <div className="profile-card-item-wrapper">
                           {/* Cover/Banner */}
-                          <div 
+                          <div
                             className="profile-card-cover-small"
                             style={{
-                              backgroundImage: profile.coverImage 
-                                ? `url(${profile.coverImage})` 
-                                : (profile.backgroundImage 
-                                  ? `url(${profile.backgroundImage})` 
+                              backgroundImage: profile.coverImage
+                                ? `url(${profile.coverImage})`
+                                : (profile.backgroundImage
+                                  ? `url(${profile.backgroundImage})`
                                   : `linear-gradient(135deg, #DC2626 0%, #C71585 100%)`)
                             }}
                           >
@@ -244,8 +243,8 @@ export default function Community() {
                             {profile.hashtags && profile.hashtags.length > 0 && (
                               <div className="profile-hashtags-small">
                                 {profile.hashtags.slice(0, 2).map((tag, index) => (
-                                  <span 
-                                    key={index} 
+                                  <span
+                                    key={index}
                                     className="hashtag-tag-small"
                                     style={{
                                       background: `${cardColor}33`,

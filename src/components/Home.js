@@ -9,12 +9,10 @@ export default function Home() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const { language, changeLanguage } = useLanguage();
-  const showcaseRef = useRef(null);
   const statsRef = useRef(null);
   const pricingRef = useRef(null);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   // Scroll animation observer
   useEffect(() => {
@@ -90,7 +88,7 @@ export default function Home() {
 
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [lastScrollY]);
+  }, [lastScrollY, isHeaderVisible]);
 
   return (
     <div className="home-page">

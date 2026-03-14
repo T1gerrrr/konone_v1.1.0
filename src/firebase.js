@@ -18,10 +18,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 
 // Initialize analytics only in browser environment
-let analytics = null;
 if (typeof window !== 'undefined') {
   try {
-    analytics = getAnalytics(app);
+    getAnalytics(app);
   } catch (error) {
     console.log('Analytics initialization skipped:', error);
   }
