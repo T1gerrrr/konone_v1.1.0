@@ -24,20 +24,21 @@
 /* Website Logo */
 .profile-logo {
   position: fixed;
-  top: 30px;
+  top: 25px;
   left: 30px;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   text-decoration: none;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.075);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(10px);
-  padding: 12px 20px;
-  border-radius: 50px;
-  transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  background: rgba(10, 10, 10, 0.3);
+  backdrop-filter: blur(25px) saturate(180%);
+  -webkit-backdrop-filter: blur(25px) saturate(180%);
+  padding: 10px 24px;
+  border-radius: 100px;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
 }
 
 .profile-logo:hover {
@@ -88,23 +89,29 @@
 
 /* Ensure video covers full screen - maintain aspect ratio while covering entire viewport */
 @media (min-aspect-ratio: 16/9) {
+
   /* Screen is wider than 16:9 */
   .background-video {
     width: 100vw;
-    height: 56.25vw; /* 16:9 aspect ratio */
+    height: 56.25vw;
+    /* 16:9 aspect ratio */
     min-height: 100vh;
-    min-width: 177.78vh; /* 16:9 aspect ratio */
+    min-width: 177.78vh;
+    /* 16:9 aspect ratio */
     transform: translate(-50%, -50%);
   }
 }
 
 @media (max-aspect-ratio: 16/9) {
+
   /* Screen is taller than 16:9 */
   .background-video {
-    width: 177.78vh; /* 16:9 aspect ratio */
+    width: 177.78vh;
+    /* 16:9 aspect ratio */
     height: 100vh;
     min-width: 100vw;
-    min-height: 56.25vw; /* 16:9 aspect ratio */
+    min-height: 56.25vw;
+    /* 16:9 aspect ratio */
     transform: translate(-50%, -50%);
   }
 }
@@ -162,7 +169,7 @@
   border-top-left-radius: 50%;
   border-top-right-radius: 50%;
   background: linear-gradient(135deg, rgba(220, 38, 38, 0.4) 0%, rgba(199, 21, 133, 0.4) 100%);
-  box-shadow: 
+  box-shadow:
     0 4px 15px rgba(0, 0, 0, 0.5),
     inset 0 -2px 5px rgba(220, 38, 38, 0.4),
     0 0 20px rgba(220, 38, 38, 0.3);
@@ -190,12 +197,12 @@
 .hanger-string {
   width: 4px;
   height: 65px;
-  background: linear-gradient(180deg, 
-    rgba(220, 38, 38, 0.9) 0%, 
-    rgba(199, 21, 133, 0.9) 30%,
-    rgba(220, 38, 38, 0.9) 60%,
-    rgba(199, 21, 133, 0.9) 100%);
-  box-shadow: 
+  background: linear-gradient(180deg,
+      rgba(220, 38, 38, 0.9) 0%,
+      rgba(199, 21, 133, 0.9) 30%,
+      rgba(220, 38, 38, 0.9) 60%,
+      rgba(199, 21, 133, 0.9) 100%);
+  box-shadow:
     0 0 15px rgba(220, 38, 38, 0.6),
     inset 0 0 10px rgba(199, 21, 133, 0.4),
     2px 0 5px rgba(0, 0, 0, 0.3),
@@ -216,7 +223,7 @@
   height: 12px;
   background: radial-gradient(circle, rgba(220, 38, 38, 1) 0%, rgba(199, 21, 133, 0.9) 50%, rgba(220, 38, 38, 0.8) 100%);
   border-radius: 50%;
-  box-shadow: 
+  box-shadow:
     0 0 20px rgba(220, 38, 38, 0.8),
     0 0 30px rgba(199, 21, 133, 0.5),
     inset 0 0 10px rgba(255, 255, 255, 0.2);
@@ -224,18 +231,24 @@
 }
 
 @keyframes hookSwing {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: rotate(-1.5deg);
   }
+
   50% {
     transform: rotate(1.5deg);
   }
 }
 
 @keyframes stringSwing {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: rotate(-2.5deg);
   }
+
   50% {
     transform: rotate(2.5deg);
   }
@@ -265,15 +278,20 @@
 }
 
 @keyframes cardSwing {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: rotate(-2deg);
   }
+
   25% {
     transform: rotate(2deg);
   }
+
   50% {
     transform: rotate(-1.5deg);
   }
+
   75% {
     transform: rotate(1.5deg);
   }
@@ -283,9 +301,11 @@
   0% {
     transform: translateY(-10px) rotateX(-5deg) rotateY(5deg) scale(1.02);
   }
+
   50% {
     transform: translateY(-15px) rotateX(-7deg) rotateY(7deg) scale(1.03);
   }
+
   100% {
     transform: translateY(-10px) rotateX(-5deg) rotateY(5deg) scale(1.02);
   }
@@ -542,6 +562,7 @@
     opacity: 0;
     transform: translateY(50px) scale(0.9);
   }
+
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
@@ -639,8 +660,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .profile-error h2 {
@@ -716,6 +742,7 @@
     opacity: 0;
     transform: translateY(-10px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -793,6 +820,7 @@
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }
@@ -804,8 +832,8 @@
 
 .enter-button {
   background: linear-gradient(180deg, #adadad73 0%, #5a5a5a69 100%);
-  border: 5px solid #1d1d1d ;
- 
+  border: 5px solid #1d1d1d;
+
   border-radius: 50px;
   padding: 20px 60px;
   color: white;
@@ -861,9 +889,12 @@
 }
 
 @keyframes arrowPulse {
-  0%, 100% {
+
+  0%,
+  100% {
     transform: translateX(0);
   }
+
   50% {
     transform: translateX(5px);
   }
@@ -958,11 +989,11 @@
   }
 }
 
-.unlock-premium-btn{
+.unlock-premium-btn {
   background: linear-gradient(135deg, #DC2626 0%, #C71585 100%);
   color: #ffffff;
   padding: 12px 20px;
   border-radius: 8px;
   font-weight: 600;
-  
+
 }

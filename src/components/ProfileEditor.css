@@ -1,7 +1,8 @@
 .profile-editor-layout {
   min-height: 100vh;
   display: flex;
-  background: #1a0a0a;
+  background: url('../../public/bg_konone.png') no-repeat center center fixed;
+  background-size: cover;
   color: #ffffff;
 }
 

@@ -3,20 +3,37 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #0a0a0a 0%, #2e1a1a 50%, #3e1616 100%);
+  background: url('../../public/bg_konone.png') no-repeat center center fixed;
+  background-size: cover;
   padding: 20px;
   position: relative;
   overflow: hidden;
 }
-.auth-logo{
+
+.auth-logo {
   position: absolute;
-  top: 20px;
-  left: 20px;
-  width: 100px;
-  height: 100px;
+  top: 25px;
+  left: 30px;
+  width: auto;
+  height: 54px;
   object-fit: contain;
-  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+  z-index: 10;
+  padding: 8px 16px;
+  background: rgba(10, 10, 10, 0.3);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-radius: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
+
+.auth-logo:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
 .auth-container::before {
   content: '';
   position: absolute;
@@ -43,6 +60,7 @@
   from {
     transform: rotate(0deg);
   }
+
   to {
     transform: rotate(360deg);
   }
@@ -56,7 +74,7 @@
   padding: 50px 40px;
   border-radius: 24px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3),
-              inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   width: 100%;
   max-width: 450px;
   animation: slideUp 0.6s ease-out;
@@ -69,6 +87,7 @@
     opacity: 0;
     transform: translateY(30px);
   }
+
   to {
     opacity: 1;
     transform: translateY(0);
@@ -122,7 +141,7 @@
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(246, 92, 92, 0.5);
   box-shadow: 0 0 0 3px rgba(246, 92, 92, 0.1),
-              0 4px 12px rgba(0, 0, 0, 0.2);
+    0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .form-group input:hover {
@@ -250,7 +269,7 @@
 .resend-btn:hover:not(:disabled) {
   background: linear-gradient(135deg, #ff9696 0%, #ff7c7c 100%);
   transform: translateY(-2px);
- 
+
 }
 
 .resend-btn:disabled {
@@ -376,4 +395,3 @@
     transform: translateX(-50%);
   }
 }
-

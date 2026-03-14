@@ -1,6 +1,7 @@
 .dashboard {
   min-height: 100vh;
-  background: #0f0f0f;
+  background: url('../../public/bg_konone.png') no-repeat center center fixed;
+  background-size: cover;
   display: flex;
   color: white;
 }

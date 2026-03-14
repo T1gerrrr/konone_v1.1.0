@@ -1,20 +1,28 @@
 .community-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #0a0a0a 0%, #1a0a0a 100%);
+  background: url('../../public/bg_konone.png') no-repeat center center fixed;
+  background-size: cover;
   color: #ffffff;
 }
 
 /* Header */
 .community-header {
-  background: rgba(26, 26, 26, 0.8);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 20px 0;
-  position: sticky;
-  top: 0;
+  position: fixed;
+  top: 20px;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  width: 95%;
+  max-width: 1400px;
   z-index: 1000;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  padding: 8px 0;
+  background: rgba(10, 10, 10, 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 100px;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
 
 .community-header-content {
@@ -39,9 +47,10 @@
 }
 
 .community-logo .logo-icon {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(220, 38, 38, 0.3));
 }
 
 .community-logo .logo-text {
@@ -60,31 +69,35 @@
 }
 
 .header-btn {
-  padding: 10px 20px;
-  border-radius: 8px;
+  padding: 8px 15px;
+  border-radius: 100px;
   text-decoration: none;
-  font-size: 14px;
-  font-weight: 600;
-  transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  background: rgba(255, 255, 255, 0.05);
-  color: #ffffff;
+  font-size: 14.5px;
+  font-weight: 500;
+  transition: all 0.3s cubic-bezier(0.23, 1, 0.32, 1);
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .header-btn:hover {
-  background: rgba(255, 255, 255, 0.1);
-  transform: translateY(-2px);
+  color: white;
+  transform: translateY(-1px);
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
 }
 
 .header-btn.primary {
   background: linear-gradient(135deg, #DC2626 0%, #C71585 100%);
   border: none;
-  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.2);
 }
 
 .header-btn.primary:hover {
-  box-shadow: 0 6px 20px rgba(220, 38, 38, 0.5);
+  box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
   transform: translateY(-2px);
+  background: linear-gradient(135deg, #ef4444 0%, #d81b60 100%);
 }
 
 /* Main Content */
@@ -183,8 +196,13 @@
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .clear-search-btn {
@@ -400,5 +418,3 @@
     padding: 30px 15px;
   }
 }
-
-
