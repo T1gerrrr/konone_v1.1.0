@@ -802,48 +802,56 @@ export default function PublicProfile() {
                 </div>
               )}
 
-              {/* Discord-style Presence Card */}
+              {/* Premium Music Player Presence Card */}
               {(profile.presenceTitle || profile.presenceSubtitle) && (
-                <div className="presence-card">
-                  <div className="presence-header">
-                    <span className="presence-label">
-                      {profile.presenceType === 'playing' ? (language === 'vi' ? 'Đang chơi' : 'Playing') :
-                        profile.presenceType === 'streaming' ? (language === 'vi' ? 'Đang stream' : 'Streaming') :
-                          profile.presenceType === 'competing' ? (language === 'vi' ? 'Đang thi đấu' : 'Competing') :
-                            profile.presenceType === 'watching' ? (language === 'vi' ? 'Đang xem' : 'Watching') :
-                              (language === 'vi' ? 'Đang nghe' : 'Listening to')}
-                    </span>
+                <div className="music-player-card">
+                  <div className="player-disc-container">
+                    <div className={`vinyl-disc ${isPlaying ? 'spinning' : ''}`}>
+                      <div className="vinyl-texture"></div>
+                      <div className="disc-avatar-container">
+                        {profile.avatar ? (
+                          <img src={profile.avatar} alt="Avatar" className="disc-avatar" />
+                        ) : (
+                          <div className="disc-avatar-placeholder">
+                            {profile.displayName?.charAt(0).toUpperCase() || '?'}
+                          </div>
+                        )}
+                      </div>
+                      <div className="disc-center-hole"></div>
+                    </div>
                   </div>
-                  <div className="presence-content">
-                    <div className="presence-icon">
-                      {profile.presenceIcon ? (
-                        <div className={`presence-icon-wrapper ${profile.presenceIcon}`}>
-                          {profile.presenceIcon === 'fivem' && <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 12l10 10 10-10L12 2zm0 18l-8-8 8-8 8 8-8 8z" /></svg>}
-                          {profile.presenceIcon === 'pubg' && <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 7h2v6h-2V7zm0 8h2v2h-2v-2z" /></svg>}
-                          {profile.presenceIcon === 'lol' && <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>}
-                          {profile.presenceIcon === 'valorant' && <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.1c-5.5 0-10 4.5-10 10s4.5 10 10 10 10-4.5 10-10-4.5-10-10-10zm0 18c-4.4 0-8-3.6-8-8s3.6-8 8-8 8 3.6 8 8-3.6 8-8 8zM11 7h2v6h-2V7zm0 8h2v2h-2v-2z" /></svg>}
-                          {profile.presenceIcon === 'lua' && <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zM11 7h2v6h-2V7zm0 8h2v2h-2v-2z" /></svg>}
-                          {profile.presenceIcon === 'html' && <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" /></svg>}
-                          {profile.presenceIcon === 'react' && <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="2" /><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.523 10-10 10zm0-18a8 8 0 100 16 8 8 0 000-16z" /></svg>}
-                          {/* Add other icons based on name if no specific SVG */}
-                          {!['fivem', 'pubg', 'lol', 'valorant', 'lua', 'html', 'react'].includes(profile.presenceIcon) && (
-                            <span className="presence-icon-text">{profile.presenceIcon.toUpperCase().charAt(0)}</span>
+                  <div className="player-info-container">
+                    <div className="song-details">
+                      <div className="song-title">{profile.presenceTitle || (language === 'vi' ? 'Không có tiêu đề' : 'No title')}</div>
+                      <div className="artist-name">{profile.presenceSubtitle || (language === 'vi' ? 'Không có mô tả' : 'No description')}</div>
+                    </div>
+
+                    <div className="playback-controls">
+                      <div className="progress-container">
+                        <div className="progress-bar-bg">
+                          <div className="progress-bar-fill" style={{ width: isPlaying ? '45%' : '0%' }}></div>
+                        </div>
+                      </div>
+
+                      <div className="control-icons">
+                        <svg className="control-icon" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6 6h2v12H6zm3.5 6L18 18V6z" />
+                        </svg>
+                        <div className="play-pause-btn">
+                          {isPlaying ? (
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                            </svg>
+                          ) : (
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M8 5v14l11-7z" />
+                            </svg>
                           )}
                         </div>
-                      ) : (
-                        profile.avatar ? (
-                          <img src={profile.avatar} alt="Presence" className="presence-avatar-img" />
-                        ) : (
-                          <div className="presence-avatar-placeholder">
-                            {profile.displayName ? profile.displayName.charAt(0).toUpperCase() : '?'}
-                          </div>
-                        )
-                      )}
-                    </div>
-                    <div className="presence-info">
-                      <div className="presence-title">{profile.presenceTitle || (language === 'vi' ? 'Không có tiêu đề' : 'No title')}</div>
-                      <div className="presence-subtitle">{profile.presenceSubtitle || (language === 'vi' ? 'Không có mô tả' : 'No description')}</div>
-                      {isPlaying && <div className="presence-status">{language === 'vi' ? 'Đang phát...' : 'Playing...'}</div>}
+                        <svg className="control-icon" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M6 18l8.5-6L6 6zm9-12v12h2V6z" />
+                        </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
