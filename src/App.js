@@ -12,6 +12,7 @@ import PublicProfile from './components/PublicProfile';
 import Premium from './components/Premium';
 import Community from './components/Community';
 import ProfileTemplate from './components/ProfileTemplate';
+import LayoutEditor from './components/LayoutEditor';
 import './App.css';
 
 function App() {
@@ -25,37 +26,45 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/community" element={<Community />} />
-              <Route 
-                path="/dashboard" 
+              <Route
+                path="/dashboard"
                 element={
                   <PrivateRoute>
                     <Dashboard />
                   </PrivateRoute>
-                } 
+                }
               />
-              <Route 
-                path="/edit-profile" 
+              <Route
+                path="/edit-profile"
                 element={
                   <PrivateRoute>
                     <ProfileEditor />
                   </PrivateRoute>
-                } 
+                }
               />
-              <Route 
-                path="/premium" 
+              <Route
+                path="/premium"
                 element={
                   <PrivateRoute>
                     <Premium />
                   </PrivateRoute>
-                } 
+                }
               />
-              <Route 
-                path="/profile-template" 
+              <Route
+                path="/profile-template"
                 element={
                   <PrivateRoute>
                     <ProfileTemplate />
                   </PrivateRoute>
-                } 
+                }
+              />
+              <Route
+                path="/edit-layout"
+                element={
+                  <PrivateRoute>
+                    <LayoutEditor />
+                  </PrivateRoute>
+                }
               />
               <Route path="/:username" element={<PublicProfile />} />
             </Routes>

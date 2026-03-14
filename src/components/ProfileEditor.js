@@ -6,11 +6,11 @@ import { collection, query, where, getDocs, addDoc, updateDoc, doc } from 'fireb
 import { db } from '../firebase';
 import { uploadToCloudinary } from '../config/cloudinary';
 import { t } from '../translations';
-import { 
-  SnowEffect, 
-  RainEffect, 
-  StarsEffect, 
-  ParticlesEffect, 
+import {
+  SnowEffect,
+  RainEffect,
+  StarsEffect,
+  ParticlesEffect,
   LeavesEffect,
   AuroraEffect,
   FireworksEffect,
@@ -44,7 +44,7 @@ export default function ProfileEditor() {
   const [textBorderStyle, setTextBorderStyle] = useState('solid');
   const [selectedSocialLink, setSelectedSocialLink] = useState('');
   const [viewCount, setViewCount] = useState(0);
-  
+
   const [formData, setFormData] = useState({
     username: '',
     displayName: '',
@@ -73,7 +73,11 @@ export default function ProfileEditor() {
     turma: '',
     hashtags: [],
     cardColor: '', // Màu thẻ, để trống sẽ dùng màu mặc định
-    cursorIcon: '' // Custom cursor icon
+    cursorIcon: '', // Custom cursor icon
+    presenceType: 'listening', // activity type: playing, listening, watching, etc.
+    presenceTitle: '', // activity title
+    presenceSubtitle: '', // activity subtitle
+    presenceIcon: '' // activity icon (game or coding)
   });
 
   useEffect(() => {
@@ -82,18 +86,18 @@ export default function ProfileEditor() {
         const profilesRef = collection(db, 'profiles');
         const q = query(profilesRef, where('userId', '==', currentUser.uid));
         const querySnapshot = await getDocs(q);
-        
+
         if (!querySnapshot.empty) {
           const profileData = querySnapshot.docs[0].data();
           setProfileId(querySnapshot.docs[0].id);
-          
+
           // Check premium status
-          const premiumExpiresAt = profileData.premiumExpiresAt?.toDate ? 
-            profileData.premiumExpiresAt.toDate() : 
+          const premiumExpiresAt = profileData.premiumExpiresAt?.toDate ?
+            profileData.premiumExpiresAt.toDate() :
             (profileData.premiumExpiresAt ? new Date(profileData.premiumExpiresAt) : null);
           const isPremiumActive = profileData.isPremium && premiumExpiresAt && premiumExpiresAt > new Date();
           setIsPremium(isPremiumActive);
-          
+
           setFormData({
             username: profileData.username || '',
             displayName: profileData.displayName || '',
@@ -121,20 +125,24 @@ export default function ProfileEditor() {
             turma: profileData.turma || '',
             hashtags: Array.isArray(profileData.hashtags) ? profileData.hashtags : [],
             cardColor: profileData.cardColor || '',
-            cursorIcon: profileData.cursorIcon || ''
+            cursorIcon: profileData.cursorIcon || '',
+            presenceType: profileData.presenceType || 'listening',
+            presenceTitle: profileData.presenceTitle || '',
+            presenceSubtitle: profileData.presenceSubtitle || '',
+            presenceIcon: profileData.presenceIcon || ''
           });
-          
+
           // Load profile opacity and blur
           setProfileOpacity(profileData.profileOpacity || 50);
           setProfileBlur(profileData.profileBlur || 50);
-          
+
           // Load Premium text styling
           setTextFontFamily(profileData.textFontFamily || 'Arial');
           setText3DEffect(profileData.text3DEffect || false);
           setTextBorderWidth(profileData.textBorderWidth || 0);
           setTextBorderColor(profileData.textBorderColor || '#ffffff');
           setTextBorderStyle(profileData.textBorderStyle || 'solid');
-          
+
           // Load view count
           setViewCount(profileData.viewCount || 0);
         }
@@ -150,7 +158,7 @@ export default function ProfileEditor() {
 
   async function handleImageUpload(file, type) {
     if (!file) return null;
-    
+
     if (!file.type.startsWith('image/')) {
       alert('Vui lòng chọn file ảnh');
       return null;
@@ -160,7 +168,7 @@ export default function ProfileEditor() {
       alert('Kích thước ảnh không được vượt quá 10MB');
       return null;
     }
-    
+
     // Set uploading state for specific type
     if (type === 'avatar') {
       setUploadingAvatar(true);
@@ -170,7 +178,7 @@ export default function ProfileEditor() {
       setUploadingBackground(true);
     }
     setUploading(true);
-    
+
     try {
       const folder = `profiles/${currentUser.uid}/${type}`;
       const url = await uploadToCloudinary(file, folder);
@@ -228,12 +236,12 @@ export default function ProfileEditor() {
       }
 
       const normalizedUsername = formData.username.toLowerCase().trim();
-      
+
       // Clean hashtags - remove empty strings and ensure valid array
-      const cleanHashtags = Array.isArray(formData.hashtags) 
+      const cleanHashtags = Array.isArray(formData.hashtags)
         ? formData.hashtags.filter(tag => tag && typeof tag === 'string' && tag.trim() !== '')
         : [];
-      
+
       // Clean socialLinks - ensure all fields are strings
       const cleanSocialLinks = {
         facebook: String(formData.socialLinks?.facebook || ''),
@@ -242,7 +250,7 @@ export default function ProfileEditor() {
         linkedin: String(formData.socialLinks?.linkedin || ''),
         tiktok: String(formData.socialLinks?.tiktok || '')
       };
-      
+
       // Build profile data object - only include valid fields
       const profileData = {
         username: normalizedUsername,
@@ -267,6 +275,10 @@ export default function ProfileEditor() {
         hashtags: cleanHashtags,
         cardColor: String(formData.cardColor || ''),
         cursorIcon: String(formData.cursorIcon || ''),
+        presenceType: String(formData.presenceType || 'listening'),
+        presenceTitle: String(formData.presenceTitle || ''),
+        presenceSubtitle: String(formData.presenceSubtitle || ''),
+        presenceIcon: String(formData.presenceIcon || ''),
         profileOpacity: Number(profileOpacity) || 50,
         profileBlur: Number(profileBlur) || 50,
         textFontFamily: String(textFontFamily || 'Arial'),
@@ -286,7 +298,7 @@ export default function ProfileEditor() {
           where('username', '==', normalizedUsername)
         );
         const usernameSnapshot = await getDocs(usernameCheck);
-        
+
         if (!usernameSnapshot.empty) {
           alert('Tên người dùng đã tồn tại. Vui lòng chọn tên khác.');
           setLoading(false);
@@ -347,7 +359,7 @@ export default function ProfileEditor() {
     }));
   }
 
-  const profileLink = formData.username 
+  const profileLink = formData.username
     ? `${window.location.origin}/${formData.username}`
     : null;
 
@@ -359,8 +371,8 @@ export default function ProfileEditor() {
           <div className="logo-icon"></div>
           <span className="logo-text">KonOne</span>
           <div className="language-selector-editor">
-            <select 
-              value={language} 
+            <select
+              value={language}
               onChange={(e) => changeLanguage(e.target.value)}
               className="language-select-editor"
             >
@@ -369,7 +381,7 @@ export default function ProfileEditor() {
             </select>
           </div>
         </div>
-        
+
         <nav className="sidebar-nav">
           <div className={`nav-item ${activeSection === 'account' ? 'active' : ''}`} onClick={() => setActiveSection('account')}>
             <span className="nav-icon"></span> Account
@@ -378,19 +390,19 @@ export default function ProfileEditor() {
           <div className={`nav-item ${activeSection === 'customize' ? 'active' : ''}`} onClick={() => setActiveSection('customize')}>
             <span className="nav-icon"></span> {t(language, 'profileEditor.customize')}
           </div>
-       
+
         </nav>
 
         <div className="sidebar-footer">
-      
-          <button 
+
+          <button
             className="footer-btn my-page-btn"
             onClick={() => profileLink && window.open(profileLink, '_blank')}
             disabled={!profileLink}
           >
             <span className="btn-icon"></span> My Page
           </button>
-          <button 
+          <button
             className="footer-btn share-btn"
             onClick={() => profileLink && navigator.share?.({ url: profileLink })}
             disabled={!profileLink}
@@ -402,7 +414,7 @@ export default function ProfileEditor() {
             <div className="user-uid">UID {currentUser?.uid?.slice(0, 8) || 'N/A'}</div>
             <div className="user-views" style={{ fontSize: '12px', color: '#999', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
               </svg>
               {viewCount.toLocaleString()} views
             </div>
@@ -457,9 +469,9 @@ export default function ProfileEditor() {
                         className="media-input"
                       />
                       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <circle cx="8.5" cy="8.5" r="1.5"/>
-                        <polyline points="21 15 16 10 5 21"/>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
                       </svg>
                       <span className="placeholder-text">Click to upload a file</span>
                     </div>
@@ -483,9 +495,9 @@ export default function ProfileEditor() {
                       className="audio-input"
                     />
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                      <path d="M9 18V5l12-2v13"/>
-                      <circle cx="6" cy="18" r="3"/>
-                      <circle cx="18" cy="16" r="3"/>
+                      <path d="M9 18V5l12-2v13" />
+                      <circle cx="6" cy="18" r="3" />
+                      <circle cx="18" cy="16" r="3" />
                     </svg>
                     <span className="placeholder-text">Only enter the YouTube URL here</span>
                   </div>
@@ -499,7 +511,7 @@ export default function ProfileEditor() {
                   {!isPremium && (
                     <span className="premium-badge">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                       </svg>
                       Premium
                     </span>
@@ -518,7 +530,7 @@ export default function ProfileEditor() {
                 <div className="media-preview">
                   {formData.backgroundVideo ? (
                     <div className="video-preview">
-                      
+
                       <span className="video-text">YouTube Video Background</span>
                       <span className="file-format">VIDEO</span>
                     </div>
@@ -533,7 +545,7 @@ export default function ProfileEditor() {
                         className="audio-input"
                         disabled={!isPremium}
                       />
-              
+
                       <span className="placeholder-text">
                         {isPremium ? 'Only enter the YouTube URL here' : 'Unlock Premium to add background video'}
                       </span>
@@ -546,13 +558,13 @@ export default function ProfileEditor() {
                   )}
                 </div>
               </div>
-              </div>
             </div>
+          </div>
 
-            {/* Avatar & Frame & Cover Group */}
-            <div style={{ marginBottom: '32px' }}>
-              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', paddingLeft: '8px' }}>Avatar, Frame & Cover</h3>
-              <div className="media-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          {/* Avatar & Frame & Cover Group */}
+          <div style={{ marginBottom: '32px' }}>
+            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', paddingLeft: '8px' }}>Avatar, Frame & Cover</h3>
+            <div className="media-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
               {/* Profile Avatar */}
               <div className="media-card">
                 <div className="media-card-header">
@@ -567,9 +579,9 @@ export default function ProfileEditor() {
                     </button>
                   )}
                 </div>
-                <div className="media-preview" style={{ 
-                  aspectRatio: '1/1', 
-                  borderRadius: '50%', 
+                <div className="media-preview" style={{
+                  aspectRatio: '1/1',
+                  borderRadius: '50%',
                   overflow: 'hidden',
                   display: 'flex',
                   alignItems: 'center',
@@ -584,9 +596,9 @@ export default function ProfileEditor() {
                   )}
                   {formData.avatar ? (
                     <>
-                      <img src={formData.avatar} alt="Avatar" style={{ 
-                        width: '100%', 
-                        height: '100%', 
+                      <img src={formData.avatar} alt="Avatar" style={{
+                        width: '100%',
+                        height: '100%',
                         objectFit: 'cover',
                         borderRadius: '50%'
                       }} />
@@ -602,8 +614,8 @@ export default function ProfileEditor() {
                         className="media-input"
                       />
                       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                        <circle cx="12" cy="7" r="4"/>
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                        <circle cx="12" cy="7" r="4" />
                       </svg>
                       <span className="placeholder-text">Click to upload a file</span>
                     </div>
@@ -613,98 +625,98 @@ export default function ProfileEditor() {
 
               {/* Avatar Frame Selection */}
               <div className="media-card">
-                  <div className="media-card-header">
-                    <span className="media-label">Avatar Frame</span>
-                  </div>
-                  <div className="media-preview" style={{ padding: '20px', minHeight: 'auto', aspectRatio: 'auto' }}>
-                    <select
-                      value={formData.avatarFrame}
-                      onChange={(e) => setFormData(prev => ({ ...prev, avatarFrame: e.target.value }))}
-                      className="custom-select"
-                      style={{ width: '100%', marginBottom: '20px' }}
-                    >
-                      <option value="">No Frame</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_1.png">Khung 1</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_2.png">Khung 2</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_3.png">Khung 3</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_4.png">Khung 4</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_5.png">Khung 5</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_6.png">Khung 6</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_8.png">Khung 7</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_9.png">Khung 8</option>
-                      <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">Khung 9</option>
-                    </select>
-                    
-                    {/* Frame Preview */}
-                    {formData.avatarFrame && (
-                      <div style={{ 
-                        display: 'flex', 
-                        flexDirection: 'column', 
-                        alignItems: 'center',
-                        gap: '10px',
-                        padding: '20px',
-                        background: 'rgba(0, 0, 0, 0.1)',
-                        borderRadius: '8px'
-                      }}>
-                        <div style={{ fontSize: '14px', color: '#999', marginBottom: '10px' }}>Preview:</div>
-                        <div style={{ 
-                          position: 'relative',
-                          width: '150px',
-                          height: '150px',
-                          borderRadius: '50%',
-                          overflow: 'hidden',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center'
-                        }}>
-                          {formData.avatar ? (
-                            <>
-                              <img 
-                                src={formData.avatar} 
-                                alt="Avatar Preview" 
-                                style={{
-                                  width: '80%',
-                                  height: '80%',
-                                  objectFit: 'cover',
-                                  borderRadius: '50%'
-                                }}
-                              />
-                              <img 
-                                src={formData.avatarFrame} 
-                                alt="Frame Preview" 
-                                style={{
-                                  position: 'absolute',
-                                  top: '50%',
-                                  left: '50%',
-                                  transform: 'translate(-50%, -50%)',
-                                  width: '115%',
-                                  height: '115%',
-                                  objectFit: 'contain',
-                                  pointerEvents: 'none'
-                                }}
-                              />
-                            </>
-                          ) : (
-                            <div style={{
-                              width: '100%',
-                              height: '100%',
-                              background: '#333',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '48px'
-                            }}>
-                              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-                                <circle cx="12" cy="7" r="4"/>
-                              </svg>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                  </div>
+                <div className="media-card-header">
+                  <span className="media-label">Avatar Frame</span>
                 </div>
+                <div className="media-preview" style={{ padding: '20px', minHeight: 'auto', aspectRatio: 'auto' }}>
+                  <select
+                    value={formData.avatarFrame}
+                    onChange={(e) => setFormData(prev => ({ ...prev, avatarFrame: e.target.value }))}
+                    className="custom-select"
+                    style={{ width: '100%', marginBottom: '20px' }}
+                  >
+                    <option value="">No Frame</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_1.png">Khung 1</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_2.png">Khung 2</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_3.png">Khung 3</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_4.png">Khung 4</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_5.png">Khung 5</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_6.png">Khung 6</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_8.png">Khung 7</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_9.png">Khung 8</option>
+                    <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">Khung 9</option>
+                  </select>
+
+                  {/* Frame Preview */}
+                  {formData.avatarFrame && (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '20px',
+                      background: 'rgba(0, 0, 0, 0.1)',
+                      borderRadius: '8px'
+                    }}>
+                      <div style={{ fontSize: '14px', color: '#999', marginBottom: '10px' }}>Preview:</div>
+                      <div style={{
+                        position: 'relative',
+                        width: '150px',
+                        height: '150px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}>
+                        {formData.avatar ? (
+                          <>
+                            <img
+                              src={formData.avatar}
+                              alt="Avatar Preview"
+                              style={{
+                                width: '80%',
+                                height: '80%',
+                                objectFit: 'cover',
+                                borderRadius: '50%'
+                              }}
+                            />
+                            <img
+                              src={formData.avatarFrame}
+                              alt="Frame Preview"
+                              style={{
+                                position: 'absolute',
+                                top: '50%',
+                                left: '50%',
+                                transform: 'translate(-50%, -50%)',
+                                width: '115%',
+                                height: '115%',
+                                objectFit: 'contain',
+                                pointerEvents: 'none'
+                              }}
+                            />
+                          </>
+                        ) : (
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            background: '#333',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '48px'
+                          }}>
+                            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
+                              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                              <circle cx="12" cy="7" r="4" />
+                            </svg>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
 
               {/* Cover Image / Banner (Premium) */}
               <div className="media-card">
@@ -742,9 +754,9 @@ export default function ProfileEditor() {
                         className="media-input"
                       />
                       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
-                        <circle cx="8.5" cy="8.5" r="1.5"/>
-                        <polyline points="21 15 16 10 5 21"/>
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                        <circle cx="8.5" cy="8.5" r="1.5" />
+                        <polyline points="21 15 16 10 5 21" />
                       </svg>
                       <span className="placeholder-text">
                         Click to upload cover image
@@ -760,7 +772,7 @@ export default function ProfileEditor() {
               <div className="premium-banner" onClick={() => navigate('/premium')} style={{ cursor: 'pointer' }}>
                 <div className="premium-pattern"></div>
                 <div className="premium-content">
-    
+
                   <span className="premium-text">Want exclusive features? Unlock more with Premium</span>
                 </div>
               </div>
@@ -770,7 +782,7 @@ export default function ProfileEditor() {
           {/* General Customization */}
           <div className="customization-section">
             <h2 className="section-title">{t(language, 'profileEditor.generalCustomization')}</h2>
-            
+
             <div className="form-group">
               <label>Description</label>
               <textarea
@@ -815,9 +827,91 @@ export default function ProfileEditor() {
               </div>
             </div>
 
-            {/* Discord Presence */}
-           
+            {/* Presence Card (Modern Layout) */}
+            <div className="form-group presence-customization">
+              <label>
+                <span>{t(language, 'profileEditor.presenceCard')}</span>
+                <span className="form-hint">(Discord-style status)</span>
+              </label>
 
+              <div className="presence-grid" style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 2fr',
+                gap: '15px',
+                background: 'rgba(255, 255, 255, 0.03)',
+                padding: '15px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255, 255, 255, 0.05)'
+              }}>
+                <div className="form-group">
+                  <label>{t(language, 'profileEditor.presenceType')}</label>
+                  <select
+                    name="presenceType"
+                    value={formData.presenceType}
+                    onChange={handleChange}
+                    className="custom-select"
+                  >
+                    <option value="playing">{t(language, 'profileEditor.activityPlaying')}</option>
+                    <option value="listening">{t(language, 'profileEditor.activityListening')}</option>
+                    <option value="watching">{t(language, 'profileEditor.activityWatching')}</option>
+                    <option value="streaming">{t(language, 'profileEditor.activityStreaming')}</option>
+                    <option value="competing">{t(language, 'profileEditor.activityCompeting')}</option>
+                  </select>
+                </div>
+
+                <div className="form-group">
+                  <label>{t(language, 'profileEditor.presenceTitle')}</label>
+                  <input
+                    type="text"
+                    name="presenceTitle"
+                    value={formData.presenceTitle}
+                    onChange={handleChange}
+                    placeholder="e.g. YouTube Music, League of Legends"
+                  />
+                </div>
+
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>{t(language, 'profileEditor.presenceSubtitle')}</label>
+                  <input
+                    type="text"
+                    name="presenceSubtitle"
+                    value={formData.presenceSubtitle}
+                    onChange={handleChange}
+                    placeholder="e.g. Listening to Lofi Hip Hop"
+                  />
+                </div>
+
+                <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                  <label>Presence Icon (Game/Coding)</label>
+                  <select
+                    name="presenceIcon"
+                    value={formData.presenceIcon}
+                    onChange={handleChange}
+                    className="custom-select"
+                  >
+                    <option value="">None (Use Avatar)</option>
+                    <optgroup label="Games">
+                      <option value="fivem">FiveM</option>
+                      <option value="pubg">PUBG</option>
+                      <option value="lol">League of Legends</option>
+                      <option value="valorant">Valorant</option>
+                      <option value="csgo">CS:GO</option>
+                      <option value="minecraft">Minecraft</option>
+                      <option value="roblox">Roblox</option>
+                    </optgroup>
+                    <optgroup label="Coding">
+                      <option value="lua">Lua</option>
+                      <option value="html">HTML</option>
+                      <option value="css">CSS</option>
+                      <option value="js">JavaScript</option>
+                      <option value="react">React</option>
+                      <option value="python">Python</option>
+                      <option value="cpp">C++</option>
+                    </optgroup>
+                  </select>
+                </div>
+              </div>
+            </div>
             {/* Profile Opacity */}
             {/* <div className="form-group slider-group">
               <label>Profile Opacity</label>
@@ -862,7 +956,7 @@ export default function ProfileEditor() {
             <div className="form-group">
               <label>
                 <span>Background Effects</span>
-               
+
               </label>
               <div className="effect-select-wrapper">
                 <select
@@ -903,7 +997,7 @@ export default function ProfileEditor() {
                     <div className="effect-preview-content" onClick={(e) => e.stopPropagation()}>
                       <div className="preview-header">
                         <h3>Effect Preview</h3>
-                        <button 
+                        <button
                           className="close-preview-btn"
                           onClick={() => setShowPreview(false)}
                         >
@@ -926,7 +1020,7 @@ export default function ProfileEditor() {
                             <div className="locked-icon"></div>
                             <p>Premium Effect</p>
                             <p className="preview-note">Bạn có thể xem preview nhưng cần Premium để sử dụng</p>
-                            <button 
+                            <button
                               className="unlock-preview-btn"
                               onClick={() => {
                                 setShowPreview(false);
@@ -958,7 +1052,7 @@ export default function ProfileEditor() {
                     <span>Font Family</span>
                     <span className="premium-badge">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                       </svg>
                       Premium
                     </span>
@@ -992,7 +1086,7 @@ export default function ProfileEditor() {
                     <span>3D Text Effect</span>
                     <span className="premium-badge">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
-                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                       </svg>
                       Premium
                     </span>
@@ -1009,8 +1103,8 @@ export default function ProfileEditor() {
                   </div>
                 </div>
 
-        
-               
+
+
               </>
             )}
 
@@ -1105,10 +1199,10 @@ export default function ProfileEditor() {
                     onChange={handleChange}
                     placeholder={
                       selectedSocialLink === 'facebook' ? 'https://facebook.com/...' :
-                      selectedSocialLink === 'instagram' ? 'https://instagram.com/...' :
-                      selectedSocialLink === 'twitter' ? 'https://twitter.com/...' :
-                      selectedSocialLink === 'linkedin' ? 'https://linkedin.com/in/...' :
-                      'https://tiktok.com/@...'
+                        selectedSocialLink === 'instagram' ? 'https://instagram.com/...' :
+                          selectedSocialLink === 'twitter' ? 'https://twitter.com/...' :
+                            selectedSocialLink === 'linkedin' ? 'https://linkedin.com/in/...' :
+                              'https://tiktok.com/@...'
                     }
                   />
                 </div>

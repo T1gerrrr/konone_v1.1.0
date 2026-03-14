@@ -5,6 +5,7 @@ export const translations = {
       title: 'Tổng quan tài khoản',
       account: 'Tài khoản',
       overview: 'Tổng quan',
+      layout: 'Bố cục',
       premium: 'Premium',
       templates: 'Mẫu',
       helpCenter: 'Trung tâm trợ giúp',
@@ -18,6 +19,13 @@ export const translations = {
       displayName: 'Tên hiển thị',
       uid: 'UID',
       email: 'Email',
+      // Layout Selection
+      layoutTitle: 'Chọn bố cục hồ sơ',
+      layoutCard: 'Bố cục thẻ (Mặc định)',
+      layoutModern: 'Bố cục hiện đại',
+      layoutDescription: 'Chọn cách hiển thị hồ sơ của bạn với mọi người.',
+      currentLayout: 'Bố cục hiện tại',
+      selectLayout: 'Chọn',
       // Statistics
       statistics: 'Thống kê',
       views: 'Views',
@@ -51,6 +59,16 @@ export const translations = {
       generalCustomization: 'Tùy chỉnh chung',
       save: 'Lưu',
       cancel: 'Hủy',
+      // Presence Card (Modern Layout)
+      presenceCard: 'Thẻ hoạt động (Layout Hiện đại)',
+      presenceType: 'Loại hoạt động',
+      presenceTitle: 'Tiêu đề hoạt động',
+      presenceSubtitle: 'Chi tiết hoạt động',
+      activityPlaying: 'Đang chơi',
+      activityListening: 'Đang nghe',
+      activityWatching: 'Đang xem',
+      activityStreaming: 'Đang stream',
+      activityCompeting: 'Đang thi đấu',
       // Language
       language: 'Ngôn ngữ',
       vietnamese: 'Tiếng Việt',
@@ -157,9 +175,10 @@ export const translations = {
       title: 'Account Overview',
       account: 'Account',
       overview: 'Overview',
+      layout: 'Layout',
       premium: 'Premium',
       templates: 'Templates',
- 
+      helpCenter: 'Help Center',
       myPage: 'My Page',
       shareProfile: 'Share Profile',
       logout: 'Logout',
@@ -170,6 +189,13 @@ export const translations = {
       displayName: 'Display Name',
       uid: 'UID',
       email: 'Email',
+      // Layout Selection
+      layoutTitle: 'Select Profile Layout',
+      layoutCard: 'Card Layout (Default)',
+      layoutModern: 'Modern Layout',
+      layoutDescription: 'Choose how your profile is displayed to everyone.',
+      currentLayout: 'Current Layout',
+      selectLayout: 'Select',
       // Statistics
       statistics: 'Statistics',
       views: 'Views',
@@ -203,6 +229,16 @@ export const translations = {
       generalCustomization: 'General Customization',
       save: 'Save',
       cancel: 'Cancel',
+      // Presence Card (Modern Layout)
+      presenceCard: 'Activity Card (Modern Layout)',
+      presenceType: 'Activity Type',
+      presenceTitle: 'Activity Title',
+      presenceSubtitle: 'Activity Details',
+      activityPlaying: 'Playing',
+      activityListening: 'Listening to',
+      activityWatching: 'Watching',
+      activityStreaming: 'Streaming',
+      activityCompeting: 'Competing in',
       // Language
       language: 'Language',
       vietnamese: 'Tiếng Việt',
@@ -309,16 +345,16 @@ export const translations = {
 export function t(language, key, params = {}) {
   const keys = key.split('.');
   let value = translations[language];
-  
+
   for (const k of keys) {
     value = value?.[k];
   }
-  
+
   if (!value) {
     console.warn(`Translation missing for key: ${key}`);
     return key;
   }
-  
+
   // Replace placeholders like {email}, {message}, etc.
   return value.replace(/\{(\w+)\}/g, (match, paramKey) => {
     return params[paramKey] || match;
