@@ -6,6 +6,7 @@ import PrivateRoute from './components/PrivateRoute';
 import Home from './components/Home';
 import Login from './components/Login';
 import Register from './components/Register';
+import VerifyEmail from './components/VerifyEmail';
 import Dashboard from './components/Dashboard';
 import ProfileEditor from './components/ProfileEditor';
 import PublicProfile from './components/PublicProfile';
@@ -25,6 +26,7 @@ function App() {
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
+              <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/community" element={<Community />} />
               <Route
                 path="/dashboard"

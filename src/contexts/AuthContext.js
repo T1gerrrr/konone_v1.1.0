@@ -30,24 +30,36 @@ export function AuthProvider({ children }) {
     return signOut(auth);
   }
 
-  // Gửi email xác thực qua Gmail SMTP (api/send-verification.js) thay vì Firebase
-  async function sendVerificationEmail(user, actionCodeSettings) {
+  async function callApi(user, path, body) {
     const idToken = await user.getIdToken();
-    const res = await fetch('/api/send-verification', {
+    const res = await fetch(path, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify({ url: actionCodeSettings && actionCodeSettings.url }),
+      body: JSON.stringify(body || {}),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      const err = new Error(data.error || 'Không thể gửi email xác thực');
+      const err = new Error(data.error || 'Yêu cầu thất bại');
       err.code = data.code || `http/${res.status}`;
+      err.retryAfter = data.retryAfter;
       throw err;
     }
     return data;
+  }
+
+  // Gửi mã OTP 6 số qua Gmail SMTP (api/send-otp.js)
+  function sendVerificationEmail(user) {
+    return callApi(user, '/api/send-otp');
+  }
+
+  // Xác thực mã OTP (api/verify-otp.js), sau đó làm mới trạng thái emailVerified của user
+  async function verifyOtp(user, code) {
+    await callApi(user, '/api/verify-otp', { code });
+    await user.reload();
+    await user.getIdToken(true);
   }
 
   function resetPassword(email) {
@@ -69,6 +81,7 @@ export function AuthProvider({ children }) {
     login,
     logout,
     sendVerificationEmail,
+    verifyOtp,
     resetPassword
   };
 

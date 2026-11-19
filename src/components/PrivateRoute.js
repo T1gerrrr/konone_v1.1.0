@@ -12,7 +12,7 @@ export default function PrivateRoute({ children }) {
 
   // Kiểm tra email đã được xác thực chưa
   if (!currentUser.emailVerified) {
-    return <Navigate to="/login?unverified=true" />;
+    return <Navigate to="/verify-email" />;
   }
 
   return children;
