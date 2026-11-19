@@ -2435,3 +2435,10 @@
     animation: none;
   }
 }
+
+/* Giá đang ẩn: chữ "Sắp ra mắt" thay cho số tiền */
+.pricing-price .price-soon {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}

@@ -10,7 +10,10 @@ import {
   browserSessionPersistence,
   signOut,
   onAuthStateChanged,
-  sendPasswordResetEmail
+  sendPasswordResetEmail,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -80,6 +83,38 @@ export function AuthProvider({ children }) {
     return sendPasswordResetEmail(auth, email);
   }
 
+  // Cách đăng nhập của tài khoản hiện tại: 'password' | 'google' | 'github'
+  function signInMethod(user = auth.currentUser) {
+    const ids = (user?.providerData || []).map((p) => p.providerId);
+    if (ids.includes('password')) return 'password';
+    if (ids.includes('github.com')) return 'github';
+    return 'google';
+  }
+
+  // Xác thực lại (bắt buộc trước thao tác nhạy cảm như xóa tài khoản)
+  async function reauthenticate(password) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Chưa đăng nhập');
+    const method = signInMethod(user);
+    if (method === 'password') {
+      const credential = EmailAuthProvider.credential(user.email, password || '');
+      await reauthenticateWithCredential(user, credential);
+    } else {
+      const provider = method === 'github' ? new GithubAuthProvider() : new GoogleAuthProvider();
+      await reauthenticateWithPopup(user, provider);
+    }
+    await user.getIdToken(true);
+  }
+
+  // Xóa vĩnh viễn tài khoản + dữ liệu (api/delete-account.js), rồi đăng xuất
+  async function deleteAccount(confirmText) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Chưa đăng nhập');
+    const result = await callApi(user, '/api/delete-account', { confirm: confirmText });
+    await signOut(auth).catch(() => {});
+    return result;
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -97,7 +132,10 @@ export function AuthProvider({ children }) {
     logout,
     sendVerificationEmail,
     verifyOtp,
-    resetPassword
+    resetPassword,
+    signInMethod,
+    reauthenticate,
+    deleteAccount
   };
 
   return (

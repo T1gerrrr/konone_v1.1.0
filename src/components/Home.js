@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../translations';
+import { FEATURES } from '../constants/features';
 import GooeyNav from './GooeyNav';
 import DiamondIcon from './DiamondIcon';
 import './Home.css';
@@ -377,11 +378,19 @@ export default function Home() {
                 <h3 className="pricing-name">
                   <span className="premium-icon"></span> {t(language, 'home.premium')}
                 </h3>
-                <div className="pricing-price">
-                  <span className="price-amount">{t(language, 'home.premiumPrice')}</span>
-                  <span className="price-period">{t(language, 'home.premiumPeriod')}</span>
-                </div>
-                <p className="price-subtitle">{t(language, 'home.premiumSubtitle')}</p>
+                {FEATURES.showPricing ? (
+                  <>
+                    <div className="pricing-price">
+                      <span className="price-amount">{t(language, 'home.premiumPrice')}</span>
+                      <span className="price-period">{t(language, 'home.premiumPeriod')}</span>
+                    </div>
+                    <p className="price-subtitle">{t(language, 'home.premiumSubtitle')}</p>
+                  </>
+                ) : (
+                  <div className="pricing-price">
+                    <span className="price-amount price-soon">{L('Sắp ra mắt', 'Coming soon')}</span>
+                  </div>
+                )}
                 <p className="pricing-description">{t(language, 'home.premiumDescription')}</p>
               </div>
               <ul className="pricing-features">

@@ -10,6 +10,7 @@ import { TOPICS } from '../chat/answers';
 import { lastNDays } from '../utils/dateKey';
 import ViewsChart from './ViewsChart';
 import { FEATURES } from '../constants/features';
+import AccountSettings from './AccountSettings';
 import './Dashboard.css';
 
 const Icon = {
@@ -260,10 +261,16 @@ export default function Dashboard() {
     ...(FEATURES.profileTemplate
       ? [{ id: 'templates', label: L('Mẫu', 'Templates'), icon: Icon.templates, to: '/profile-template' }]
       : []),
-    { id: 'guide', label: L('Hướng dẫn', 'Guide'), icon: Icon.guide }
+    { id: 'guide', label: L('Hướng dẫn', 'Guide'), icon: Icon.guide },
+    { id: 'account', label: L('Tài khoản', 'Account'), icon: Icon.edit }
   ];
 
-  const pageTitle = activeSection === 'guide' ? L('Hướng dẫn', 'Guide') : L('Tổng quan', 'Overview');
+  const pageTitle =
+    activeSection === 'guide'
+      ? L('Hướng dẫn', 'Guide')
+      : activeSection === 'account'
+        ? L('Tài khoản & quyền riêng tư', 'Account & privacy')
+        : L('Tổng quan', 'Overview');
 
   return (
     <div className="dashboard">
@@ -668,6 +675,8 @@ export default function Dashboard() {
               )}
             </section>
           )}
+
+          {activeSection === 'account' && <AccountSettings profile={profile} />}
 
           {activeSection === 'guide' && (
             <section className="db-guide">

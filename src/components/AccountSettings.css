@@ -1,0 +1,208 @@
+.acc {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 760px;
+}
+
+.acc-card {
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: rgba(20, 20, 24, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acc-card h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.acc-muted {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.acc-muted.small {
+  font-size: 12.5px;
+}
+
+.acc-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.acc-btn {
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.acc-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.acc-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.acc-btn-danger {
+  align-self: flex-start;
+  border-color: rgba(229, 72, 77, 0.5);
+  color: #fca5a5;
+  background: rgba(229, 72, 77, 0.08);
+}
+
+.acc-link {
+  color: #f87171;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.acc-link:hover {
+  text-decoration: underline;
+}
+
+.acc-danger {
+  border-color: rgba(229, 72, 77, 0.3);
+}
+
+.acc-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.acc-list ul {
+  margin: 8px 0 10px;
+  padding-left: 20px;
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.acc-step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.acc-step.done {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.acc-step-no {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.acc-step.done .acc-step-no {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+}
+
+.acc-step-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.acc-step-body input[type='text'],
+.acc-step-body input[type='password'] {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: #0d0d10;
+  color: #fff;
+  font: inherit;
+  font-size: 14px;
+  min-width: 0;
+}
+
+.acc-step-body input:focus-visible,
+.acc-btn:focus-visible {
+  outline: 2px solid #f87171;
+  outline-offset: 2px;
+}
+
+.acc-inline {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acc-inline input {
+  flex: 1;
+  min-width: 180px;
+}
+
+.acc-step code {
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(229, 72, 77, 0.14);
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+.acc-ok {
+  color: #4ade80;
+  font-weight: 600;
+}
+
+.acc-check {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  line-height: 1.5;
+}
+
+.acc-check input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #e5484d;
+}
+
+.acc-cancel {
+  align-self: center;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.7);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: underline;
+}

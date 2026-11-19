@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, updateDoc, doc, getDoc, setDoc, incr
 import { db } from '../firebase';
 import { createMoMoPayment, PREMIUM_PACKAGES, formatVND } from '../services/momoPayment';
 import { t } from '../translations';
+import { FEATURES } from '../constants/features';
 import SlideCommit from './SlideCommit';
 import AppSidebar from './AppSidebar';
 import './Premium.css';
@@ -23,7 +24,8 @@ export default function Premium() {
   const [messageType, setMessageType] = useState(''); // 'success' or 'error'
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('buy'); // 'buy' or 'activate'
+  // Khi giá đang ẩn, chỉ còn tab nhập mã kích hoạt
+  const [activeTab, setActiveTab] = useState(FEATURES.showPricing ? 'buy' : 'activate'); // 'buy' or 'activate'
   const [profileReady, setProfileReady] = useState(false);
   const [introMinDone, setIntroMinDone] = useState(false);
   const [introPhase, setIntroPhase] = useState('showing'); // showing -> leaving -> done
@@ -372,12 +374,14 @@ export default function Premium() {
 
         {/* Payment Tabs */}
         <div className="payment-tabs">
-          <button
-            className={`tab-button ${activeTab === 'buy' ? 'active' : ''}`}
-            onClick={() => setActiveTab('buy')}
-          >
-            {L("Mua gói", "Buy Plan")}
-          </button>
+          {FEATURES.showPricing && (
+            <button
+              className={`tab-button ${activeTab === 'buy' ? 'active' : ''}`}
+              onClick={() => setActiveTab('buy')}
+            >
+              {L("Mua gói", "Buy Plan")}
+            </button>
+          )}
           <button
             className={`tab-button ${activeTab === 'activate' ? 'active' : ''}`}
             onClick={() => setActiveTab('activate')}
@@ -387,7 +391,7 @@ export default function Premium() {
         </div>
 
         {/* Payment Section */}
-        {activeTab === 'buy' && (
+        {FEATURES.showPricing && activeTab === 'buy' && (
           <div className="payment-section">
             <h2 className="section-title">{t(language, 'premium.selectPackage')}</h2>
             <div className="packages-grid">

@@ -84,18 +84,20 @@ export const LEGAL = {
         {
           h: '7. Retention',
           p: [
-            'We keep your data while your account is active. When you delete your account or ask us to, we remove your profile and account data, except for what we must keep to comply with legal obligations or resolve disputes.',
+            'We keep your data while your account is active. When you delete your account in Dashboard → Account, your login account, profile, links, settings and view statistics are deleted immediately and cannot be recovered. If you ask us to delete your data by email, we do so within 72 hours of receiving the request, in line with Decree 13/2023/ND-CP on personal data protection.',
+            'After deletion we keep only a minimal record (a one-way hash of the account ID and the time of deletion, with no personal data) to prove the request was fulfilled, plus anything the law requires us to keep.',
           ],
         },
         {
           h: '8. Your rights',
           ul: [
-            'Access and update your information from your dashboard and profile editor.',
-            'Request a copy or deletion of your data.',
-            'Withdraw consent or object to certain processing.',
-            'Report a privacy concern to us at any time.',
+            'Know and access your data: view it in the dashboard and download a copy as a JSON file in Dashboard → Account.',
+            'Correct your data at any time in the profile editor.',
+            'Delete your data: delete your account yourself in Dashboard → Account, or ask us to do it.',
+            'Withdraw consent, or object to or restrict certain processing.',
+            'Complain to us, or to the competent authority, about how your data is handled.',
           ],
-          after: ['To exercise these rights, contact us using the details below.'],
+          after: ['To exercise these rights by request, contact us using the details below. We respond within 72 hours.'],
         },
         {
           h: '9. Children',
@@ -186,18 +188,20 @@ export const LEGAL = {
         {
           h: '7. Thời gian lưu trữ',
           p: [
-            'Chúng tôi lưu dữ liệu trong thời gian tài khoản còn hoạt động. Khi bạn xóa tài khoản hoặc yêu cầu xóa, chúng tôi sẽ xóa hồ sơ và dữ liệu tài khoản, trừ những gì buộc phải giữ để tuân thủ pháp luật hoặc giải quyết tranh chấp.',
+            'Chúng tôi lưu dữ liệu trong thời gian tài khoản còn hoạt động. Khi bạn tự xóa tài khoản tại Bảng điều khiển → Tài khoản, tài khoản đăng nhập, hồ sơ, liên kết, cài đặt và thống kê lượt xem sẽ bị xóa ngay và không thể khôi phục. Nếu bạn gửi yêu cầu xóa qua email, chúng tôi thực hiện trong vòng 72 giờ kể từ khi nhận được yêu cầu, theo Nghị định 13/2023/NĐ-CP về bảo vệ dữ liệu cá nhân.',
+            'Sau khi xóa, chúng tôi chỉ giữ một bản ghi tối thiểu (mã băm một chiều của mã tài khoản và thời điểm xóa, không chứa dữ liệu cá nhân) để chứng minh yêu cầu đã được thực hiện, cùng những gì pháp luật bắt buộc phải lưu.',
           ],
         },
         {
           h: '8. Quyền của bạn',
           ul: [
-            'Xem và cập nhật thông tin trong trang quản lý và trình chỉnh sửa hồ sơ.',
-            'Yêu cầu bản sao hoặc xóa dữ liệu của bạn.',
-            'Rút lại sự đồng ý hoặc phản đối một số hoạt động xử lý.',
-            'Báo cho chúng tôi bất kỳ mối lo ngại nào về quyền riêng tư.',
+            'Được biết và truy cập dữ liệu: xem trong trang quản lý và tải bản sao dạng tệp JSON tại Bảng điều khiển → Tài khoản.',
+            'Chỉnh sửa dữ liệu bất cứ lúc nào trong trình chỉnh sửa hồ sơ.',
+            'Xóa dữ liệu: tự xóa tài khoản tại Bảng điều khiển → Tài khoản, hoặc yêu cầu chúng tôi xóa.',
+            'Rút lại sự đồng ý, phản đối hoặc yêu cầu hạn chế một số hoạt động xử lý dữ liệu.',
+            'Khiếu nại với chúng tôi hoặc cơ quan có thẩm quyền về việc xử lý dữ liệu của bạn.',
           ],
-          after: ['Để thực hiện các quyền này, vui lòng liên hệ theo thông tin bên dưới.'],
+          after: ['Để thực hiện các quyền này theo hình thức gửi yêu cầu, vui lòng liên hệ theo thông tin bên dưới. Chúng tôi phản hồi trong vòng 72 giờ.'],
         },
         {
           h: '9. Trẻ em',
