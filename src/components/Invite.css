@@ -1,0 +1,284 @@
+.invite-main {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.invite-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1100px;
+  margin: 0 auto 22px;
+}
+
+.invite-topbar h1 {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.invite-grid {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+  gap: 22px;
+  align-items: start;
+}
+
+.invite-col {
+  display: grid;
+  gap: 18px;
+}
+
+.invite-card {
+  background: #131316;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 22px;
+}
+
+.invite-card h2 {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.invite-muted {
+  margin: 0 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.invite-form,
+.invite-mycode {
+  display: flex;
+  gap: 10px;
+}
+
+.invite-input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px 14px;
+  background: #0b0b0d;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
+  color: #fff;
+  font: 600 15px/1 'Inter', sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.invite-input::placeholder {
+  letter-spacing: normal;
+  text-transform: none;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.invite-input:focus {
+  outline: none;
+  border-color: rgba(246, 92, 92, 0.6);
+  box-shadow: 0 0 0 3px rgba(246, 92, 92, 0.12);
+}
+
+.invite-btn {
+  padding: 0 20px;
+  min-height: 44px;
+  border: 0;
+  border-radius: 10px;
+  background: #f65c5c;
+  color: #fff;
+  font: 600 14px/1 'Inter', sans-serif;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: filter 0.15s, opacity 0.15s;
+}
+
+.invite-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.invite-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.invite-btn.ghost {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+}
+
+.invite-code {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding: 0 16px;
+  min-height: 44px;
+  background: #0b0b0d;
+  border: 1px dashed rgba(246, 92, 92, 0.55);
+  border-radius: 10px;
+  font: 700 20px/1 'Inter', monospace;
+  letter-spacing: 0.22em;
+  user-select: all;
+}
+
+.invite-stat {
+  margin-top: 14px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.invite-stat strong {
+  color: #fff;
+}
+
+.invite-done {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: rgba(95, 211, 141, 0.1);
+  border: 1px solid rgba(95, 211, 141, 0.3);
+  color: #5fd38d;
+  font-size: 14px;
+}
+
+.invite-done strong {
+  letter-spacing: 0.1em;
+}
+
+.invite-feedback {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.invite-feedback.ok {
+  color: #5fd38d;
+}
+
+.invite-feedback.error {
+  color: #ff8a8a;
+}
+
+/* Poster đứng bên phải (tỉ lệ 3:4 trở lên) */
+.invite-poster-wrap {
+  position: sticky;
+  top: 18px;
+}
+
+.invite-poster {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #131316;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.invite-poster img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transform: scale(1.03);
+  transition: opacity 0.7s ease, transform 0.9s ease;
+}
+
+.invite-poster img.active {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.invite-dots {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.invite-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: width 0.25s, background 0.25s;
+}
+
+.invite-dot:hover {
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.invite-dot.active {
+  width: 24px;
+  background: #f65c5c;
+}
+
+.invite-poster-empty {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.35);
+  border: 1px dashed rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  box-sizing: border-box;
+}
+
+@media (max-width: 900px) {
+  .invite-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .invite-poster-wrap {
+    position: static;
+    max-width: 400px;
+    width: 100%;
+    margin: 0 auto;
+  }
+}
+
+.invite-hero {
+  background: linear-gradient(135deg, rgba(246, 92, 92, 0.14), rgba(19, 19, 22, 0) 60%), #131316;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 22px;
+  display: grid;
+  gap: 18px;
+}
+.invite-hero-id { display: flex; align-items: center; gap: 14px; }
+.invite-avatar {
+  width: 56px; height: 56px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+  background: #1f1f25; border: 1px solid rgba(255, 255, 255, 0.14);
+  display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 20px;
+}
+.invite-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.invite-hero-name { font-size: 18px; font-weight: 700; }
+.invite-hero-sub { margin: 4px 0 0; }
+.invite-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.invite-stat-tile {
+  padding: 14px 16px; border-radius: 12px; background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.07); display: grid; gap: 6px;
+}
+.invite-stat-tile span { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.invite-stat-tile strong { font-size: 28px; line-height: 1; }
+.invite-card-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 4px; }
+.invite-card-head .invite-muted { margin-bottom: 14px; }
+.invite-step {
+  width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(246, 92, 92, 0.16); color: #ff9a9a; font-weight: 700; font-size: 13px;
+}
+
+.invite-retry { margin-left: 10px; padding: 4px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.2); background: transparent; color: #fff; font: 600 12px/1 'Inter', sans-serif; cursor: pointer; }
+.invite-retry:hover { background: rgba(255,255,255,0.08); }
+
+.invite-link { display: inline-flex; align-items: center; text-decoration: none; }
+.invite-gate { border-color: rgba(246, 92, 92, 0.35); }

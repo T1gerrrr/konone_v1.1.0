@@ -59,9 +59,11 @@ export default function Premium() {
         const q = query(profilesRef, where('userId', '==', currentUser.uid));
         const querySnapshot = await getDocs(q);
 
-        if (!querySnapshot.empty) {
-          const profileData = querySnapshot.docs[0].data();
-          setProfileId(querySnapshot.docs[0].id);
+        // Hồ sơ tạm (do trang Links tạo) chưa tính là đã tạo hồ sơ
+        const realDoc = querySnapshot.docs.find((d) => !d.data().isStub);
+        if (realDoc) {
+          const profileData = realDoc.data();
+          setProfileId(realDoc.id);
           setProfile({
             id: querySnapshot.docs[0].id,
             ...profileData
@@ -208,11 +210,11 @@ export default function Premium() {
       const profilesRef = collection(db, 'profiles');
       const q = query(profilesRef, where('userId', '==', currentUser.uid));
       const querySnapshot = await getDocs(q);
-      if (!querySnapshot.empty) {
-        const profileData = querySnapshot.docs[0].data();
+      const reloaded = querySnapshot.docs.find((d) => !d.data().isStub);
+      if (reloaded) {
         setProfile({
-          id: querySnapshot.docs[0].id,
-          ...profileData
+          id: reloaded.id,
+          ...reloaded.data()
         });
       }
       return true;

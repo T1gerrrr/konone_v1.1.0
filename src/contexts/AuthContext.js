@@ -115,6 +115,25 @@ export function AuthProvider({ children }) {
     return result;
   }
 
+  // Mã mời (api/invite.js)
+  async function getInviteInfo() {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Chưa đăng nhập');
+    const data = await callApi(user, '/api/invite', { action: 'get' });
+    if (!data.code) {
+      const err = new Error('API mã mời không phản hồi');
+      err.code = 'http/404';
+      throw err;
+    }
+    return data;
+  }
+
+  async function redeemInviteCode(code) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Chưa đăng nhập');
+    return callApi(user, '/api/invite', { action: 'redeem', code });
+  }
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setCurrentUser(user);
@@ -135,7 +154,9 @@ export function AuthProvider({ children }) {
     resetPassword,
     signInMethod,
     reauthenticate,
-    deleteAccount
+    deleteAccount,
+    getInviteInfo,
+    redeemInviteCode
   };
 
   return (

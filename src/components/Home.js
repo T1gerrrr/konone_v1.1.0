@@ -6,10 +6,11 @@ import { t } from '../translations';
 import { FEATURES } from '../constants/features';
 import GooeyNav from './GooeyNav';
 import DiamondIcon from './DiamondIcon';
+import UserMenu from './UserMenu';
 import './Home.css';
 
 export default function Home() {
-  const { currentUser, logout } = useAuth();
+  const { currentUser } = useAuth();
   const navigate = useNavigate();
   const { language, changeLanguage } = useLanguage();
   const L = (vi, en) => (language === 'vi' ? vi : en);
@@ -27,8 +28,7 @@ export default function Home() {
     { key: 'discord', label: 'Discord' },
     ...(currentUser
       ? [
-          { key: 'dashboard', label: L('Bảng điều khiển', 'Dashboard') },
-          { key: 'logout', label: L('Đăng xuất', 'Log out') }
+          { key: 'dashboard', label: L('Bảng điều khiển', 'Dashboard') }
         ]
       : [
           { key: 'login', label: L('Đăng nhập', 'Log in') },
@@ -63,17 +63,6 @@ export default function Home() {
         break;
       case 'register':
         setTimeout(() => navigate('/register'), 450);
-        break;
-      case 'logout':
-        setTimeout(async () => {
-          try {
-            await logout();
-            navigate('/');
-            window.location.reload();
-          } catch (error) {
-            console.error('Logout error:', error);
-          }
-        }, 450);
         break;
       default:
         break;
@@ -186,6 +175,7 @@ export default function Home() {
             gooeyness={0.5}
             wobble={0.5}
             hoverEffect
+            trailing={currentUser ? <UserMenu /> : null}
           />
         </div>
       </header>

@@ -53,6 +53,10 @@ module.exports = async function handler(req, res) {
     snap.docs.forEach((d) => batch.delete(d.ref));
     batch.delete(db.collection('emailOtps').doc(uid));
     batch.delete(db.collection('users').doc(uid));
+    // Mã mời của người dùng + bản ghi nhập mã
+    const inviteSnap = await db.collection('inviteCodes').where('uid', '==', uid).get();
+    inviteSnap.docs.forEach((d) => batch.delete(d.ref));
+    batch.delete(db.collection('inviteRedemptions').doc(uid));
     await batch.commit();
 
     // 2) Nhật ký tối thiểu, không chứa dữ liệu cá nhân

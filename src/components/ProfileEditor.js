@@ -601,6 +601,7 @@ export default function ProfileEditor() {
           hideCursor: Boolean(blobCursor.hideCursor)
         },
         isHidden: Boolean(isHidden),
+        isStub: false,
         updatedAt: new Date()
       };
 

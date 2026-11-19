@@ -137,3 +137,12 @@
     color: var(--gn-ink);
   }
 }
+
+/* Vùng phụ bên phải trong khung (vd. avatar tài khoản) */
+.gooey-nav__trailing {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-left: var(--gn-gap);
+  padding-left: 6px;
+}

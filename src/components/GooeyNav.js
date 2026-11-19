@@ -219,7 +219,8 @@ const GooeyNav = ({
   wobble = 0.5,
   hoverEffect = true,
   className = '',
-  style
+  style,
+  trailing = null
 }) => {
   const [innerIndex, setInnerIndex] = useState(initialActiveIndex);
   const current = Math.min(Math.max(0, activeIndex ?? innerIndex), Math.max(0, items.length - 1));
@@ -798,6 +799,7 @@ const GooeyNav = ({
           {labels(false)}
         </ul>
       </div>
+      {trailing && <div className="gooey-nav__trailing">{trailing}</div>}
     </nav>
   );
 };

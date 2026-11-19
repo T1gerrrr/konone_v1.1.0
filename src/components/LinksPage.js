@@ -86,6 +86,7 @@ export default function LinksPage() {
           socialModes: nextModes,
           socialPosition: nextPos,
           customLinks: nextCustomLinks,
+          isStub: true, // hồ sơ tạm do trang Links tạo — chưa phải hồ sơ thật
           createdAt: new Date(),
           updatedAt: new Date()
         });

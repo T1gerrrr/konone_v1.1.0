@@ -11,6 +11,7 @@ import { lastNDays } from '../utils/dateKey';
 import ViewsChart from './ViewsChart';
 import { FEATURES } from '../constants/features';
 import AccountSettings from './AccountSettings';
+import UserMenu from './UserMenu';
 import './Dashboard.css';
 
 const Icon = {
@@ -128,7 +129,7 @@ function toDate(v) {
 }
 
 export default function Dashboard() {
-  const { currentUser, logout, sendVerificationEmail } = useAuth();
+  const { currentUser, sendVerificationEmail } = useAuth();
   const { language, changeLanguage } = useLanguage();
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
@@ -164,15 +165,6 @@ export default function Dashboard() {
       fetchProfile();
     }
   }, [currentUser]);
-
-  async function handleLogout() {
-    try {
-      await logout();
-      navigate('/login');
-    } catch (error) {
-      console.error('Logout error:', error);
-    }
-  }
 
   async function handleResendVerificationEmail() {
     if (!currentUser) return;
@@ -325,8 +317,7 @@ export default function Dashboard() {
                 <option value="en">{t(language, 'dashboard.english')}</option>
               </select>
             </div>
-            <span className="user-email">{currentUser.email}</span>
-            <button onClick={handleLogout} className="logout-btn">{t(language, 'dashboard.logout')}</button>
+            <UserMenu profile={profile} afterLogout="/login" />
           </div>
         </div>
 
