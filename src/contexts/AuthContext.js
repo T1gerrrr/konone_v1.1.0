@@ -4,7 +4,6 @@ import {
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
-  sendEmailVerification,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth } from '../firebase';
@@ -31,8 +30,24 @@ export function AuthProvider({ children }) {
     return signOut(auth);
   }
 
-  function sendVerificationEmail(user, actionCodeSettings) {
-    return sendEmailVerification(user, actionCodeSettings);
+  // Gửi email xác thực qua Gmail SMTP (api/send-verification.js) thay vì Firebase
+  async function sendVerificationEmail(user, actionCodeSettings) {
+    const idToken = await user.getIdToken();
+    const res = await fetch('/api/send-verification', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ url: actionCodeSettings && actionCodeSettings.url }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || 'Không thể gửi email xác thực');
+      err.code = data.code || `http/${res.status}`;
+      throw err;
+    }
+    return data;
   }
 
   function resetPassword(email) {
