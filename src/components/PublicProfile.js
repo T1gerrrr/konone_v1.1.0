@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -232,6 +232,37 @@ export default function PublicProfile() {
   const wantPlayRef = useRef(false); // người dùng đã yêu cầu phát
   const userPausedRef = useRef(false); // người dùng tự bấm tắt nhạc
   const playerHostRef = useRef(null);
+  const [playerReady, setPlayerReady] = useState(false);
+  const overlayOpenRef = useRef(true);
+  overlayOpenRef.current = showEnterOverlay;
+
+  // Điện thoại / máy tính bảng: playVideo() qua API (postMessage) KHÔNG mang theo lần chạm
+  // của người dùng vào iframe YouTube, nên iOS/Android chặn tiếng. Cách chắc chắn: cho chính
+  // iframe YouTube phủ lên màn "Nhấn để vào" (gần như trong suốt) -> lần chạm rơi vào YouTube.
+  const isTouch = useMemo(
+    () =>
+      typeof window !== 'undefined' &&
+      ((window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || 'ontouchstart' in window),
+    []
+  );
+  const tapToPlay = isTouch && showEnterOverlay && Boolean(youtubeVideoId) && playerReady;
+
+  // Chạm vào iframe làm cửa sổ mất focus -> nếu sau 1.5s nhạc vẫn chưa phát thì vẫn mở trang
+  useEffect(() => {
+    if (!tapToPlay) return undefined;
+    let timer = null;
+    const onBlur = () => {
+      wantPlayRef.current = true;
+      timer = setTimeout(() => {
+        if (overlayOpenRef.current) setShowEnterOverlay(false);
+      }, 1500);
+    };
+    window.addEventListener('blur', onBlur);
+    return () => {
+      window.removeEventListener('blur', onBlur);
+      clearTimeout(timer);
+    };
+  }, [tapToPlay]);
 
   const startMusic = () => {
     wantPlayRef.current = true;
@@ -286,6 +317,7 @@ export default function PublicProfile() {
           onReady: (event) => {
             if (disposed) return;
             window.youtubePlayer = event.target;
+            setPlayerReady(true);
             event.target.setVolume(volumeRef.current);
             // Thử tự phát ngay khi vào trang
             if (!userPausedRef.current) {
@@ -299,8 +331,16 @@ export default function PublicProfile() {
           onStateChange: (event) => {
             const YTS = window.YT && window.YT.PlayerState;
             if (!YTS) return;
-            if (event.data === YTS.PLAYING) setIsPlaying(true);
-            else if (event.data === YTS.PAUSED || event.data === YTS.ENDED) setIsPlaying(false);
+            if (event.data === YTS.PLAYING) {
+              setIsPlaying(true);
+              // Người dùng chạm trúng YouTube trên mobile -> nhạc đã phát, đóng màn chờ
+              if (overlayOpenRef.current) setShowEnterOverlay(false);
+              try {
+                if (volumeRef.current > 0 && event.target.isMuted && event.target.isMuted()) event.target.unMute();
+              } catch (e) {
+                // ignore
+              }
+            } else if (event.data === YTS.PAUSED || event.data === YTS.ENDED) setIsPlaying(false);
           }
         }
       });
@@ -400,6 +440,54 @@ export default function PublicProfile() {
       console.error('Error toggling music:', e);
     }
   }
+
+  // Tiêu đề tab trình duyệt = tên người dùng (có hiệu ứng gõ chữ nếu bật "Tiêu đề chuyển động")
+  const tabName = profile?.username || '';
+  const tabDisplay = profile?.displayName || '';
+  const tabHidden = Boolean(profile?.isHidden) && !(currentUser && currentUser.uid === profile?.userId);
+  const tabAnimated = Boolean(profile?.otherSettings?.animatedTitle);
+  useEffect(() => {
+    const original = document.title;
+    if (!tabName || tabHidden) {
+      document.title = 'KonOne';
+      return () => {
+        document.title = original;
+      };
+    }
+    const full = tabDisplay && tabDisplay.toLowerCase() !== tabName ? `${tabDisplay} (@${tabName})` : `@${tabName}`;
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!tabAnimated || reduce) {
+      document.title = `${full} | KonOne`;
+      return () => {
+        document.title = original;
+      };
+    }
+    // Gõ từng ký tự, giữ một lúc, xoá rồi lặp lại
+    let i = 0;
+    let dir = 1;
+    let hold = 0;
+    const timer = setInterval(() => {
+      if (hold > 0) {
+        hold -= 1;
+        return;
+      }
+      i += dir;
+      if (i >= full.length) {
+        i = full.length;
+        dir = -1;
+        hold = 12;
+      } else if (i <= 1) {
+        i = 1;
+        dir = 1;
+        hold = 3;
+      }
+      document.title = full.slice(0, i);
+    }, 180);
+    return () => {
+      clearInterval(timer);
+      document.title = original;
+    };
+  }, [tabName, tabDisplay, tabHidden, tabAnimated]);
 
   // Apply custom cursor if available
   useEffect(() => {
@@ -660,7 +748,9 @@ export default function PublicProfile() {
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundAttachment: 'fixed',
-        minHeight: '100vh'
+        minHeight: '100vh',
+        '--name-scale': (Number(profile.nameScale) || 100) / 100,
+        '--bio-scale': (Number(profile.bioScale) || 100) / 100
       }}
     >
       {/* Website Logo */}
@@ -719,16 +809,33 @@ export default function PublicProfile() {
         <div
           ref={playerHostRef}
           aria-hidden="true"
-          style={{
-            position: 'fixed',
-            left: '-9999px',
-            top: 0,
-            width: '200px',
-            height: '200px',
-            opacity: 0,
-            pointerEvents: 'none',
-            overflow: 'hidden'
-          }}
+          className={`yt-audio-host ${tapToPlay ? 'is-tap-target' : ''}`}
+          style={
+            tapToPlay
+              ? {
+                  // Mobile: phủ lên màn "Nhấn để vào" để lần chạm rơi vào YouTube
+                  position: 'fixed',
+                  inset: 0,
+                  width: '100vw',
+                  height: '100vh',
+                  opacity: 0.01,
+                  zIndex: 10001,
+                  pointerEvents: 'auto',
+                  overflow: 'hidden'
+                }
+              : {
+                  // Ẩn nhưng vẫn "hiển thị" (không display:none) để trình duyệt không dừng nhạc
+                  position: 'fixed',
+                  left: 0,
+                  bottom: 0,
+                  width: '200px',
+                  height: '200px',
+                  opacity: 0.01,
+                  zIndex: -1,
+                  pointerEvents: 'none',
+                  overflow: 'hidden'
+                }
+          }
         ></div>
       )}
 

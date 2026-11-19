@@ -137,19 +137,6 @@ export default function LanyardCard({
         fctx.textAlign = 'left';
         fctx.fillText(String(badgeLabel || 'KONONE PASS').toUpperCase(), logoImg ? 140 : 72, headerY + 3);
 
-        // Chip LIVE 3D bên phải
-        roundRect(fctx, W - 245, headerY - 32, 173, 52, 26);
-        fctx.fillStyle = 'rgba(246, 92, 92, 0.18)';
-        fctx.fill();
-        fctx.lineWidth = 2.5;
-        fctx.strokeStyle = 'rgba(246, 92, 92, 0.65)';
-        fctx.stroke();
-
-        fctx.fillStyle = '#fda4af';
-        fctx.font = `700 24px ${fontFamily}`;
-        fctx.textAlign = 'center';
-        fctx.fillText('● LIVE 3D', W - 158, headerY + 2);
-
         // Khung Banner / Cover ở giữa trên
         const bannerX = 68;
         const bannerY = 240;

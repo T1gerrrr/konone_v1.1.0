@@ -2163,3 +2163,22 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
   border: 3px solid rgba(255, 255, 255, 0.85);
   box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.08);
 }
+
+/* ===== Cỡ chữ tiêu đề & mô tả theo tỉ lệ (--name-scale / --bio-scale) ===== */
+.public-profile .guns-basic-username { font-size: calc(32px * var(--name-scale, 1)); }
+.public-profile .guns-basic-bio { font-size: calc(15px * var(--bio-scale, 1)); }
+.public-profile .web-hero-name { font-size: calc(46px * var(--name-scale, 1)); }
+.public-profile .web-hero-tagline { font-size: calc(19px * var(--bio-scale, 1)); }
+.public-profile .modern-name { font-size: calc(36px * var(--name-scale, 1)); }
+.public-profile .modern-bio { font-size: calc(18px * var(--bio-scale, 1)); }
+
+@media (max-width: 860px) {
+  .public-profile .web-hero-name { font-size: calc(34px * var(--name-scale, 1)); }
+}
+
+/* Khung YouTube phát nhạc: iframe luôn lấp đầy khung chứa */
+.yt-audio-host iframe {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
+}

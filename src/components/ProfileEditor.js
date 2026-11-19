@@ -124,7 +124,6 @@ export default function ProfileEditor() {
   const [viewCount, setViewCount] = useState(0);
 
   // Modals / Popovers cho các ô trong giao diện Custom kiểu guns.lol
-  const [showAudioManager, setShowAudioManager] = useState(false);
   const [showCursorManager, setShowCursorManager] = useState(false);
   const [showWidgetManager, setShowWidgetManager] = useState(false);
   const [showUsernameEffects, setShowUsernameEffects] = useState(false);
@@ -232,6 +231,8 @@ export default function ProfileEditor() {
     lanyardBadgeLabel: 'KONONE PASS',
     musicBoxColor: '',
     musicAccentColor: '',
+    nameScale: 100, // cỡ chữ tiêu đề (%)
+    bioScale: 100, // cỡ chữ mô tả (%)
     socialLinks: {
       facebook: '',
       instagram: '',
@@ -296,6 +297,8 @@ export default function ProfileEditor() {
             lanyardBadgeLabel: profileData.lanyardBadgeLabel || 'KONONE PASS',
             musicBoxColor: profileData.musicBoxColor || '',
             musicAccentColor: profileData.musicAccentColor || '',
+            nameScale: Number(profileData.nameScale) || 100,
+            bioScale: Number(profileData.bioScale) || 100,
             socialLinks: profileData.socialLinks || {
               facebook: '',
               instagram: '',
@@ -524,6 +527,8 @@ export default function ProfileEditor() {
         lanyardBadgeLabel: String(formData.lanyardBadgeLabel || 'KONONE PASS'),
         musicBoxColor: String(formData.musicBoxColor || ''),
         musicAccentColor: String(formData.musicAccentColor || ''),
+        nameScale: Number(formData.nameScale) || 100,
+        bioScale: Number(formData.bioScale) || 100,
         socialLinks: cleanSocialLinks,
         jobTitle: String(formData.jobTitle || ''),
         status: String(formData.status || ''),
@@ -1095,8 +1100,15 @@ export default function ProfileEditor() {
                         {formData.musicUrl && <span className="asset-active-dot" title={L("Đã liên kết âm thanh", "Audio linked")} />}
                       </div>
                       <div
-                        className={`asset-drop-box ${showAudioManager ? 'active-box' : ''}`}
-                        onClick={() => setShowAudioManager((v) => !v)}
+                        className={`asset-drop-box ${formData.musicUrl ? 'active-box' : ''}`}
+                        onClick={() => {
+                          // Khay âm thanh luôn hiện — bấm để nhảy tới ô nhập link nhạc
+                          const el = document.getElementById('music-url-input');
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            el.focus({ preventScroll: true });
+                          }
+                        }}
                       >
                         <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h10l6-6V8c0-1.1-.9-2-2-2zm-2.41 10.59L15 19.17V16h3.17l-.58.59z" />
@@ -1187,18 +1199,18 @@ export default function ProfileEditor() {
                     </div>
                   </div>
 
-                  {/* Khay mở rộng Audio & Background Video Manager */}
-                  {showAudioManager && (
+                  {/* Quản lý âm thanh & video nền — luôn hiển thị */}
+                  {(
                     <div className="guns-subdrawer">
                       <div className="subdrawer-header">
                         <strong>{L("Quản lý âm thanh & video nền", "Audio & Video Background Manager")}</strong>
-                        <button type="button" onClick={() => setShowAudioManager(false)}>✕</button>
                       </div>
                       <div className="subdrawer-grid">
                         <div className="custom-dark-field">
                           <label>{L("Link nhạc YouTube", "YouTube Audio URL")}</label>
                           <div className="dark-input-box">
                             <input
+                              id="music-url-input"
                               type="url"
                               name="musicUrl"
                               value={formData.musicUrl}
@@ -1635,6 +1647,46 @@ export default function ProfileEditor() {
                           : L('Bật chữ nổi 3D', 'Enable 3D Text Effect')}
                           </button>
                         </div>
+
+                        {/* Cỡ chữ tiêu đề & mô tả (theo %, áp dụng cho mọi bố cục) */}
+                        {[
+                          ['nameScale', L('Cỡ chữ tiêu đề', 'Title Size')],
+                          ['bioScale', L('Cỡ chữ mô tả', 'Description Size')]
+                        ].map(([key, text]) => (
+                          <div className="custom-dark-field" key={key}>
+                            <label className="size-field-label">
+                              <span>
+                                {text}: <strong>{formData[key]}%</strong>
+                              </span>
+                              {Number(formData[key]) !== 100 && (
+                                <button
+                                  type="button"
+                                  className="color-reset-link"
+                                  onClick={() => setFormData((prev) => ({ ...prev, [key]: 100 }))}
+                                >
+                                  {L('Mặc định', 'Reset')}
+                                </button>
+                              )}
+                            </label>
+                            <div className="guns-slider-wrap">
+                              <input
+                                type="range"
+                                min="60"
+                                max="160"
+                                step="5"
+                                value={formData[key]}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                                className="guns-range-slider"
+                                style={{ '--val': `${((formData[key] - 60) / 100) * 100}%` }}
+                              />
+                              <div className="guns-slider-marks">
+                                <span>60%</span>
+                                <span>100%</span>
+                                <span>160%</span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -2737,6 +2789,8 @@ export default function ProfileEditor() {
                 className="demo-stage-viewport"
                 style={{
                   backgroundColor: bgColor || '#000000',
+                  '--name-scale': (Number(formData.nameScale) || 100) / 100,
+                  '--bio-scale': (Number(formData.bioScale) || 100) / 100,
                   backgroundImage: formData.backgroundImage ? `url(${formData.backgroundImage})` : undefined
                 }}
               >

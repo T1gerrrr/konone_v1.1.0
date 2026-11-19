@@ -2573,3 +2573,20 @@
 .premium-notice .diamond-icon {
   flex-shrink: 0;
 }
+
+/* ===== Cỡ chữ tiêu đề & mô tả trong demo ===== */
+.demo-stage-viewport .demo-basic-name { font-size: calc(18.5px * var(--name-scale, 1)); }
+.demo-stage-viewport .demo-basic-bio { font-size: calc(12.5px * var(--bio-scale, 1)); }
+.demo-stage-viewport .demo-web-name { font-size: calc(23px * var(--name-scale, 1)); }
+.demo-stage-viewport .demo-web-bio-line { font-size: calc(12px * var(--bio-scale, 1)); }
+
+.size-field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.size-field-label strong {
+  color: #fda4af;
+}
