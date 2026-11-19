@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useLocation } from 'react-router-dom';
-import { collection, query, where, getDocs, updateDoc, doc, getDoc, setDoc, increment } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createMoMoPayment, PREMIUM_PACKAGES, formatVND } from '../services/momoPayment';
 import { t } from '../translations';
@@ -12,7 +12,7 @@ import AppSidebar from './AppSidebar';
 import './Premium.css';
 
 export default function Premium() {
-  const { currentUser } = useAuth();
+  const { currentUser, redeemPremiumCode } = useAuth();
   const { language } = useLanguage();
   const L = (vi, en) => (language === 'vi' ? vi : en);
   const location = useLocation();
@@ -29,19 +29,6 @@ export default function Premium() {
   const [profileReady, setProfileReady] = useState(false);
   const [introMinDone, setIntroMinDone] = useState(false);
   const [introPhase, setIntroPhase] = useState('showing'); // showing -> leaving -> done
-
-  // Valid activation codes (in production, these should be stored in Firestore)
-  const VALID_CODES = {
-    'PREMIUM2024': { days: 30, name: 'Premium 1 Month', maxUses: null },
-    'PREMIUM2025': { days: 30, name: 'Premium 1 Month', maxUses: null },
-    'PREMIUM2026': { days: 30, name: 'Premium 1 Month', maxUses: null },
-    'PREMIUM2024YEAR': { days: 365, name: 'Premium 1 Year', maxUses: null },
-    'PREMIUMFOREVER': { days: 9999, name: 'Premium Lifetime', maxUses: null },
-    'TESTCODE': { days: 7, name: 'Test Premium 7 Days', maxUses: null },
-    'TIGERKON2025': { days: 30, name: 'Premium 1 Month', maxUses: 20 },
-    // Dùng thử 7 ngày — mỗi tài khoản chỉ được dùng 1 lần
-    'KONONE7DAYS': { days: 7, name: 'Premium Trial 7 Days', maxUses: null, trial: true }
-  };
 
   // Mở từ nút "Dùng thử Premium 7 ngày" ở trang chủ: /premium?code=KONONE7DAYS
   useEffect(() => {
@@ -109,15 +96,6 @@ export default function Premium() {
 
     try {
       const code = activationCode.trim().toUpperCase();
-      const codeData = VALID_CODES[code];
-
-      if (!codeData) {
-        setMessage(t(language, 'premium.invalidCode'));
-        setMessageType('error');
-        setLoading(false);
-        return false;
-      }
-
       if (!profileId) {
         setMessage(t(language, 'premium.createProfileFirstActivate'));
         setMessageType('error');
@@ -125,84 +103,27 @@ export default function Premium() {
         return false;
       }
 
-      // Mã dùng thử: mỗi tài khoản chỉ kích hoạt được 1 lần
-      if (codeData.trial && profile?.premiumTrialUsedAt) {
-        setMessage(language === 'vi'
-          ? 'Tài khoản này đã dùng thử Premium 7 ngày rồi. Hãy chọn một gói ở tab Buy Plan.'
-          : 'This account has already used the 7-day Premium trial. Please pick a plan in Buy Plan.');
+      // Server kiểm tra code (database), cộng ngày Premium và đếm lượt dùng
+      let result;
+      try {
+        result = await redeemPremiumCode(code);
+      } catch (apiError) {
+        const known = {
+          'premium/invalid': t(language, 'premium.invalidCode'),
+          'premium/disabled': L('Code này đã bị vô hiệu hóa.', 'This code has been disabled.'),
+          'premium/already-used': L('Tài khoản này đã dùng code này rồi.', 'You have already used this code.'),
+          'premium/trial-used': language === 'vi'
+            ? 'Tài khoản này đã dùng thử Premium rồi. Hãy chọn một gói ở tab Buy Plan.'
+            : 'This account has already used the Premium trial. Please pick a plan in Buy Plan.',
+          'premium/profile-required': t(language, 'premium.createProfileFirstActivate')
+        };
+        setMessage(known[apiError.code] || apiError.message);
         setMessageType('error');
         setLoading(false);
         return false;
       }
 
-      // Check code usage limit if maxUses is set
-      if (codeData.maxUses !== null && codeData.maxUses !== undefined) {
-        try {
-          const codeRef = doc(db, 'premiumCodes', code);
-          const codeDoc = await getDoc(codeRef);
-
-          let currentUses = 0;
-          if (codeDoc.exists()) {
-            currentUses = codeDoc.data().usedCount || 0;
-          }
-
-          if (currentUses >= codeData.maxUses) {
-            setMessage(language === 'vi'
-              ? `Code đã hết lượt sử dụng (${currentUses}/${codeData.maxUses})`
-              : `Code has reached usage limit (${currentUses}/${codeData.maxUses})`);
-            setMessageType('error');
-            setLoading(false);
-            return false;
-          }
-        } catch (usageError) {
-          // If we can't check usage (permission error), allow activation but skip usage tracking
-          console.warn('Cannot check code usage, proceeding without usage limit:', usageError);
-          // Continue with activation but skip usage tracking
-        }
-      }
-
-      // Calculate expiration date
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + codeData.days);
-
-      // Update profile with premium status
-      await updateDoc(doc(db, 'profiles', profileId), {
-        isPremium: true,
-        premiumExpiresAt: expiresAt,
-        premiumActivatedAt: new Date(),
-        premiumCode: code,
-        ...(codeData.trial ? { premiumTrialUsedAt: new Date() } : {}),
-        updatedAt: new Date()
-      });
-
-      // Update code usage count if maxUses is set (only if we have permission)
-      if (codeData.maxUses !== null && codeData.maxUses !== undefined) {
-        try {
-          const codeRef = doc(db, 'premiumCodes', code);
-          const codeDoc = await getDoc(codeRef);
-
-          if (codeDoc.exists()) {
-            await updateDoc(codeRef, {
-              usedCount: increment(1),
-              lastUsedAt: new Date()
-            });
-          } else {
-            await setDoc(codeRef, {
-              code: code,
-              usedCount: 1,
-              maxUses: codeData.maxUses,
-              createdAt: new Date(),
-              lastUsedAt: new Date()
-            });
-          }
-        } catch (usageError) {
-          // If we can't update usage count (permission error), log but don't fail activation
-          console.warn('Cannot update code usage count, but premium activated successfully:', usageError);
-          // Premium is already activated, so we just skip usage tracking
-        }
-      }
-
-      setMessage(t(language, 'premium.activateSuccess', { days: codeData.days }));
+      setMessage(t(language, 'premium.activateSuccess', { days: result.days }));
       setMessageType('success');
       setActivationCode('');
 

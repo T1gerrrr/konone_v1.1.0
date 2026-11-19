@@ -15,6 +15,7 @@
 //
 // Lưu ý: Firebase KHÔNG lưu mật khẩu gốc (chỉ lưu bản băm một chiều) nên không thể "giải mã" hay hiển thị mật khẩu.
 const { adminAuth, adminDb, requireUser } = require('./_lib/common');
+const { normalizePremiumCode, isValidPremiumCode, ensureSeeded } = require('./_lib/premiumCodes');
 const {
   DEFAULT_CONFIG, normalizeConfig, loadConfig, randomCode, normalizeCode, isValidCode
 } = require('./_lib/inviteEvent');
@@ -319,6 +320,67 @@ module.exports = async function handler(req, res) {
         const code = normalizeCode(body.code);
         if (!isValidCode(code)) return fail(res, 400, 'Mã không hợp lệ.', 'admin/bad-request');
         await db.collection('inviteCodes').doc(code).delete();
+        return res.status(200).json({ ok: true });
+      }
+
+      case 'premiumCodes': {
+        await ensureSeeded(db);
+        const snap = await db.collection('premiumCodes').limit(2000).get();
+        const rows = snap.docs
+          .filter((d) => d.data().days)
+          .map((d) => {
+            const c = d.data();
+            return {
+              code: d.id,
+              days: c.days,
+              label: c.label || '',
+              maxUses: c.maxUses || 0,
+              usedCount: c.usedCount || 0,
+              trial: Boolean(c.trial),
+              disabled: Boolean(c.disabled),
+              createdAt: plain(c.createdAt) || null
+            };
+          });
+        rows.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        return res.status(200).json({ codes: rows });
+      }
+
+      case 'createPremiumCode': {
+        const days = Number(body.days);
+        const maxUses = body.maxUses ? Number(body.maxUses) : 0;
+        if (!Number.isInteger(days) || days < 1 || days > 36500) return fail(res, 400, 'Số ngày phải từ 1 đến 36500.', 'admin/bad-request');
+        if (!Number.isInteger(maxUses) || maxUses < 0 || maxUses > 10000000) return fail(res, 400, 'Số lượt dùng không hợp lệ.', 'admin/bad-request');
+        const custom = body.code ? normalizePremiumCode(body.code) : '';
+        if (custom && !isValidPremiumCode(custom)) return fail(res, 400, 'Code chỉ gồm A-Z, 0-9, _ và - (3-32 ký tự).', 'admin/bad-code');
+        const doc = {
+          days, maxUses, usedCount: 0, trial: false, disabled: false,
+          label: String(body.label || '').trim().slice(0, 60), createdAt: new Date(), createdBy: decoded.uid
+        };
+        for (let i = 0; i < 6; i++) {
+          const code = custom || `KON-${randomCode()}`;
+          try {
+            await db.collection('premiumCodes').doc(code).create(doc);
+            return res.status(200).json({ ok: true, code });
+          } catch (err) {
+            const exists = err.code === 6 || /already exists/i.test(err.message || '');
+            if (!exists) throw err;
+            if (custom) return fail(res, 409, 'Code này đã tồn tại.', 'admin/code-exists');
+          }
+        }
+        return fail(res, 500, 'Không tạo được code.', 'admin/failed');
+      }
+
+      case 'setPremiumCodeDisabled': {
+        const code = normalizePremiumCode(body.code);
+        if (!isValidPremiumCode(code)) return fail(res, 400, 'Code không hợp lệ.', 'admin/bad-request');
+        await db.collection('premiumCodes').doc(code).update({ disabled: Boolean(body.disabled) });
+        return res.status(200).json({ ok: true });
+      }
+
+      case 'deletePremiumCode': {
+        const code = normalizePremiumCode(body.code);
+        if (!isValidPremiumCode(code)) return fail(res, 400, 'Code không hợp lệ.', 'admin/bad-request');
+        await db.collection('premiumCodes').doc(code).delete();
         return res.status(200).json({ ok: true });
       }
 

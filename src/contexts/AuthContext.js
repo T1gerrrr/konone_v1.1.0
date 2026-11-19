@@ -136,6 +136,13 @@ export function AuthProvider({ children }) {
     return callApi(user, '/api/admin', body);
   }, []);
 
+  // Kích hoạt Premium bằng code lưu trong database (api/premium-code.js)
+  async function redeemPremiumCode(code) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Chưa đăng nhập');
+    return callApi(user, '/api/premium-code', { code });
+  }
+
   async function claimInviteReward(milestoneId, choice) {
     const user = auth.currentUser;
     if (!user) throw new Error('Chưa đăng nhập');
@@ -172,6 +179,7 @@ export function AuthProvider({ children }) {
     getInviteInfo,
     redeemInviteCode,
     claimInviteReward,
+    redeemPremiumCode,
     adminCall
   };
 

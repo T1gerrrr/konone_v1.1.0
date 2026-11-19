@@ -18,13 +18,9 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
-    // Premium codes collection - users can read and write to track usage
+    // Code Premium chỉ do server (api/premium-code.js, api/admin.js) đọc/ghi — client bị chặn hoàn toàn
     match /premiumCodes/{codeId} {
-      // Anyone authenticated can read premium codes
-      allow read: if request.auth != null;
-      
-      // Anyone authenticated can create/update premium codes (for usage tracking)
-      allow write: if request.auth != null;
+      allow read, write: if false;
     }
     
     // Users collection (if exists)

@@ -10,6 +10,7 @@ const TABS = [
   { id: 'overview', label: 'Tổng quan' },
   { id: 'users', label: 'Tài khoản' },
   { id: 'codes', label: 'Mã mời' },
+  { id: 'premium', label: 'Code Premium' },
   { id: 'event', label: 'Sự kiện & quà' }
 ];
 
@@ -90,6 +91,7 @@ export default function Admin() {
         {tab === 'overview' && <Overview call={adminCall} />}
         {tab === 'users' && <Users call={adminCall} />}
         {tab === 'codes' && <Codes call={adminCall} />}
+        {tab === 'premium' && <PremiumCodes call={adminCall} />}
         {tab === 'event' && <EventConfig call={adminCall} />}
       </main>
     </div>
@@ -416,6 +418,106 @@ function Codes({ call }) {
           </table>
         </div>
         <p className="adm-note">Mã chiến dịch không có người mời nên chỉ ghi nhận lượt nhập, không cộng vào cột mốc của ai.</p>
+      </div>
+    </section>
+  );
+}
+
+/* ================= Code Premium ================= */
+function PremiumCodes({ call }) {
+  const { data, error, reload } = useLoad(call, { action: 'premiumCodes' });
+  const [form, setForm] = useState({ code: '', days: 30, maxUses: '', label: '' });
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function create(e) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await call({ action: 'createPremiumCode', code: form.code, days: Number(form.days), maxUses: form.maxUses ? Number(form.maxUses) : 0, label: form.label });
+      setMsg({ ok: true, text: `Đã tạo code ${r.code}` });
+      setForm({ code: '', days: 30, maxUses: '', label: '' });
+      reload();
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggle(c) {
+    try {
+      await call({ action: 'setPremiumCodeDisabled', code: c.code, disabled: !c.disabled });
+      reload();
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    }
+  }
+
+  async function remove(c) {
+    if (!window.confirm(`Xóa code ${c.code}? Người đã kích hoạt vẫn giữ Premium.`)) return;
+    try {
+      await call({ action: 'deletePremiumCode', code: c.code });
+      reload();
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    }
+  }
+
+  if (!data) return <Status error={error} loading />;
+
+  return (
+    <section className="adm-stack">
+      <form className="adm-card adm-form" onSubmit={create}>
+        <h2>Tạo code Premium</h2>
+        <div className="adm-row">
+          <label>Code (để trống = tự tạo KON-XXXXXXXX)
+            <input className="adm-input adm-mono" maxLength={32} value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="VD: TETVUI2027" />
+          </label>
+          <label>Số ngày Premium
+            <input className="adm-input" type="number" min="1" max="36500" required value={form.days} onChange={(e) => setForm({ ...form, days: e.target.value })} />
+          </label>
+          <label>Số lượt dùng (trống/0 = không giới hạn)
+            <input className="adm-input" type="number" min="0" value={form.maxUses} onChange={(e) => setForm({ ...form, maxUses: e.target.value })} />
+          </label>
+          <label>Ghi chú
+            <input className="adm-input" maxLength={60} value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="VD: Quà KOL tháng 12" />
+          </label>
+          <button type="submit" className="adm-btn" disabled={busy}>Tạo code</button>
+        </div>
+        {msg && <div className={msg.ok ? 'adm-ok' : 'adm-error'}>{msg.text}</div>}
+      </form>
+
+      <div className="adm-card">
+        <div className="adm-card-head">
+          <h2>Code Premium đang có <span className="adm-count">{data.codes.length}</span></h2>
+          <button type="button" className="adm-btn ghost" onClick={reload}>Làm mới</button>
+        </div>
+        <div className="adm-table-wrap">
+          <table className="adm-table static">
+            <thead><tr><th>Code</th><th>Số ngày</th><th>Đã dùng</th><th>Tối đa</th><th>Ghi chú</th><th>Trạng thái</th><th>Ngày tạo</th><th /></tr></thead>
+            <tbody>
+              {data.codes.map((c) => (
+                <tr key={c.code}>
+                  <td className="adm-mono"><b>{c.code}</b>{c.trial && <span className="adm-tag">dùng thử</span>}</td>
+                  <td>{c.days.toLocaleString()}</td>
+                  <td>{c.usedCount}</td>
+                  <td>{c.maxUses || '∞'}</td>
+                  <td>{c.label || '—'}</td>
+                  <td><span className={`adm-tag ${c.disabled ? 'warn' : 'ok'}`}>{c.disabled ? 'đã tắt' : (c.maxUses && c.usedCount >= c.maxUses ? 'hết lượt' : 'đang bật')}</span></td>
+                  <td>{fmt(c.createdAt)}</td>
+                  <td>
+                    <button type="button" className="adm-btn ghost small" onClick={() => toggle(c)}>{c.disabled ? 'Bật' : 'Tắt'}</button>{' '}
+                    <button type="button" className="adm-btn danger small" onClick={() => remove(c)}>Xóa</button>
+                  </td>
+                </tr>
+              ))}
+              {!data.codes.length && <tr><td colSpan={8} className="adm-muted">Chưa có code nào.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <p className="adm-note">Mỗi tài khoản chỉ dùng được một code một lần. Ngày Premium được cộng dồn nếu tài khoản đang còn hạn.</p>
       </div>
     </section>
   );
