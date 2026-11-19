@@ -1,5 +1,6 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { FEATURES } from './constants/features';
 import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import PrivateRoute from './components/PrivateRoute';
@@ -9,6 +10,7 @@ import Register from './components/Register';
 import VerifyEmail from './components/VerifyEmail';
 import LegalPage from './components/LegalPage';
 import ChatWidget from './components/ChatWidget';
+import NotifyHost from './notify/NotifyHost';
 import Dashboard from './components/Dashboard';
 import ProfileEditor from './components/ProfileEditor';
 import PublicProfile from './components/PublicProfile';
@@ -16,6 +18,8 @@ import Premium from './components/Premium';
 import Community from './components/Community';
 import ProfileTemplate from './components/ProfileTemplate';
 import LayoutEditor from './components/LayoutEditor';
+import LinksPage from './components/LinksPage';
+import Leaderboard from './components/Leaderboard';
 import './App.css';
 
 function App() {
@@ -30,6 +34,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/community" element={<Community />} />
+              <Route path="/leaderboard" element={<Leaderboard />} />
               <Route path="/terms" element={<LegalPage doc="terms" />} />
               <Route path="/privacy" element={<LegalPage doc="privacy" />} />
               <Route path="/copyright" element={<LegalPage doc="copyright" />} />
@@ -50,6 +55,14 @@ function App() {
                 }
               />
               <Route
+                path="/links"
+                element={
+                  <PrivateRoute>
+                    <LinksPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
                 path="/premium"
                 element={
                   <PrivateRoute>
@@ -60,9 +73,14 @@ function App() {
               <Route
                 path="/profile-template"
                 element={
-                  <PrivateRoute>
-                    <ProfileTemplate />
-                  </PrivateRoute>
+                  FEATURES.profileTemplate ? (
+                    <PrivateRoute>
+                      <ProfileTemplate />
+                    </PrivateRoute>
+                  ) : (
+                    // Trang Mẫu đang tạm ẩn -> chuyển về Bảng điều khiển
+                    <Navigate to="/dashboard" replace />
+                  )
                 }
               />
               <Route
@@ -76,6 +94,7 @@ function App() {
               <Route path="/:username" element={<PublicProfile />} />
             </Routes>
             <ChatWidget />
+            <NotifyHost />
           </div>
         </LanguageProvider>
       </AuthProvider>

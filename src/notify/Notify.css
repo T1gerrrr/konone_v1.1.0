@@ -1,0 +1,164 @@
+/* Thông báo dạng toast — góc trên bên phải */
+.nt-stack {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 5000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.nt-toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 10px 12px 14px;
+  border-radius: 14px;
+  background: rgba(18, 18, 22, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #f4f4f5;
+  font-size: 13.5px;
+  line-height: 1.45;
+  animation: ntIn 0.24s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes ntIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+
+.nt-ico {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.nt-success .nt-ico { background: rgba(74, 222, 128, 0.15); color: #4ade80; }
+.nt-error .nt-ico { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.nt-info .nt-ico { background: rgba(255, 255, 255, 0.08); color: #e4e4e7; }
+
+.nt-msg {
+  flex: 1;
+  min-width: 0;
+  padding-top: 2px;
+  white-space: pre-line;
+  word-break: break-word;
+}
+
+.nt-x {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.nt-x:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Hộp thoại xác nhận */
+.nt-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 5001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  animation: ntFade 0.18s ease;
+}
+
+@keyframes ntFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.nt-dialog {
+  width: min(400px, 100%);
+  padding: 22px 22px 18px;
+  border-radius: 18px;
+  background: #141418;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  color: #f4f4f5;
+  animation: ntIn 0.22s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.nt-dialog h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.nt-dialog p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 14px;
+  line-height: 1.55;
+  white-space: pre-line;
+}
+
+.nt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.nt-btn {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nt-btn:hover {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nt-btn-primary {
+  background: #f65c5c;
+  border-color: #f65c5c;
+  color: #fff;
+}
+
+.nt-btn-primary:hover {
+  background: #e44d4d;
+  border-color: #e44d4d;
+}
+
+@media (max-width: 640px) {
+  .nt-stack {
+    top: auto;
+    bottom: 16px;
+    right: 16px;
+    left: 16px;
+    width: auto;
+  }
+}

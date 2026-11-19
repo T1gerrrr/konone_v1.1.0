@@ -9,8 +9,10 @@ service cloud.firestore {
       // Users can create their own profile
       allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
       
-      // Users can update their own profile
-      allow update: if request.auth != null && resource.data.userId == request.auth.uid;
+      // Users can update their own profile.
+      // Anyone (kể cả khách) chỉ được tăng lượt xem: viewCount + viewsByDay.
+      allow update: if (request.auth != null && resource.data.userId == request.auth.uid)
+        || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewCount', 'viewsByDay']);
       
       // Users can delete their own profile
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;

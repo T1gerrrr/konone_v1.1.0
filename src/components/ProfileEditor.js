@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate, Link } from 'react-router-dom';
@@ -6,6 +6,13 @@ import { collection, query, where, getDocs, addDoc, updateDoc, doc } from 'fireb
 import { db } from '../firebase';
 import { uploadToCloudinary } from '../config/cloudinary';
 import { t } from '../translations';
+import LanyardCard from './LanyardCard';
+import SplashCursor from './SplashCursor';
+import BlobCursor from './BlobCursor';
+import { PLATFORM_BY_KEY } from '../constants/socialPlatforms';
+import { resolveProfileBadges } from '../constants/badges';
+import { PREMIUM_LAYOUTS, countLinks, premiumViolations } from '../constants/premium';
+import { getYouTubeVideoId } from '../utils/youtube';
 import {
   SnowEffect,
   RainEffect,
@@ -18,6 +25,10 @@ import {
   ConfettiEffect,
   NebulaEffect
 } from './Effects';
+import DiamondIcon from './DiamondIcon';
+import SlideCommit from './SlideCommit';
+import { musicBoxBg } from '../utils/color';
+import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
 import './ProfileEditor.css';
 
 const AVATAR_FRAMES = [
@@ -41,22 +52,68 @@ const SOCIAL_FIELDS = [
   { key: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/in/...' }
 ];
 
+const SPLASH_COLOR_PRESETS = [
+  { name: 'KonOne Crimson', colors: ['#f65c5c', '#dc2626', '#a21caf'], rainbow: false },
+  { name: 'Cyber Neon', colors: ['#4f8cff', '#2dd4bf', '#ffd166'], rainbow: false },
+  { name: 'Violet Gold', colors: ['#c084fc', '#ec4899', '#f59e0b'], rainbow: false },
+  { name: 'Emerald Ice', colors: ['#10b981', '#06b6d4', '#3b82f6'], rainbow: false },
+  { name: 'Rainbow Spectrum', colors: ['#4f8cff', '#2dd4bf', '#ffd166'], rainbow: true }
+];
+
+function hexToRgba(hex, alpha = 0.8) {
+  if (!hex || typeof hex !== 'string') return `rgba(18, 17, 23, ${alpha})`;
+  if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const num = parseInt(full, 16);
+  if (Number.isNaN(num)) return `rgba(18, 17, 23, ${alpha})`;
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 export default function ProfileEditor() {
   const { currentUser } = useAuth();
   const { language, changeLanguage } = useLanguage();
+  const L = (vi, en) => (language === 'vi' ? vi : en);
   const navigate = useNavigate();
 
-  const [loading, setLoading] = useState(false);
+  const [, setLoading] = useState(false); // trạng thái lưu (thanh trượt Lưu tự hiển thị đang xử lý)
   const [uploading, setUploading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [uploadingCursor, setUploadingCursor] = useState(false);
+  const [uploadingPoster, setUploadingPoster] = useState(false);
   const [profileId, setProfileId] = useState(null);
-  const [profileOpacity, setProfileOpacity] = useState(50);
-  const [profileBlur, setProfileBlur] = useState(50);
+  const [isHidden, setIsHidden] = useState(false); // Ẩn hồ sơ với người khác
+  const [savedUsername, setSavedUsername] = useState(''); // username đã lưu (để mở đúng link)
+  const [saveToast, setSaveToast] = useState(null); // { ok, text } — thanh báo dưới màn hình sau khi lưu
+  const toastTimer = useRef(null);
+
+  function showSaveToast(ok, text) {
+    clearTimeout(toastTimer.current);
+    setSaveToast({ ok, text });
+    toastTimer.current = setTimeout(() => setSaveToast(null), 9000);
+  }
+
+  async function toggleHidden() {
+    const next = !isHidden;
+    setIsHidden(next);
+    if (profileId) {
+      try {
+        await updateDoc(doc(db, 'profiles', profileId), { isHidden: next });
+        showSaveToast(true, next ? L('Hồ sơ đã được ẩn', 'Profile hidden') : L('Hồ sơ đã hiện lại', 'Profile is visible again'));
+      } catch (err) {
+        setIsHidden(!next);
+        notifyError(L('Không đổi được trạng thái ẩn: ', 'Could not change visibility: ') + err.message);
+      }
+    }
+  }
+  const [profileOpacity, setProfileOpacity] = useState(0);
+  const [profileBlur, setProfileBlur] = useState(0);
   const [isPremium, setIsPremium] = useState(false);
-  const [previewEffect, setPreviewEffect] = useState(null);
-  const [showPreview, setShowPreview] = useState(false);
 
   // Premium text styling
   const [textFontFamily, setTextFontFamily] = useState('Arial');
@@ -66,8 +123,93 @@ export default function ProfileEditor() {
   const [textBorderStyle, setTextBorderStyle] = useState('solid');
   const [viewCount, setViewCount] = useState(0);
 
-  // Module đang được mở hoặc ghim (pinned) khi click
-  const [pinnedTile, setPinnedTile] = useState(null);
+  // Modals / Popovers cho các ô trong giao diện Custom kiểu guns.lol
+  const [showAudioManager, setShowAudioManager] = useState(false);
+  const [showCursorManager, setShowCursorManager] = useState(false);
+  const [showWidgetManager, setShowWidgetManager] = useState(false);
+  const [showUsernameEffects, setShowUsernameEffects] = useState(false);
+  const [showSocialsModal, setShowSocialsModal] = useState(false);
+
+  // Glow & Color & Toggle states
+  const [glowSettings, setGlowSettings] = useState({
+    username: true,
+    socials: true,
+    badges: true
+  });
+  const [textColor, setTextColor] = useState('#ffffff');
+  const [bgColor, setBgColor] = useState('#000000');
+  const [iconColor, setIconColor] = useState('#ffffff');
+  const [profileGradient, setProfileGradient] = useState(false);
+  const [socialPosition, setSocialPosition] = useState('inside');
+  const [customLinks, setCustomLinks] = useState([]);
+  const [adminBadgeData, setAdminBadgeData] = useState({});
+  const [demoAudioTitle, setDemoAudioTitle] = useState('');
+  const [otherSettings, setOtherSettings] = useState({
+    monochromeIcons: true,
+    animatedTitle: false,
+    swapBoxColors: false,
+    volumeControl: true,
+    useDiscordAvatar: false,
+    discordAvatarDecoration: true,
+    avatarBorder: false // Viền avatar — mặc định tắt
+  });
+
+  // ReactBits SplashCursor customization state
+  const [splashCursor, setSplashCursor] = useState({
+    enabled: false,
+    rainbow: false,
+    colors: ['#f65c5c', '#dc2626', '#a21caf'],
+    size: 1,
+    force: 1,
+    swirl: 3,
+    trail: 1,
+    clickSplash: true,
+    colorSpeed: 1,
+    intensity: 1,
+    momentum: 1,
+    shading: 1,
+    glow: 0,
+    quality: 'high'
+  });
+
+  // ReactBits BlobCursor customization state
+  const [blobCursor, setBlobCursor] = useState({
+    enabled: false,
+    material: 'chrome',
+    color: '#3B82F6',
+    blend: 'normal',
+    size: 140,
+    morph: 0,
+    morphSpeed: 0.4,
+    depth: 1,
+    trail: 16,
+    lag: 0.55,
+    goo: 1,
+    stretch: 0.6,
+    wobble: 1,
+    drip: 0,
+    shine: 1,
+    splash: true,
+    splashCount: 6,
+    splashSpeed: 0.5,
+    splashSize: 0.5,
+    splashGravity: 0,
+    regrow: 0.5,
+    shadow: false,
+    hideCursor: true
+  });
+
+  // Tab đang mở trong bảng chỉnh hiệu ứng chuột ('splash' | 'blob')
+  const [cursorTab, setCursorTab] = useState('splash');
+  const [showCursorTuning, setShowCursorTuning] = useState(false);
+
+  // Chỉ 1 loại chuột được bật: bật Splash thì tắt Blob và ngược lại
+  useEffect(() => {
+    if (splashCursor.enabled) setBlobCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+  }, [splashCursor.enabled]);
+  useEffect(() => {
+    if (blobCursor.enabled) setSplashCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+  }, [blobCursor.enabled]);
 
   const [formData, setFormData] = useState({
     username: '',
@@ -84,6 +226,12 @@ export default function ProfileEditor() {
     backgroundVideo: '',
     musicUrl: '',
     effect: 'none',
+    layout: 'card',
+    lanyardStrapColor: '#f65c5c',
+    lanyardCardColor: '#18161c',
+    lanyardBadgeLabel: 'KONONE PASS',
+    musicBoxColor: '',
+    musicAccentColor: '',
     socialLinks: {
       facebook: '',
       instagram: '',
@@ -95,12 +243,15 @@ export default function ProfileEditor() {
     status: '',
     turma: '',
     hashtags: [],
-    cardColor: '',
+    cardColor: '#1b1b1b',
     cursorIcon: '',
-    presenceType: 'listening',
+    presenceType: 'playing',
     presenceTitle: '',
     presenceSubtitle: '',
-    presenceIcon: ''
+    presenceIcon: '',
+    webPosterImage: '',
+    webIntroTitle: '',
+    webIntroText: ''
   });
 
   useEffect(() => {
@@ -113,6 +264,8 @@ export default function ProfileEditor() {
         if (!querySnapshot.empty) {
           const profileData = querySnapshot.docs[0].data();
           setProfileId(querySnapshot.docs[0].id);
+          setIsHidden(Boolean(profileData.isHidden));
+          setSavedUsername(profileData.username || '');
 
           const premiumExpiresAt = profileData.premiumExpiresAt?.toDate
             ? profileData.premiumExpiresAt.toDate()
@@ -137,6 +290,12 @@ export default function ProfileEditor() {
             backgroundVideo: profileData.backgroundVideo || '',
             musicUrl: profileData.musicUrl || '',
             effect: profileData.effect || 'none',
+            layout: ['lanyard', 'web'].includes(profileData.layout) ? profileData.layout : 'card',
+            lanyardStrapColor: profileData.lanyardStrapColor || '#f65c5c',
+            lanyardCardColor: profileData.lanyardCardColor || profileData.cardColor || '#18161c',
+            lanyardBadgeLabel: profileData.lanyardBadgeLabel || 'KONONE PASS',
+            musicBoxColor: profileData.musicBoxColor || '',
+            musicAccentColor: profileData.musicAccentColor || '',
             socialLinks: profileData.socialLinks || {
               facebook: '',
               instagram: '',
@@ -148,27 +307,76 @@ export default function ProfileEditor() {
             status: profileData.status || '',
             turma: profileData.turma || '',
             hashtags: Array.isArray(profileData.hashtags) ? profileData.hashtags : [],
-            cardColor: profileData.cardColor || '',
+            cardColor: profileData.cardColor || '#1b1b1b',
             cursorIcon: profileData.cursorIcon || '',
-            presenceType: profileData.presenceType || 'listening',
+            presenceType: profileData.presenceType || 'playing',
             presenceTitle: profileData.presenceTitle || '',
             presenceSubtitle: profileData.presenceSubtitle || '',
-            presenceIcon: profileData.presenceIcon || ''
+            presenceIcon: profileData.presenceIcon || '',
+            webPosterImage: profileData.webPosterImage || '',
+            webIntroTitle: profileData.webIntroTitle || '',
+            webIntroText: profileData.webIntroText || ''
           });
 
-          // Load profile opacity and blur
-          setProfileOpacity(profileData.profileOpacity || 50);
-          setProfileBlur(profileData.profileBlur || 50);
-
-          // Load Premium text styling
+          setProfileOpacity(profileData.profileOpacity ?? 0);
+          setProfileBlur(profileData.profileBlur ?? 0);
           setTextFontFamily(profileData.textFontFamily || 'Arial');
-          setText3DEffect(profileData.text3DEffect || false);
+          setText3DEffect(Boolean(profileData.text3DEffect));
           setTextBorderWidth(profileData.textBorderWidth || 0);
           setTextBorderColor(profileData.textBorderColor || '#ffffff');
           setTextBorderStyle(profileData.textBorderStyle || 'solid');
-
-          // Load view count
           setViewCount(profileData.viewCount || 0);
+
+          if (profileData.glowSettings) setGlowSettings(profileData.glowSettings);
+          if (profileData.textColor) setTextColor(profileData.textColor);
+          if (profileData.bgColor) setBgColor(profileData.bgColor);
+          if (profileData.iconColor) setIconColor(profileData.iconColor);
+          if (profileData.profileGradient !== undefined) setProfileGradient(Boolean(profileData.profileGradient));
+          if (profileData.socialPosition) {
+            setSocialPosition(profileData.socialPosition === 'outside' ? 'outside' : 'inside');
+          }
+          if (Array.isArray(profileData.customLinks)) {
+            setCustomLinks(profileData.customLinks);
+          }
+          setAdminBadgeData({
+            badges: profileData.badges,
+            isAdmin: profileData.isAdmin,
+            isStaff: profileData.isStaff,
+            isBugHunter: profileData.isBugHunter,
+            isVerified: profileData.isVerified,
+            isSupporter: profileData.isSupporter,
+            isMedal: profileData.isMedal,
+            isBooster: profileData.isBooster,
+            isOg: profileData.isOg
+          });
+          if (profileData.otherSettings) {
+            setOtherSettings((prev) => ({
+              ...prev,
+              ...profileData.otherSettings,
+              discordAvatarDecoration: Boolean(profileData.avatarFrame)
+            }));
+          }
+          if (profileData.splashCursor && typeof profileData.splashCursor === 'object') {
+            setSplashCursor((prev) => ({
+              ...prev,
+              ...profileData.splashCursor,
+              colors:
+                Array.isArray(profileData.splashCursor.colors) && profileData.splashCursor.colors.length === 3
+                  ? profileData.splashCursor.colors
+                  : prev.colors
+            }));
+          }
+          if (profileData.blobCursor && typeof profileData.blobCursor === 'object') {
+            setBlobCursor((prev) => ({
+              ...prev,
+              ...profileData.blobCursor,
+              // Dữ liệu cũ có thể bật cả 2 — ưu tiên Splash
+              enabled: Boolean(profileData.blobCursor.enabled && !profileData.splashCursor?.enabled)
+            }));
+            if (profileData.blobCursor.enabled && !profileData.splashCursor?.enabled) {
+              setCursorTab('blob');
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading profile:', error);
@@ -184,26 +392,20 @@ export default function ProfileEditor() {
     if (!file) return null;
 
     if (!file.type.startsWith('image/')) {
-      alert('Vui lòng chọn file ảnh');
+      notifyError(L("Vui lòng chọn file ảnh", "Please choose an image file"));
       return null;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert('Kích thước ảnh không được vượt quá 10MB');
+      notifyError(L("Kích thước ảnh không được vượt quá 10MB", "Image size must not exceed 10MB"));
       return null;
     }
 
-    // Set uploading state for specific type
-    if (type === 'avatar') {
-      setUploadingAvatar(true);
-    } else if (type === 'coverImage') {
-      setUploadingCover(true);
-    } else if (type === 'backgroundImage') {
-      setUploadingBackground(true);
-    }
     if (type === 'avatar') setUploadingAvatar(true);
     else if (type === 'coverImage') setUploadingCover(true);
     else if (type === 'backgroundImage') setUploadingBackground(true);
+    else if (type === 'cursorIcon') setUploadingCursor(true);
+    else if (type === 'webPosterImage') setUploadingPoster(true);
     setUploading(true);
 
     try {
@@ -212,90 +414,94 @@ export default function ProfileEditor() {
       return url;
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Lỗi khi tải ảnh lên Cloudinary: ' + error.message);
+      notifyError(L('Lỗi khi tải ảnh lên: ', 'Image upload failed: ') + error.message);
       return null;
     } finally {
       setUploading(false);
-      if (type === 'avatar') {
-        setUploadingAvatar(false);
-      } else if (type === 'coverImage') {
-        setUploadingCover(false);
-      } else if (type === 'backgroundImage') {
-        setUploadingBackground(false);
-      }
       if (type === 'avatar') setUploadingAvatar(false);
       else if (type === 'coverImage') setUploadingCover(false);
       else if (type === 'backgroundImage') setUploadingBackground(false);
+      else if (type === 'cursorIcon') setUploadingCursor(false);
+      else if (type === 'webPosterImage') setUploadingPoster(false);
+    }
+  }
+
+  async function handleLayoutSwitch(nextLayout) {
+    // Cho xem demo mọi bố cục; bố cục Premium chỉ được lưu khi có Premium (kiểm tra lúc bấm Lưu)
+    setFormData((prev) => ({ ...prev, layout: nextLayout }));
+    if (profileId && (isPremium || !PREMIUM_LAYOUTS.includes(nextLayout))) {
+      try {
+        await updateDoc(doc(db, 'profiles', profileId), { layout: nextLayout });
+      } catch (err) {
+        console.error('Error auto-saving layout:', err);
+      }
+    }
+  }
+
+  async function handleSocialPositionSwitch(nextPos) {
+    setSocialPosition(nextPos);
+    if (profileId) {
+      try {
+        await updateDoc(doc(db, 'profiles', profileId), { socialPosition: nextPos });
+      } catch (err) {
+        console.error('Error auto-saving social position:', err);
+      }
     }
   }
 
   async function handleSubmit(e) {
-    e.preventDefault();
+    e?.preventDefault?.();
     setLoading(true);
 
     try {
-      // Check if user selected Premium effect without Premium
-      // Free effects: snow, particles, confetti, fireworks
-      // Premium effects: rain, stars, leaves, aurora, matrix, nebula
-      const premiumEffects = ['rain', 'stars', 'leaves', 'aurora', 'matrix', 'nebula'];
-      if (premiumEffects.includes(formData.effect) && !isPremium) {
-        const confirmUpgrade = window.confirm(
-          'Tính năng Premium!\n\n' +
-          `Hiệu ứng "${formData.effect}" chỉ dành cho tài khoản Premium.\n\n` +
-          'Bạn có muốn nâng cấp lên Premium để sử dụng hiệu ứng này không?'
-            `Hiệu ứng "${formData.effect}" chỉ dành cho tài khoản Premium.\n\n` +
-          'Bạn có muốn nâng cấp lên Premium để sử dụng hiệu ứng này không?'
+      if (!isPremium) {
+        const violations = premiumViolations(
+          {
+            layout: formData.layout,
+            effect: formData.effect,
+            splashEnabled: splashCursor.enabled,
+            blobEnabled: blobCursor.enabled,
+            backgroundVideo: formData.backgroundVideo,
+            linkCount: countLinks(formData.socialLinks, customLinks)
+          },
+          language
         );
-        if (confirmUpgrade) {
-          navigate('/premium');
+        if (violations.length) {
+          setLoading(false);
+          const ok = await confirmDialog({
+            title: L('Cần Premium để lưu', 'Premium required to save'),
+            message:
+              L('Các mục sau chỉ dành cho Premium:', 'These items require Premium:') +
+              `\n• ${violations.join('\n• ')}\n\n` +
+              L('Hãy tắt chúng để lưu, hoặc nâng cấp Premium.', 'Turn them off to save, or upgrade to Premium.'),
+            confirmText: L('Nâng cấp Premium', 'Upgrade to Premium'),
+            cancelText: L('Để sau', 'Not now')
+          });
+          if (ok) navigate('/premium');
+          return false;
         }
-        if (confirmUpgrade) navigate('/premium');
-        setLoading(false);
-        return;
-      }
-
-      // Check if user selected background video without Premium
-      if (formData.backgroundVideo && !isPremium) {
-        const confirmUpgrade = window.confirm(
-          ' Tính năng Premium!\n\n' +
-          'Background Video chỉ dành cho tài khoản Premium.\n\n' +
-          'Bạn có muốn nâng cấp lên Premium để sử dụng tính năng này không?'
-          'Tính năng Premium!\n\n' +
-          'Background Video chỉ dành cho tài khoản Premium.\n\n' +
-          'Bạn có muốn nâng cấp lên Premium để sử dụng tính năng này không?'
-        );
-        if (confirmUpgrade) {
-          navigate('/premium');
-        }
-        if (confirmUpgrade) navigate('/premium');
-        setLoading(false);
-        return;
       }
 
       const normalizedUsername = formData.username.toLowerCase().trim();
       if (!normalizedUsername || !formData.displayName.trim()) {
-        alert(language === 'vi' ? 'Vui lòng nhập Username và Tên hiển thị ở mục Thông tin định danh!' : 'Please enter Username and Display Name!');
-        setPinnedTile('identity');
+        notifyError(L('Vui lòng nhập tên người dùng và tên hiển thị!', 'Please enter a username and display name!'));
         setLoading(false);
-        return;
+        return false;
       }
 
-      // Clean hashtags - remove empty strings and ensure valid array
       const cleanHashtags = Array.isArray(formData.hashtags)
-        ? formData.hashtags.filter(tag => tag && typeof tag === 'string' && tag.trim() !== '')
-          ? formData.hashtags.filter((tag) => tag && typeof tag === 'string' && tag.trim() !== '')
-          : [];
+        ? formData.hashtags.filter((tag) => tag && typeof tag === 'string' && tag.trim() !== '')
+        : [];
 
-      // Clean socialLinks - ensure all fields are strings
-      const cleanSocialLinks = {
-        facebook: String(formData.socialLinks?.facebook || ''),
-        instagram: String(formData.socialLinks?.instagram || ''),
-        twitter: String(formData.socialLinks?.twitter || ''),
-        linkedin: String(formData.socialLinks?.linkedin || ''),
-        tiktok: String(formData.socialLinks?.tiktok || '')
-      };
+      const cleanSocialLinks = {};
+      if (formData.socialLinks && typeof formData.socialLinks === 'object') {
+        Object.entries(formData.socialLinks).forEach(([k, v]) => {
+          if (v !== undefined && v !== null) {
+            cleanSocialLinks[k] = String(v);
+          }
+        });
+      }
 
-      // Build profile data object - only include valid fields
       const profileData = {
         username: normalizedUsername,
         userId: currentUser.uid,
@@ -306,59 +512,119 @@ export default function ProfileEditor() {
         location: String(formData.location || ''),
         website: String(formData.website || ''),
         avatar: String(formData.avatar || ''),
-        avatarFrame: String(formData.avatarFrame || ''),
+        avatarFrame: otherSettings.discordAvatarDecoration ? String(formData.avatarFrame || '') : '',
         coverImage: String(formData.coverImage || ''),
         backgroundImage: String(formData.backgroundImage || ''),
         backgroundVideo: String(formData.backgroundVideo || ''),
         musicUrl: String(formData.musicUrl || ''),
         effect: String(formData.effect || 'none'),
+        layout: String(formData.layout || 'card'),
+        lanyardStrapColor: String(formData.lanyardStrapColor || '#f65c5c'),
+        lanyardCardColor: String(formData.lanyardCardColor || formData.cardColor || '#18161c'),
+        lanyardBadgeLabel: String(formData.lanyardBadgeLabel || 'KONONE PASS'),
+        musicBoxColor: String(formData.musicBoxColor || ''),
+        musicAccentColor: String(formData.musicAccentColor || ''),
         socialLinks: cleanSocialLinks,
         jobTitle: String(formData.jobTitle || ''),
         status: String(formData.status || ''),
         turma: String(formData.turma || ''),
         hashtags: cleanHashtags,
-        cardColor: String(formData.cardColor || ''),
+        cardColor: String(formData.cardColor || '#1b1b1b'),
         cursorIcon: String(formData.cursorIcon || ''),
-        presenceType: String(formData.presenceType || 'listening'),
+        presenceType: String(formData.presenceType || 'playing'),
         presenceTitle: String(formData.presenceTitle || ''),
         presenceSubtitle: String(formData.presenceSubtitle || ''),
         presenceIcon: String(formData.presenceIcon || ''),
-        profileOpacity: Number(profileOpacity) || 50,
-        profileBlur: Number(profileBlur) || 50,
+        webPosterImage: String(formData.webPosterImage || ''),
+        webIntroTitle: String(formData.webIntroTitle || ''),
+        webIntroText: String(formData.webIntroText || ''),
+        profileOpacity: Number(profileOpacity) || 0,
+        profileBlur: Number(profileBlur) || 0,
         textFontFamily: String(textFontFamily || 'Arial'),
         text3DEffect: Boolean(text3DEffect),
         textBorderWidth: Number(textBorderWidth) || 0,
         textBorderColor: String(textBorderColor || '#ffffff'),
         textBorderStyle: String(textBorderStyle || 'solid'),
+        glowSettings,
+        textColor,
+        bgColor,
+        iconColor,
+        profileGradient,
+        socialPosition,
+        otherSettings,
+        splashCursor: {
+          enabled: Boolean(splashCursor.enabled),
+          rainbow: Boolean(splashCursor.rainbow),
+          colors: Array.isArray(splashCursor.colors) && splashCursor.colors.length === 3
+            ? splashCursor.colors.map((c) => String(c || '#f65c5c'))
+            : ['#f65c5c', '#dc2626', '#a21caf'],
+          size: Number(splashCursor.size ?? 1),
+          force: Number(splashCursor.force ?? 1),
+          swirl: Number(splashCursor.swirl ?? 3),
+          trail: Number(splashCursor.trail ?? 1),
+          clickSplash: Boolean(splashCursor.clickSplash),
+          colorSpeed: Number(splashCursor.colorSpeed ?? 1),
+          intensity: Number(splashCursor.intensity ?? 1),
+          momentum: Number(splashCursor.momentum ?? 1),
+          shading: Number(splashCursor.shading ?? 1),
+          glow: Number(splashCursor.glow ?? 0),
+          quality: String(splashCursor.quality || 'high')
+        },
+        blobCursor: {
+          enabled: Boolean(blobCursor.enabled),
+          material: String(blobCursor.material || 'chrome'),
+          color: String(blobCursor.color || '#3B82F6'),
+          blend: String(blobCursor.blend || 'normal'),
+          size: Number(blobCursor.size ?? 140),
+          morph: Number(blobCursor.morph ?? 0),
+          morphSpeed: Number(blobCursor.morphSpeed ?? 0.4),
+          depth: Number(blobCursor.depth ?? 1),
+          trail: Number(blobCursor.trail ?? 16),
+          lag: Number(blobCursor.lag ?? 0.55),
+          goo: Number(blobCursor.goo ?? 1),
+          stretch: Number(blobCursor.stretch ?? 0.6),
+          wobble: Number(blobCursor.wobble ?? 1),
+          drip: Number(blobCursor.drip ?? 0),
+          shine: Number(blobCursor.shine ?? 1),
+          splash: Boolean(blobCursor.splash),
+          splashCount: Number(blobCursor.splashCount ?? 6),
+          splashSpeed: Number(blobCursor.splashSpeed ?? 0.5),
+          splashSize: Number(blobCursor.splashSize ?? 0.5),
+          splashGravity: Number(blobCursor.splashGravity ?? 0),
+          regrow: Number(blobCursor.regrow ?? 0.5),
+          shadow: Boolean(blobCursor.shadow),
+          hideCursor: Boolean(blobCursor.hideCursor)
+        },
+        isHidden: Boolean(isHidden),
         updatedAt: new Date()
       };
 
       if (profileId) {
         await updateDoc(doc(db, 'profiles', profileId), profileData);
-        alert('Cập nhật hồ sơ thành công!');
+        setSavedUsername(normalizedUsername);
+        showSaveToast(true, L('Cập nhật hồ sơ thành công!', 'Profile updated successfully!'));
       } else {
-        const usernameCheck = query(
-          collection(db, 'profiles'),
-          where('username', '==', normalizedUsername)
-        );
         const usernameCheck = query(collection(db, 'profiles'), where('username', '==', normalizedUsername));
         const usernameSnapshot = await getDocs(usernameCheck);
 
         if (!usernameSnapshot.empty) {
-          alert('Tên người dùng đã tồn tại. Vui lòng chọn tên khác.');
+          notifyError(L("Tên người dùng đã tồn tại. Vui lòng chọn tên khác.", "This username is already taken. Please choose another one."));
           setLoading(false);
-          return;
+          return false;
         }
 
         profileData.createdAt = new Date();
-        await addDoc(collection(db, 'profiles'), profileData);
-        alert('Tạo hồ sơ thành công!');
+        const ref = await addDoc(collection(db, 'profiles'), profileData);
+        setProfileId(ref.id);
+        setSavedUsername(normalizedUsername);
+        showSaveToast(true, L('Tạo hồ sơ thành công!', 'Profile created successfully!'));
       }
-
-      navigate('/dashboard');
+      // Ở lại trang chỉnh sửa (không chuyển về Dashboard)
+      return true;
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('Lỗi khi lưu hồ sơ: ' + error.message);
+      notifyError(L('Lỗi khi lưu hồ sơ: ', 'Error saving profile: ') + error.message);
+      return false;
     } finally {
       setLoading(false);
     }
@@ -368,21 +634,19 @@ export default function ProfileEditor() {
     const { name, value } = e.target;
     if (name.startsWith('social.')) {
       const socialKey = name.split('.')[1];
-      setFormData(prev => ({
-        setFormData((prev) =>({
-          ...prev,
-          socialLinks: {
-            ...prev.socialLinks,
-            [socialKey]: value
-          }
-        }));
+      setFormData((prev) => ({
+        ...prev,
+        socialLinks: {
+          ...prev.socialLinks,
+          [socialKey]: value
+        }
+      }));
     } else {
       const processedValue = name === 'username' ? value.toLowerCase().replace(/[^a-z0-9]/g, '') : value;
-      setFormData(prev => ({
-        setFormData((prev) =>({
-          ...prev,
-          [name]: processedValue
-        }));
+      setFormData((prev) => ({
+        ...prev,
+        [name]: processedValue
+      }));
     }
   }
 
@@ -391,46 +655,127 @@ export default function ProfileEditor() {
     if (file) {
       const url = await handleImageUpload(file, type);
       if (url) {
-        setFormData(prev => ({
-          setFormData((prev) =>({
-            ...prev,
-            [type]: url
-          }));
+        setFormData((prev) => ({
+          ...prev,
+          [type]: url
+        }));
       }
     }
   }
 
   function handleRemoveImage(type) {
-    setFormData(prev => ({
-      setFormData((prev) =>({
-        ...prev,
-        [type]: ''
-      }));
+    setFormData((prev) => ({
+      ...prev,
+      [type]: ''
+    }));
   }
 
-  const profileLink = formData.username
-    ? `${window.location.origin}/${formData.username}`
-    : null;
-  function toggleTile(id) {
-    setPinnedTile((prev) => (prev === id ? null : id));
+  function toggleGlow(key) {
+    setGlowSettings((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function toggleOther(key) {
+    setOtherSettings((prev) => ({ ...prev, [key]: !prev[key] }));
   }
 
   const profileLink = formData.username ? `${window.location.origin}/${formData.username}` : null;
-  const activeSocialCount = Object.values(formData.socialLinks || {}).filter(Boolean).length;
+  const linkedSocialEntries = Object.entries(formData.socialLinks || {}).filter(([, val]) =>
+    Boolean(val && String(val).trim())
+  );
+  const activeSocialCount = linkedSocialEntries.length + customLinks.length;
+  const accentColor = formData.cardColor && formData.cardColor !== '#1b1b1b' ? formData.cardColor : '#f65c5c';
+  const hasPresence = Boolean(formData.presenceTitle || formData.presenceSubtitle);
+  const demoBadges = resolveProfileBadges(adminBadgeData, isPremium);
+  const demoYoutubeId = formData.musicUrl ? getYouTubeVideoId(formData.musicUrl) : null;
+
+  useEffect(() => {
+    if (!demoYoutubeId) {
+      setDemoAudioTitle('');
+      return undefined;
+    }
+    let cancelled = false;
+    fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${demoYoutubeId}`)
+      .then((r) => r.json())
+      .then((d) => {
+        if (!cancelled && d?.title) setDemoAudioTitle(d.title);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [demoYoutubeId]);
+
+  const renderDemoSocialsRow = (extraClass = '') => {
+    if (activeSocialCount === 0) return null;
+    return (
+      <div className={`demo-basic-socials ${extraClass}`.trim()}>
+        {linkedSocialEntries.map(([key, url]) => {
+          const p = PLATFORM_BY_KEY[key];
+          const colorToUse = otherSettings.monochromeIcons ? iconColor : p?.color || iconColor;
+          return (
+            <span
+              key={key}
+              className="demo-social-dot"
+              title={`${p ? p.name : key}: ${url}`}
+              style={{
+                color: colorToUse,
+                filter: glowSettings.socials ? `drop-shadow(0 0 8px ${colorToUse})` : 'none'
+              }}
+            >
+              {p ? p.icon : key.slice(0, 2).toUpperCase()}
+            </span>
+          );
+        })}
+        {customLinks.map((item) =>
+          item?.url ? (
+            <span
+              key={item.id || item.url}
+              className="demo-social-dot"
+              title={`${item.label || 'URL'}: ${item.url}`}
+              style={{
+                color: iconColor,
+                filter: glowSettings.socials ? `drop-shadow(0 0 8px ${iconColor})` : 'none'
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="9" />
+                <path d="M3 12h18" />
+                <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z" />
+              </svg>
+            </span>
+          ) : null
+        )}
+      </div>
+    );
+  };
+
+  const renderLiveEffect = () => {
+    switch (formData.effect) {
+      case 'snow': return <SnowEffect />;
+      case 'particles': return <ParticlesEffect />;
+      case 'confetti': return <ConfettiEffect />;
+      case 'fireworks': return <FireworksEffect />;
+      case 'rain': return <RainEffect />;
+      case 'stars': return <StarsEffect />;
+      case 'leaves': return <LeavesEffect />;
+      case 'aurora': return <AuroraEffect />;
+      case 'matrix': return <MatrixEffect />;
+      case 'nebula': return <NebulaEffect />;
+      default: return null;
+    }
+  };
 
   return (
     <div className="profile-editor-layout">
-      {/* Sidebar */}
-      {/* Sidebar gọn gàng đồng bộ với Dashboard */}
-      <aside className="editor-sidebar">
+      {/* MENU BÊN TRÁI: Thu gọn thành 1 thanh mảnh, khi để chuột vào mới trượt mở ra */}
+      <aside className="editor-sidebar" aria-label={L("Menu bên", "Sidebar Menu")}>
         <div className="sidebar-header">
-          <img src="/logo-konone-v1.png" alt="KonOne Logo" className="logo-icon" />
-          <span className="logo-text">KonOne</span>
-          <Link to="/" className="editor-brand-link">
+          <Link to="/" className="editor-brand-link" title={L("Trang chủ KonOne", "KonOne Home")}>
             <img src="/logo-konone-v1.png" alt="KonOne Logo" className="logo-icon" />
-            <span className="logo-text">KonOne</span>
+            <span className="logo-text sidebar-reveal">KonOne</span>
           </Link>
-          <div className="language-selector-editor">
+
+          <div className="language-selector-editor sidebar-reveal">
             <select
               value={language}
               onChange={(e) => changeLanguage(e.target.value)}
@@ -443,1482 +788,2293 @@ export default function ProfileEditor() {
         </div>
 
         <nav className="sidebar-nav">
-          <div className={`nav-item ${activeSection === 'account' ? 'active' : ''}`} onClick={() => setActiveSection('account')}>
-            <span className="nav-icon"></span> Account
-            <span className="nav-arrow">▼</span>
-            <div className="nav-item" onClick={() => navigate('/dashboard')}>
-              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="3" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="3" width="7" height="7" rx="1" />
-                <rect x="14" y="14" width="7" height="7" rx="1" />
-                <rect x="3" y="14" width="7" height="7" rx="1" />
+          <div className="nav-item" onClick={() => navigate('/dashboard')} title={L("Bảng điều khiển", "Dashboard")}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="3" width="7" height="7" rx="1.5" />
+              <rect x="14" y="14" width="7" height="7" rx="1.5" />
+              <rect x="3" y="14" width="7" height="7" rx="1.5" />
+            </svg>
+            <span className="sidebar-reveal">{L("Bảng điều khiển", "Dashboard")}</span>
+          </div>
+
+          <div className="nav-item active" title={t(language, 'profileEditor.customize')}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 20h9" />
+              <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+            </svg>
+            <span className="sidebar-reveal">{t(language, 'profileEditor.customize')}</span>
+          </div>
+
+          <div className="nav-item" onClick={() => navigate('/links')} title={L("Liên kết", "Links")}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            <span className="sidebar-reveal">{L("Liên kết", "Links")}</span>
+          </div>
+
+          <div className="nav-item" onClick={() => navigate('/edit-layout')} title={language === 'vi' ? 'Bố cục' : 'Layout'}>
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="3" width="18" height="18" rx="2" />
+              <line x1="3" y1="9" x2="21" y2="9" />
+              <line x1="9" y1="21" x2="9" y2="9" />
+            </svg>
+            <span className="sidebar-reveal">{language === 'vi' ? 'Bố cục' : 'Layout'}</span>
+          </div>
+
+          <div className="nav-item" onClick={() => navigate('/premium')} title="Premium">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+            <span className="sidebar-reveal">Premium</span>
+          </div>
+        </nav>
+
+        <div className="sidebar-footer">
+          <button
+            type="button"
+            className="footer-btn my-page-btn"
+            onClick={() => profileLink && window.open(profileLink, '_blank')}
+            disabled={!profileLink}
+            title={L("Trang của tôi", "My Page")}
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
+            <span className="sidebar-reveal">{L("Trang của tôi", "My Page")}</span>
+          </button>
+
+          <button
+            type="button"
+            className="footer-btn share-btn"
+            onClick={() => {
+              if (profileLink) {
+                navigator.clipboard.writeText(profileLink);
+                notifySuccess(L('Đã sao chép liên kết hồ sơ!', 'Profile link copied!'));
+              }
+            }}
+            disabled={!profileLink}
+            title={L("Chia sẻ hồ sơ", "Share Profile")}
+          >
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="18" cy="5" r="3" />
+              <circle cx="6" cy="12" r="3" />
+              <circle cx="18" cy="19" r="3" />
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+            </svg>
+            <span className="sidebar-reveal">{L("Chia sẻ hồ sơ", "Share Profile")}</span>
+          </button>
+
+          <div className="user-info sidebar-reveal">
+            <div className="user-name">{formData.username ? `@${formData.username}` : L('Chưa có tên người dùng', 'No username')}</div>
+            <div className="user-uid">UID {currentUser?.uid?.slice(0, 8) || 'N/A'}</div>
+            <div className="user-views">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
               </svg>
-              <span>Dashboard</span>
+              <span>{viewCount.toLocaleString()}{' '}{L("lượt xem", "views")}</span>
             </div>
-            <div className={`nav-item ${activeSection === 'customize' ? 'active' : ''}`} onClick={() => setActiveSection('customize')}>
-              <span className="nav-icon"></span> {t(language, 'profileEditor.customize')}
+          </div>
+        </div>
+      </aside>
 
-              <div className="nav-item active">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 20h9" />
-                  <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
-                </svg>
-                <span>{t(language, 'profileEditor.customize')}</span>
+      {/* MAIN CONTENT */}
+      <main className="editor-main">
+        <form onSubmit={handleSubmit} className="editor-form">
+          {/* Thanh Topbar kèm Username, Display Name & Nút Lưu */}
+          <div className="editor-topbar">
+            <div className="topbar-identity-inputs">
+              <div className="topbar-input-chip">
+                <span className="chip-prefix">@</span>
+                <input
+                  type="text"
+                  name="username"
+                  value={formData.username}
+                  onChange={handleChange}
+                  required
+                  placeholder={L("tên người dùng", "username")}
+                  pattern="[a-z0-9]+"
+                  title={L("Tên", "Username")}
+                />
               </div>
-
-              <div className="nav-item" onClick={() => navigate('/edit-layout')}>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                  <line x1="3" y1="9" x2="21" y2="9" />
-                  <line x1="9" y1="21" x2="9" y2="9" />
+              <div className="topbar-input-chip">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
                 </svg>
-                <span>{language === 'vi' ? 'Bố cục' : 'Layout'}</span>
+                <input
+                  type="text"
+                  name="displayName"
+                  value={formData.displayName}
+                  onChange={handleChange}
+                  required
+                  placeholder={L("Tên hiển thị", "Display Name")}
+                  title={L("Tên hiển thị", "Display Name")}
+                />
               </div>
-
-              <div className="nav-item" onClick={() => navigate('/premium')}>
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                </svg>
-                <span>Premium</span>
-              </div>
-            </nav>
-
-            <div className="sidebar-footer">
-
               <button
                 type="button"
-                className="footer-btn my-page-btn"
-                onClick={() => profileLink && window.open(profileLink, '_blank')}
-                disabled={!profileLink}
+                className="topbar-socials-btn"
+                onClick={() => setShowSocialsModal((v) => !v)}
               >
-                <span className="btn-icon"></span> My Page
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                  <polyline points="15 3 21 3 21 9" />
-                  <line x1="10" y1="14" x2="21" y2="3" />
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                 </svg>
-                <span>My Page</span>
+                <span>{L("Mạng xã hội (", "Social Links (")}{activeSocialCount})</span>
+              </button>
+            </div>
+
+            <div className="editor-topbar-actions">
+              {!isPremium && (
+                <button
+                  type="button"
+                  className="topbar-btn topbar-btn-pro"
+                  onClick={() => navigate('/premium')}
+                >
+                  <DiamondIcon size={13} />
+                  <span>{L('Premium', 'Premium')}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className={`topbar-btn ${isHidden ? 'is-on' : ''}`}
+                onClick={toggleHidden}
+                title={isHidden
+                  ? L('Hồ sơ đang ẩn — bấm để hiện lại', 'Profile is hidden — click to show')
+                  : L('Ẩn hồ sơ với người khác', 'Hide profile from others')}
+              >
+                {isHidden ? (
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
+                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
+                    <line x1="1" y1="1" x2="23" y2="23" />
+                  </svg>
+                ) : (
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                )}
+                <span>{isHidden ? L('Đang ẩn', 'Hidden') : L('Ẩn hồ sơ', 'Hide')}</span>
               </button>
               <button
                 type="button"
-                className="footer-btn share-btn"
-                onClick={() => profileLink && navigator.share?.({ url: profileLink })}
-                onClick={() => {
-                  if (profileLink) {
-                    navigator.clipboard.writeText(profileLink);
-                    alert(language === 'vi' ? 'Đã sao chép liên kết hồ sơ!' : 'Profile link copied!');
-                  }
+                onClick={() => navigate('/dashboard')}
+                className="topbar-btn"
+              >
+                {t(language, 'profileEditor.cancel')}
+              </button>
+              {/* Trượt để lưu (ReactBits SlideCommit) */}
+              <SlideCommit
+                label={uploading ? L('Đang tải lên...', 'Uploading...') : L('Trượt để lưu', 'Slide to save')}
+                doneLabel={L('Đã lưu', 'Saved')}
+                errorLabel={L('Chưa lưu được', 'Not saved')}
+                onConfirm={async () => {
+                  const ok = await handleSubmit();
+                  if (!ok) throw new Error('not-saved');
                 }}
-                disabled={!profileLink}
-              >
-                <span className="btn-icon"></span> Share Your Profile
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="18" cy="5" r="3" />
-                  <circle cx="6" cy="12" r="3" />
-                  <circle cx="18" cy="19" r="3" />
-                  <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
-                  <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
-                </svg>
-                <span>Share Your Profile</span>
+                trackColor="#0d0d0f"
+                handleColor="#f65c5c"
+                successColor="#22c55e"
+                dangerColor="#e5484d"
+                width={176}
+                height={38}
+                radius={10}
+                holdMs={1400}
+                disabled={uploading}
+                className="topbar-slide"
+              />
+            </div>
+          </div>
+
+          {/* Thanh báo sau khi lưu — ở dưới màn hình, có nút xem hồ sơ ngay */}
+          {saveToast && (
+            <div className={`save-toast ${saveToast.ok ? 'ok' : 'err'}`} role="status">
+              <span className="save-toast-ico">{saveToast.ok ? '✓' : '!'}</span>
+              <span className="save-toast-text">{saveToast.text}</span>
+              {saveToast.ok && (savedUsername || formData.username) && (
+                <a
+                  href={`/${savedUsername || formData.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="save-toast-btn"
+                >
+                  {L('Xem hồ sơ ngay', 'View profile')}
+                </a>
+              )}
+              <button type="button" className="save-toast-close" aria-label={L('Đóng', 'Close')} onClick={() => setSaveToast(null)}>
+                ✕
               </button>
+            </div>
+          )}
 
-              <div className="user-info">
-                <div className="user-name">{formData.username || 'No username'}</div>
-                <div className="user-name">{formData.username ? `@${formData.username}` : 'No username'}</div>
-                <div className="user-uid">UID {currentUser?.uid?.slice(0, 8) || 'N/A'}</div>
-                <div className="user-views" style={{ fontSize: '12px', color: '#999', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
-                    <div className="user-views">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
-                      </svg>
-                      {viewCount.toLocaleString()} views
-                      <span>{viewCount.toLocaleString()} views</span>
-                    </div>
-                    <span className="user-menu">⋯</span>
-                </div>
+          {/* Bảng Social Links xổ xuống nhanh khi bấm nút trên Topbar */}
+          {showSocialsModal && (
+            <div className="custom-drawer-panel">
+              <div className="drawer-panel-head">
+                <h4>{L("Liên kết mạng xã hội", "Social Network Links")}</h4>
+                <button type="button" onClick={() => setShowSocialsModal(false)}>✕</button>
               </div>
-            </aside>
+              <div className="socials-drawer-grid">
+                {SOCIAL_FIELDS.map((s) => (
+                  <div key={s.key} className="custom-dark-field">
+                    <label>{s.label}</label>
+                    <div className="dark-input-box">
+                      <input
+                        type="url"
+                        name={`social.${s.key}`}
+                        value={formData.socialLinks[s.key] || ''}
+                        onChange={handleChange}
+                        placeholder={s.placeholder}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
-            {/* Main Content */}
-            {/* Main Content — Tổng quan tất cả thành phần trong 1 màn hình, rê chuột hoặc bấm vào sẽ mở chi tiết */}
-            <main className="editor-main">
-              <form onSubmit={handleSubmit} className="editor-form">
-                {/* Media Uploads Section */}
-                <div className="media-uploads-section">
-                  <h2 className="section-title">{t(language, 'profileEditor.mediaUploads')}</h2>
-                  <div className="media-grid">
-                    {/* Background */}
-                    <div className="media-card">
-                      <div className="media-card-header">
-                        <span className="media-label">Background</span>
+          {/* WORKSPACE: TRÁI (4 KHỐI CUSTOM GIỐNG HỆT 3 ẢNH MẪU) — PHẢI (LIVE DEMO PROFILE) */}
+          <div className="editor-workspace">
+            <div className="editor-left-pane">
+              {/* ================= SECTION 1: ASSETS UPLOADER ================= */}
+              <section className="guns-section">
+                <h2 className="guns-section-title">{L("Hình ảnh & media", "Assets Uploader")}</h2>
+                <div className="guns-panel">
+                  <div className="assets-uploader-grid">
+                    {/* 1. Background (Image / Cover / Video) */}
+                    <div className="asset-col">
+                      <div className="asset-col-head">
+                        <span className="asset-label">{L("Hình nền", "Background")}</span>
                         {(formData.backgroundImage || formData.backgroundVideo) && (
                           <button
                             type="button"
-                            className="remove-btn"
+                            className="asset-clear-x"
                             onClick={() => {
                               handleRemoveImage('backgroundImage');
-                              setFormData(prev => ({ ...prev, backgroundVideo: '' }));
+                              setFormData((prev) => ({ ...prev, backgroundVideo: '' }));
                             }}
                           >
                             ✕
                           </button>
                         )}
-                        {/* Thanh tiêu đề & nút Lưu nhanh */}
-                        <div className="editor-topbar">
-                          <div>
-                            <h1 className="editor-page-title">
-                              {language === 'vi' ? 'Trình chỉnh sửa hồ sơ' : 'Profile Studio'}
-                            </h1>
-                            <p className="editor-page-subtitle">
-                              {language === 'vi'
-                                ? 'Rê chuột hoặc nhấn vào từng mục bên dưới để mở bảng chỉnh sửa chi tiết'
-                                : 'Hover or click on any module below to reveal detailed controls'}
-                            </p>
-                          </div>
+                      </div>
+                      <div className="asset-drop-box">
+                        {uploadingBackground && (
+                          <div className="uploading-overlay"><div className="spinner" /></div>
+                        )}
+                        {formData.backgroundImage ? (
+                          <img src={formData.backgroundImage} alt={L("Hình nền", "Background")} className="asset-filled-img" />
+                        ) : (
+                          <>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageChange(e, 'backgroundImage')}
+                              disabled={uploadingBackground}
+                              className="asset-file-input"
+                            />
+                            <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
+                            </svg>
+                            <span className="asset-hint">{L("Bấm để tải tệp lên", "Click to upload a file")}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
 
-                          <div className="editor-topbar-actions">
-                            {!isPremium && (
-                              <button
-                                type="button"
-                                className="editor-pro-pill"
-                                onClick={() => navigate('/premium')}
-                              >
-                                ✦ {language === 'vi' ? 'Mở khóa Premium' : 'Unlock Premium'}
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => navigate('/dashboard')}
-                              className="cancel-btn"
+                    {/* 2. Audio (Click to open audio manager -> YouTube Audio & Background Video) */}
+                    <div className="asset-col">
+                      <div className="asset-col-head">
+                        <span className="asset-label">{L("Âm thanh", "Audio")}</span>
+                        {formData.musicUrl && <span className="asset-active-dot" title={L("Đã liên kết âm thanh", "Audio linked")} />}
+                      </div>
+                      <div
+                        className={`asset-drop-box ${showAudioManager ? 'active-box' : ''}`}
+                        onClick={() => setShowAudioManager((v) => !v)}
+                      >
+                        <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h10l6-6V8c0-1.1-.9-2-2-2zm-2.41 10.59L15 19.17V16h3.17l-.58.59z" />
+                        </svg>
+                        <span className="asset-hint">
+                          {formData.musicUrl
+                                ? L('Đã liên kết nhạc (bấm để sửa)', 'Audio linked (click to edit)')
+                                : L('Bấm để thêm nhạc', 'Click to open audio manager')}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* 3. Profile Avatar */}
+                    <div className="asset-col">
+                      <div className="asset-col-head">
+                        <span className="asset-label">{L("Ảnh đại diện", "Profile Avatar")}</span>
+                        {formData.avatar && (
+                          <button
+                            type="button"
+                            className="asset-clear-x"
+                            onClick={() => handleRemoveImage('avatar')}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      <div className="asset-drop-box">
+                        {uploadingAvatar && (
+                          <div className="uploading-overlay"><div className="spinner" /></div>
+                        )}
+                        {formData.avatar ? (
+                          <img src={formData.avatar} alt={L("Ảnh đại diện", "Avatar")} className="asset-filled-img" />
+                        ) : (
+                          <>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => handleImageChange(e, 'avatar')}
+                              disabled={uploadingAvatar}
+                              className="asset-file-input"
+                            />
+                            <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
+                            </svg>
+                            <span className="asset-hint">{L("Bấm để tải tệp lên", "Click to upload a file")}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 4. Custom Cursor (hoặc Avatar Frame & Cover Banner) */}
+                    <div className="asset-col">
+                      <div className="asset-col-head">
+                        <span className="asset-label">{L("Con trỏ tùy chỉnh", "Custom Cursor")}</span>
+                        {splashCursor.enabled && <span className="asset-active-dot" title={L("Đang bật Splash Cursor", "Splash Cursor Enabled")} />}
+                        {formData.cursorIcon && (
+                          <button
+                            type="button"
+                            className="asset-clear-x"
+                            onClick={() => handleRemoveImage('cursorIcon')}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
+                      <div
+                        className={`asset-drop-box ${showCursorManager || splashCursor.enabled ? 'active-box' : ''}`}
+                        onClick={() => setShowCursorManager((v) => !v)}
+                      >
+                        {uploadingCursor && (
+                          <div className="uploading-overlay"><div className="spinner" /></div>
+                        )}
+                        {formData.cursorIcon ? (
+                          <img src={formData.cursorIcon} alt={L("Con trỏ", "Cursor")} className="asset-filled-img contain" />
+                        ) : (
+                          <>
+                            <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
+                              <path d="M13.64 21.97C13.14 22.21 12.54 22 12.31 21.5L10.13 16.76L7.62 18.78C7.45 18.92 7.24 19 7.02 19C6.46 19 6 18.54 6 18V3C6 2.46 6.46 2 7 2C7.23 2 7.46 2.08 7.64 2.23L19.65 11.96C20.08 12.31 20.14 12.94 19.79 13.37C19.6 13.61 19.31 13.75 19 13.75H14.18L16.33 18.42C16.56 18.92 16.34 19.51 15.84 19.74L13.64 21.97Z" />
+                            </svg>
+                            <span className="asset-hint">
+                              {splashCursor.enabled
+                                ? L('Đang bật Splash Cursor (bấm để sửa)', 'Splash Cursor active (click to edit)')
+                                : L('Bấm để tùy chỉnh con trỏ', 'Click to customize cursor')}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Khay mở rộng Audio & Background Video Manager */}
+                  {showAudioManager && (
+                    <div className="guns-subdrawer">
+                      <div className="subdrawer-header">
+                        <strong>{L("Quản lý âm thanh & video nền", "Audio & Video Background Manager")}</strong>
+                        <button type="button" onClick={() => setShowAudioManager(false)}>✕</button>
+                      </div>
+                      <div className="subdrawer-grid">
+                        <div className="custom-dark-field">
+                          <label>{L("Link nhạc YouTube", "YouTube Audio URL")}</label>
+                          <div className="dark-input-box">
+                            <input
+                              type="url"
+                              name="musicUrl"
+                              value={formData.musicUrl}
+                              onChange={handleChange}
+                              placeholder="https://www.youtube.com/watch?v=..."
+                            />
+                          </div>
+                        </div>
+                        <div className="custom-dark-field">
+                          <label>
+                            {L("Video nền YouTube", "YouTube Background Video")}{' '}<DiamondIcon className="pro-diamond" />
+                          </label>
+                          <div className="dark-input-box">
+                            <input
+                              type="url"
+                              name="backgroundVideo"
+                              value={formData.backgroundVideo}
+                              onChange={handleChange}
+                              placeholder={isPremium ? 'https://www.youtube.com/watch?v=...' : 'https://www.youtube.com/watch?v=... (Premium để lưu)'}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Khay mở rộng Custom Cursor, Avatar Frame & Cover Banner */}
+                  {showCursorManager && (
+                    <div className="guns-subdrawer">
+                      <div className="subdrawer-header">
+                        <strong>{L("Con trỏ, khung avatar & ảnh bìa", "Cursor, Avatar Frame & Card Cover")}</strong>
+                        <button type="button" onClick={() => setShowCursorManager(false)}>✕</button>
+                      </div>
+                      <div className="subdrawer-grid three">
+                        <div className="custom-dark-field">
+                          <label>{L("Con trỏ tùy chỉnh — tải lên hoặc chọn mẫu", "Custom Cursor — upload or preset")}</label>
+                          <div className="dark-input-box">
+                            <select
+                              value={formData.cursorIcon}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, cursorIcon: e.target.value }))}
                             >
-                              {t(language, 'profileEditor.cancel')}
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={loading || uploading}
-                              className="save-btn"
-                            >
-                              {uploading
-                                ? language === 'vi' ? 'Đang tải...' : 'Uploading...'
-                                : loading
-                                  ? language === 'vi' ? 'Đang lưu...' : 'Saving...'
-                                  : t(language, 'profileEditor.save')}
-                            </button>
+                              <option value="">{L("Con trỏ mặc định", "Default Cursor")}</option>
+                              <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">KonOne Cursor 1</option>
+                            </select>
                           </div>
                         </div>
 
-                        {/* Lưới 9 Module rút gọn — Thấy toàn bộ ngay khi vừa vào trang */}
-                        <div className="editor-modules-grid">
-                          {/* 1. THÔNG TIN ĐỊNH DANH (Username, Display Name, Bio) */}
-                          <div className={`editor-tile ${pinnedTile === 'identity' ? 'is-pinned' : ''}`}>
-                            <div className="tile-head" onClick={() => toggleTile('identity')}>
-                              <div className="tile-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                  <circle cx="12" cy="7" r="4" />
-                                </svg>
-                              </div>
-                              <div className="media-preview" style={{ position: 'relative' }}>
-                                {uploadingBackground && (
-                                  <div className="uploading-overlay">
-                                    <div className="spinner"></div>
-                                    <p>{language === 'vi' ? 'Đang tải...' : 'Uploading...'}</p>
-                                  </div>
-                                )}
-                                {formData.backgroundImage ? (
-                                  <>
-                                    <img src={formData.backgroundImage} alt="Background" />
-                                    <span className="file-format">UPLOAD</span>
-                                  </>
-                                ) : (
-                                  <div className="media-placeholder">
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      onChange={(e) => handleImageChange(e, 'backgroundImage')}
-                                      disabled={uploadingBackground}
-                                      className="media-input"
-                                    />
-                                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                                      <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                                      <circle cx="8.5" cy="8.5" r="1.5" />
-                                      <polyline points="21 15 16 10 5 21" />
-                                    </svg>
-                                    <span className="placeholder-text">Click to upload a file</span>
-                                  </div>
-                                )}
-                                <div className="tile-meta">
-                                  <h3>{language === 'vi' ? 'Thông tin định danh' : 'Identity & Bio'}</h3>
-                                  <span className="tile-summary">
-                                    {formData.username
-                                      ? `@${formData.username} • ${formData.displayName || 'No name'}`
-                                      : language === 'vi' ? 'Chưa đặt username' : 'Username not set'}
-                                  </span>
-                                </div>
-                                <span className="tile-chevron">⌄</span>
-                              </div>
+                        <div className="custom-dark-field">
+                          <label>{L("Khung trang trí avatar", "Avatar Frame Decoration")}</label>
+                          <div className="dark-input-box">
+                            <select
+                              value={formData.avatarFrame}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, avatarFrame: e.target.value }))}
+                            >
+                              {AVATAR_FRAMES.map((f) => (
+                                <option key={f.label} value={f.value}>{f.label}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
 
-                              {/* Audio */}
-                              <div className="media-card">
-                                <div className="media-card-header">
-                                  <span className="media-label">Audio</span>
-                                </div>
-                                <div className="media-preview">
-                                  <div className="media-placeholder">
-                                    <div className="tile-body">
-                                      <div className="tile-field-row">
-                                        <div className="tile-field">
-                                          <label>Username *</label>
-                                          <input
-                                            type="url"
-                                            name="musicUrl"
-                                            value={formData.musicUrl}
-                                            type="text"
-                                            name="username"
-                                            value={formData.username}
-                                            onChange={handleChange}
-                                            placeholder="YouTube URL"
-                                            className="audio-input"
-                                            required
-                                            placeholder="username"
-                                            pattern="[a-z0-9]+"
-                                          />
-                                          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                                            <path d="M9 18V5l12-2v13" />
-                                            <circle cx="6" cy="18" r="3" />
-                                            <circle cx="18" cy="16" r="3" />
-                                          </svg>
-                                          <span className="placeholder-text">Only enter the YouTube URL here</span>
-                                        </div>
-                                        <div className="tile-field">
-                                          <label>Display Name *</label>
-                                          <input
-                                            type="text"
-                                            name="displayName"
-                                            value={formData.displayName}
-                                            onChange={handleChange}
-                                            required
-                                            placeholder="Display Name"
-                                          />
-                                        </div>
-                                      </div>
-                                      <div className="tile-field">
-                                        <label>Description / Bio</label>
-                                        <textarea
-                                          name="bio"
-                                          value={formData.bio}
-                                          onChange={handleChange}
-                                          placeholder="Write a short description for your profile..."
-                                          rows="2"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {/* Background Video (Premium) */}
-                                  <div className="media-card">
-                                    <div className="media-card-header">
-                                      <span className="media-label">Background Video</span>
-                                      {!isPremium && (
-                                        <span className="premium-badge">
-                                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
-                                            <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                                          </svg>
-                                          Premium
-                                        </span>
-            {/* 2. AVATAR & KHUNG VIỀN */}
-                                      <div className={`editor-tile ${pinnedTile === 'avatar' ? 'is-pinned' : ''}`}>
-                                        <div className="tile-head" onClick={() => toggleTile('avatar')}>
-                                          <div className="tile-icon">
-                                            {formData.avatar ? (
-                                              <img src={formData.avatar} alt="" className="tile-mini-thumb round" />
-                                            ) : (
-                                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                <circle cx="12" cy="12" r="10" />
-                                                <circle cx="12" cy="10" r="3" />
-                                                <path d="M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662" />
-                                              </svg>
-                                            )}
-                                            {formData.backgroundVideo && (
-                                              <button
-                                                type="button"
-                                                className="remove-btn"
-                                                onClick={() => setFormData(prev => ({ ...prev, backgroundVideo: '' }))}
-                                                disabled={!isPremium}
-                                              >
-                                                ✕
-                                              </button>
-                                            )}
-                                          </div>
-                                          <div className="media-preview">
-                                            {formData.backgroundVideo ? (
-                    <div className="video-preview">
-                <div className="tile-meta">
-                  <h3>Avatar &amp; Frame</h3>
-                  <span className="tile-summary">
-                    {formData.avatar ? (language === 'vi' ? 'Đã có ảnh đại diện' : 'Avatar uploaded') : (language === 'vi' ? 'Chưa tải ảnh' : 'No avatar')}
-                    {formData.avatarFrame ? ' • Có khung' : ''}
-                  </span>
+                        <div className="custom-dark-field">
+                          <label>{L("Ảnh bìa thẻ", "Card Cover Banner")}</label>
+                          <div className="dark-upload-inline">
+                            <label className="inline-upload-trigger">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageChange(e, 'coverImage')}
+                                disabled={uploadingCover}
+                              />
+                              {uploadingCover
+                                ? L('Đang tải lên...', 'Uploading...')
+                                : formData.coverImage
+                                  ? L('Đổi ảnh bìa', 'Change Cover')
+                                  : L('Tải ảnh bìa', 'Upload Cover')}
+                            </label>
+                            {formData.coverImage && (
+                              <button
+                                type="button"
+                                className="inline-clear-btn"
+                                onClick={() => handleRemoveImage('coverImage')}
+                              >
+                                {L("Xóa", "Remove")}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <span className="tile-chevron">⌄</span>
-              </div>
+              </section>
 
-                      <span className="video-text">YouTube Video Background</span>
-                      <span className="file-format">VIDEO</span>
-              <div className="tile-body">
-                <div className="tile-avatar-editor">
-                  <div className="tile-avatar-preview-box">
-                    {uploadingAvatar && <div className="uploading-overlay"><div className="spinner" /></div>}
-                    {formData.avatar ? (
-                      <img src={formData.avatar} alt="Avatar" className="tile-avatar-img" />
-                    ) : (
-                      <span className="tile-avatar-empty">No Image</span>
-                    )}
-                    {formData.avatarFrame && (
-                      <img src={formData.avatarFrame} alt="Frame" className="tile-avatar-frame-overlay" />
-                    )}
-                  </div>
-
-                  <div className="tile-avatar-controls">
-                    <div className="tile-upload-actions">
-                      <label className="tile-upload-btn">
+              {/* ================= SECTION 2: GENERAL CUSTOMIZATION ================= */}
+              <section className="guns-section">
+                <h2 className="guns-section-title">{L("Tùy chỉnh chung", "General Customization")}</h2>
+                <div className="guns-panel">
+                  <div className="general-custom-grid">
+                    {/* Row 1, Col 1: Description */}
+                    <div className="custom-dark-field">
+                      <label>{L("Mô tả", "Description")}</label>
+                      <div className="dark-input-box">
+                        <span className="input-lead-icon text-a">A</span>
                         <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => handleImageChange(e, 'avatar')}
-                          disabled={uploadingAvatar}
+                          type="text"
+                          name="bio"
+                          value={formData.bio}
+                          onChange={handleChange}
+                          placeholder={L("đây là mô tả của tôi", "this is my description")}
                         />
-                        {language === 'vi' ? 'Tải ảnh lên' : 'Upload Avatar'}
-                      </label>
-                      {formData.avatar && (
+                      </div>
+                    </div>
+
+                    {/* Row 1, Col 2: Social Icons & Vị trí (Thay cho Profile Widget) */}
+                    <div className="custom-dark-field">
+                      <label className="social-pos-field-label compact">
+                        <span>
+                          {L('Mạng xã hội', 'Socials')}
+                          <span className="field-count">{activeSocialCount}</span>
+                        </span>
                         <button
                           type="button"
-                          className="tile-clear-btn"
-                          onClick={() => handleRemoveImage('avatar')}
+                          className="manage-links-mini-link"
+                          onClick={() => navigate('/links')}
                         >
-                          {language === 'vi' ? 'Xóa' : 'Remove'}
+                          {L('Sửa', 'Edit')}
                         </button>
-                      )}
-                    </div>
-                  ) : (
-                    <div className="media-placeholder">
-                      <input
-                        type="url"
-                        name="backgroundVideo"
-                        value={formData.backgroundVideo}
-                        onChange={handleChange}
-                        placeholder="YouTube Video URL"
-                        className="audio-input"
-                        disabled={!isPremium}
-                      />
+                      </label>
 
-                      <span className="placeholder-text">
-                        {isPremium ? 'Only enter the YouTube URL here' : 'Unlock Premium to add background video'}
-                      </span>
-                    <div className="tile-field" style={{ marginTop: 8 }}>
-                      <label>Avatar Frame</label>
-                      <select
-                        value={formData.avatarFrame}
-                        onChange={(e) => setFormData((prev) => ({ ...prev, avatarFrame: e.target.value }))}
-                        className="custom-select"
-                      >
-                        {AVATAR_FRAMES.map((f) => (
-                          <option key={f.label} value={f.value}>{f.label}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                  {!isPremium && (
-                    <div className="premium-overlay">
-                      <Link to="/premium" className="unlock-premium-btn">Unlock Premium</Link>
-                    </div>
-                  )}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+                      <div className="social-widget-replacement">
+                        <div className="social-pos-toggle-row">
+                          <button
+                            type="button"
+                            className={`social-pos-pill ${socialPosition === 'inside' ? 'active' : ''}`}
+                            onClick={() => handleSocialPositionSwitch('inside')}
+                          >
+                            {language === 'vi' ? 'Bên trong thẻ' : 'Inside Card'}
+                          </button>
+                          <button
+                            type="button"
+                            className={`social-pos-pill ${socialPosition === 'outside' ? 'active' : ''}`}
+                            onClick={() => handleSocialPositionSwitch('outside')}
+                          >
+                            {language === 'vi' ? 'Bên ngoài thẻ' : 'Outside Card'}
+                          </button>
+                        </div>
 
-                                          {/* Avatar & Frame & Cover Group */}
-                                          <div style={{ marginBottom: '32px' }}>
-                                            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#ffffff', marginBottom: '16px', paddingLeft: '8px' }}>Avatar, Frame & Cover</h3>
-                                            <div className="media-grid" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-                                              {/* Profile Avatar */}
-                                              <div className="media-card">
-                                                <div className="media-card-header">
-                                                  <span className="media-label">Profile Avatar</span>
-                                                  {formData.avatar && (
-                                                    <button
-                                                      type="button"
-                                                      className="remove-btn"
-                                                      onClick={() => handleRemoveImage('avatar')}
-                                                    >
-                                                      ✕
-                                                    </button>
-            {/* 3. ẢNH BÌA (COVER / BANNER) */}
-                                                  <div className={`editor-tile ${pinnedTile === 'cover' ? 'is-pinned' : ''}`}>
-                                                    <div className="tile-head" onClick={() => toggleTile('cover')}>
-                                                      <div className="tile-icon">
-                                                        {formData.coverImage ? (
-                                                          <img src={formData.coverImage} alt="" className="tile-mini-thumb" />
-                                                        ) : (
-                                                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                            <rect x="3" y="4" width="18" height="16" rx="2" />
-                                                            <circle cx="8.5" cy="9.5" r="1.5" />
-                                                            <polyline points="21 15 16 10 5 20" />
-                                                          </svg>
-                                                        )}
-                                                      </div>
-                                                      <div className="media-preview" style={{
-                                                        aspectRatio: '1/1',
-                                                        borderRadius: '50%',
-                                                        overflow: 'hidden',
-                                                        display: 'flex',
-                                                        alignItems: 'center',
-                                                        justifyContent: 'center',
-                                                        position: 'relative'
-                                                      }}>
-                                                        {uploadingAvatar && (
-                    <div className="uploading-overlay">
-                      <div className="spinner"></div>
-                      <p>{language === 'vi' ? 'Đang tải...' : 'Uploading...'}</p>
-                <div className="tile-meta">
-                  <h3>Cover / Banner</h3>
-                  <span className="tile-summary">
-                    {formData.coverImage
-                      ? language === 'vi' ? 'Đã tải ảnh bìa' : 'Cover uploaded'
-                      : language === 'vi' ? 'Chưa có ảnh bìa' : 'No cover image'}
-                  </span>
-                </div>
-                <span className="tile-chevron">⌄</span>
-              </div>
+                        <div className="entered-icons-strip">
+                          {activeSocialCount > 0 ? (
+                            <>
+                              {linkedSocialEntries.map(([key, val]) => {
+                                const p = PLATFORM_BY_KEY[key];
+                                return (
+                                  <button
+                                    key={key}
+                                    type="button"
+                                    className="entered-icon-chip"
+                                    style={{ color: p?.color || '#ffffff' }}
+                                    title={`${p ? p.name : key}: ${val}`}
+                                    onClick={() => navigate('/links')}
+                                  >
+                                    {p ? p.icon : key.slice(0, 2).toUpperCase()}
+                                  </button>
+                                );
+                              })}
+                              {customLinks.map((c) => (
+                                <button
+                                  key={c.id || c.url}
+                                  type="button"
+                                  className="entered-icon-chip"
+                                  style={{ color: '#e4e4e7' }}
+                                  title={`${c.label || 'Custom'}: ${c.url}`}
+                                  onClick={() => navigate('/links')}
+                                >
+                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="9" />
+                                    <path d="M3 12h18" />
+                                    <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z" />
+                                  </svg>
+                                </button>
+                              ))}
+                            </>
+                          ) : (
+                            <span
+                              className="no-icons-yet-hint"
+                              onClick={() => navigate('/links')}
+                            >
+                              {language === 'vi'
+                                ? 'Chưa có icon — Bấm để chọn ở trang Links'
+                                : 'No icons linked — Click to pick in Links'}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="tile-body">
-                <div className="tile-media-drop">
-                  {uploadingCover && <div className="uploading-overlay"><div className="spinner" /></div>}
-                  {formData.coverImage ? (
-                    <div className="tile-media-filled">
-                      <img src={formData.coverImage} alt="Cover" />
+                    {/* Row 1, Col 3: Profile Opacity */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {L("Độ trong suốt thẻ", "Profile Opacity")}{' '}<span className="help-q-ico" title={L("Độ trong suốt nền thẻ", "Card background transparency")}>?</span>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={profileOpacity}
+                          onChange={(e) => setProfileOpacity(Number(e.target.value))}
+                          className="guns-range-slider"
+                          style={{ '--val': `${profileOpacity}%` }}
+                        />
+                        <div className="guns-slider-marks">
+                          <span>20%</span>
+                          <span>50%</span>
+                          <span>80%</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 1, Col 4: Profile Blur */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {L("Độ mờ thẻ", "Profile Blur")}{' '}<span className="help-q-ico" title={L("Mức làm mờ phía sau thẻ", "Card backdrop blur amount")}>?</span>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={profileBlur}
+                          onChange={(e) => setProfileBlur(Number(e.target.value))}
+                          className="guns-range-slider"
+                          style={{ '--val': `${profileBlur}%` }}
+                        />
+                        <div className="guns-slider-marks">
+                          <span>20px</span>
+                          <span>50px</span>
+                          <span>80px</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 2, Col 1: Background Effects */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {L("Hiệu ứng nền", "Background Effects")}{' '}<DiamondIcon className="pro-diamond" />
+                      </label>
+                      <div className="dark-input-box">
+                        <span className="input-lead-icon">✦</span>
+                        <select
+                          name="effect"
+                          value={formData.effect}
+                          onChange={handleChange}
+                        >
+                          <option value="none">{L("Chọn hiệu ứng", "Choose an option")}</option>
+                          <option value="snow">{L("Tuyết rơi", "Snow")}</option>
+                          <option value="particles">{L("Hạt sáng", "Particles")}</option>
+                          <option value="confetti">{L("Pháo giấy", "Confetti")}</option>
+                          <option value="fireworks">{L("Pháo hoa", "Fireworks")}</option>
+                          <option value="rain">{L("Mưa", "Rain")}</option>
+                          <option value="stars">{L("Bầu trời sao", "Stars")}</option>
+                          <option value="leaves">{L("Lá rơi", "Leaves")}</option>
+                          <option value="aurora">{L("Cực quang", "Aurora")}</option>
+                          <option value="matrix">Matrix</option>
+                          <option value="nebula">{L("Tinh vân", "Nebula")}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Row 2, Col 2: Username Effects */}
+                    <div className="custom-dark-field">
+                      <label>{L("Hiệu ứng tên", "Username Effects")}</label>
                       <button
                         type="button"
-                        className="tile-remove-chip"
-                        onClick={() => handleRemoveImage('coverImage')}
+                        className={`dark-action-box centered ${showUsernameEffects ? 'active' : ''}`}
+                        onClick={() => setShowUsernameEffects((v) => !v)}
                       >
-                        ✕ {language === 'vi' ? 'Xóa ảnh' : 'Remove'}
+                        <span className="input-lead-icon">✦</span>
+                        <span className="action-box-text">{L("Hiệu ứng tên", "Username Effects")}</span>
                       </button>
                     </div>
-                  )}
-                  {formData.avatar ? (
-                    <>
-                      <img src={formData.avatar} alt="Avatar" style={{
-                        width: '100%',
-                        height: '100%',
-                        objectFit: 'cover',
-                        borderRadius: '50%'
-                      }} />
-                      <span className="file-format">UPLOAD</span>
-                    </>
-                  ) : (
-                    <div className="media-placeholder" style={{ borderRadius: '50%' }}>
-                    <label className="tile-drop-label">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageChange(e, 'avatar')}
-                        disabled={uploadingAvatar}
-                        className="media-input"
-                        onChange={(e) => handleImageChange(e, 'coverImage')}
-                        disabled={uploadingCover}
-                      />
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                      <span className="placeholder-text">Click to upload a file</span>
+
+                    {/* Row 2, Col 3: Location */}
+                    <div className="custom-dark-field">
+                      <label>{L("Vị trí", "Location")}</label>
+                      <div className="dark-input-box">
+                        <span className="input-lead-icon">
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                          </svg>
+                        </span>
+                        <input
+                          type="text"
+                          name="location"
+                          value={formData.location}
+                          onChange={handleChange}
+                          placeholder={L("Vị trí của tôi", "My Location")}
+                        />
+                      </div>
                     </div>
-                      <span>+ {language === 'vi' ? 'Chọn ảnh bìa thẻ hồ sơ' : 'Click to upload cover image'}</span>
-                    </label>
+
+                    {/* Row 2, Col 4: Glow Settings */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {L("Hiệu ứng phát sáng", "Glow Settings")}{' '}<span className="help-q-ico" title={L("Bật/tắt phát sáng neon cho từng phần", "Toggle neon glow on elements")}>?</span>
+                      </label>
+                      <div className="glow-chip-row">
+                        {[
+                          ['username', L('Tên', 'Name')],
+                          ['socials', L('Icon', 'Icons')],
+                          ['badges', L('Huy hiệu', 'Badges')]
+                        ].map(([key, text]) => (
+                          <button
+                            key={key}
+                            type="button"
+                            aria-pressed={Boolean(glowSettings[key])}
+                            className={`glow-chip ${glowSettings[key] ? 'on' : ''}`}
+                            onClick={() => toggleGlow(key)}
+                          >
+                            {text}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Khay mở rộng Discord Presence Widget */}
+                  {showWidgetManager && (
+                    <div className="guns-subdrawer">
+                      <div className="subdrawer-header">
+                        <strong>{L("Thẻ hoạt động — Discord Presence", "Profile Widget — Discord Presence")}</strong>
+                        <button type="button" onClick={() => setShowWidgetManager(false)}>✕</button>
+                      </div>
+                      <div className="subdrawer-grid four">
+                        <div className="custom-dark-field">
+                          <label>{t(language, 'profileEditor.presenceType')}</label>
+                          <div className="dark-input-box">
+                            <select name="presenceType" value={formData.presenceType} onChange={handleChange}>
+                              <option value="playing">{t(language, 'profileEditor.activityPlaying')}</option>
+                              <option value="listening">{t(language, 'profileEditor.activityListening')}</option>
+                              <option value="watching">{t(language, 'profileEditor.activityWatching')}</option>
+                              <option value="streaming">{t(language, 'profileEditor.activityStreaming')}</option>
+                              <option value="competing">{t(language, 'profileEditor.activityCompeting')}</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="custom-dark-field">
+                          <label>{t(language, 'profileEditor.presenceTitle')}</label>
+                          <div className="dark-input-box">
+                            <input
+                              type="text"
+                              name="presenceTitle"
+                              value={formData.presenceTitle}
+                              onChange={handleChange}
+                              placeholder="Visual Studio Code"
+                            />
+                          </div>
+                        </div>
+                        <div className="custom-dark-field">
+                          <label>{t(language, 'profileEditor.presenceSubtitle')}</label>
+                          <div className="dark-input-box">
+                            <input
+                              type="text"
+                              name="presenceSubtitle"
+                              value={formData.presenceSubtitle}
+                              onChange={handleChange}
+                              placeholder={L("Đang chỉnh globals.css", "Editing globals.css")}
+                            />
+                          </div>
+                        </div>
+                        <div className="custom-dark-field">
+                          <label>{L("Icon hoạt động", "Activity Icon")}</label>
+                          <div className="dark-input-box">
+                            <select name="presenceIcon" value={formData.presenceIcon} onChange={handleChange}>
+                              <option value="">{L("Ảnh đại diện", "Avatar")}</option>
+                              <optgroup label="Games">
+                                <option value="valorant">Valorant</option>
+                                <option value="lol">League of Legends</option>
+                                <option value="csgo">CS:GO</option>
+                                <option value="fivem">FiveM</option>
+                                <option value="minecraft">Minecraft</option>
+                              </optgroup>
+                              <optgroup label="Coding">
+                                <option value="js">JavaScript</option>
+                                <option value="react">React</option>
+                                <option value="css">CSS</option>
+                                <option value="html">HTML</option>
+                                <option value="python">Python</option>
+                              </optgroup>
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Khay mở rộng Username Effects (Font & 3D Text) */}
+                  {showUsernameEffects && (
+                    <div className="guns-subdrawer">
+                      <div className="subdrawer-header">
+                        <strong>{L("Hiệu ứng tên & phông chữ", "Username Effects & Typography")}</strong>
+                        <button type="button" onClick={() => setShowUsernameEffects(false)}>✕</button>
+                      </div>
+                      <div className="subdrawer-grid">
+                        <div className="custom-dark-field">
+                          <label>{L("Phông chữ", "Font Family")}</label>
+                          <div className="dark-input-box">
+                            <select
+                              value={textFontFamily}
+                              onChange={(e) => setTextFontFamily(e.target.value)}
+                            >
+                              <option value="Arial">Arial</option>
+                              <option value="Georgia">Georgia</option>
+                              <option value="Times New Roman">Times New Roman</option>
+                              <option value="Courier New">Courier New</option>
+                              <option value="Verdana">Verdana</option>
+                              <option value="Impact">Impact</option>
+                              <option value="Trebuchet MS">Trebuchet MS</option>
+                              <option value="Monaco">Monaco</option>
+                            </select>
+                          </div>
+                        </div>
+                        <div className="custom-dark-field">
+                          <label>{L("Hiệu ứng chữ nổi 3D", "3D Depth Effect")}</label>
+                          <button
+                            type="button"
+                            className={`glow-toggle-btn full ${text3DEffect ? 'on' : ''}`}
+                            onClick={() => setText3DEffect((v) => !v)}
+                            style={{ height: 42 }}
+                          >
+                            <span>✦</span> {text3DEffect
+                          ? L('Đang bật chữ nổi 3D', '3D Text Effect Enabled')
+                          : L('Bật chữ nổi 3D', 'Enable 3D Text Effect')}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
                   )}
                 </div>
-              </div>
-                                                    </div>
+              </section>
 
-                                                    {/* Avatar Frame Selection */}
-                                                    <div className="media-card">
-                                                      <div className="media-card-header">
-                                                        <span className="media-label">Avatar Frame</span>
-                                                      </div>
-                                                      <div className="media-preview" style={{ padding: '20px', minHeight: 'auto', aspectRatio: 'auto' }}>
-                                                        <select
-                                                          value={formData.avatarFrame}
-                                                          onChange={(e) => setFormData(prev => ({ ...prev, avatarFrame: e.target.value }))}
-                                                          className="custom-select"
-                                                          style={{ width: '100%', marginBottom: '20px' }}
-                                                        >
-                                                          <option value="">No Frame</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_1.png">Khung 1</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_2.png">Khung 2</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_3.png">Khung 3</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_4.png">Khung 4</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_5.png">Khung 5</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_6.png">Khung 6</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_8.png">Khung 7</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/khung_9.png">Khung 8</option>
-                                                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">Khung 9</option>
-                                                        </select>
+              {/* ================= SECTION 3: COLOR CUSTOMIZATION ================= */}
+              <section className="guns-section">
+                <h2 className="guns-section-title">{L("Tùy chỉnh màu sắc", "Color Customization")}</h2>
+                <div className="guns-panel">
+                  <div className="color-custom-layout">
+                    <div className="color-fields-grid">
+                      {/* 1. Card Color (Màu thẻ) */}
+                      <div className="custom-dark-field">
+                        <label>{language === 'vi' ? "Màu thẻ" : 'Card Color'}</label>
+                        <label className="dark-color-pill">
+                          <span
+                            className="color-dot-preview"
+                            style={{ background: formData.lanyardCardColor || formData.cardColor || '#18161c' }}
+                          />
+                          <input
+                            type="text"
+                            value={formData.lanyardCardColor || formData.cardColor || '#18161c'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData((prev) => ({ ...prev, lanyardCardColor: val, cardColor: val }));
+                            }}
+                          />
+                          <input
+                            type="color"
+                            value={formData.lanyardCardColor || formData.cardColor || '#18161c'}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              setFormData((prev) => ({ ...prev, lanyardCardColor: val, cardColor: val }));
+                            }}
+                            className="hidden-native-color"
+                          />
+                          <span className="color-pencil-ico">✎</span>
+                        </label>
+                      </div>
 
-                                                        {/* Frame Preview */}
-                                                        {formData.avatarFrame && (
-                                                          <div style={{
-                                                            display: 'flex',
-                                                            flexDirection: 'column',
-                                                            alignItems: 'center',
-                                                            gap: '10px',
-                                                            padding: '20px',
-                                                            background: 'rgba(0, 0, 0, 0.1)',
-                                                            borderRadius: '8px'
-                                                          }}>
-                                                            <div style={{ fontSize: '14px', color: '#999', marginBottom: '10px' }}>Preview:</div>
-                                                            <div style={{
-                                                              position: 'relative',
-                                                              width: '150px',
-                                                              height: '150px',
-                                                              borderRadius: '50%',
-                                                              overflow: 'hidden',
-                                                              display: 'flex',
-                                                              alignItems: 'center',
-                                                              justifyContent: 'center'
-                                                            }}>
-                                                              {formData.avatar ? (
-                                                                <>
-                                                                  <img
-                                                                    src={formData.avatar}
-                                                                    alt="Avatar Preview"
-                                                                    style={{
-                                                                      width: '80%',
-                                                                      height: '80%',
-                                                                      objectFit: 'cover',
-                                                                      borderRadius: '50%'
-                                                                    }}
-                                                                  />
-                                                                  <img
-                                                                    src={formData.avatarFrame}
-                                                                    alt="Frame Preview"
-                                                                    style={{
-                                                                      position: 'absolute',
-                                                                      top: '50%',
-                                                                      left: '50%',
-                                                                      transform: 'translate(-50%, -50%)',
-                                                                      width: '115%',
-                                                                      height: '115%',
-                                                                      objectFit: 'contain',
-                                                                      pointerEvents: 'none'
-                                                                    }}
-                                                                  />
-                                                                </>
-                                                              ) : (
-                                                                <div style={{
-                                                                  width: '100%',
-                                                                  height: '100%',
-                                                                  background: '#333',
-                                                                  display: 'flex',
-                                                                  alignItems: 'center',
-                                                                  justifyContent: 'center',
-                                                                  fontSize: '48px'
-                                                                }}>
-                                                                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
-                                                                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                                                                    <circle cx="12" cy="7" r="4" />
-                                                                  </svg>
-                                                                </div>
-                                                              )}
-                                                            </div>
-                                                          </div>
-            {/* 4. HÌNH NỀN TRANG (BACKGROUND IMAGE) */}
-                                                        <div className={`editor-tile ${pinnedTile === 'background' ? 'is-pinned' : ''}`}>
-                                                          <div className="tile-head" onClick={() => toggleTile('background')}>
-                                                            <div className="tile-icon">
-                                                              {formData.backgroundImage ? (
-                                                                <img src={formData.backgroundImage} alt="" className="tile-mini-thumb" />
-                                                              ) : (
-                                                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                  <rect x="2" y="3" width="20" height="18" rx="2" />
-                                                                  <path d="M2 15l5-5 4 4 5-6 6 7" />
-                                                                </svg>
-                                                              )}
-                                                            </div>
-                                                            <div className="tile-meta">
-                                                              <h3>Background Image</h3>
-                                                              <span className="tile-summary">
-                                                                {formData.backgroundImage
-                                                                  ? language === 'vi' ? 'Đã cài hình nền' : 'Custom background active'
-                                                                  : language === 'vi' ? 'Mặc định hệ thống' : 'Default background'}
-                                                              </span>
-                                                            </div>
-                                                            <span className="tile-chevron">⌄</span>
-                                                          </div>
+                      {/* 2. Strap Color (Màu dây đeo thẻ & Viền điểm nhấn) */}
+                      {formData.layout === 'lanyard' && (
+                        <div className="custom-dark-field">
+                          <label>{language === 'vi' ? "Màu dây đeo thẻ" : 'Lanyard Strap Color'}</label>
+                          <label className="dark-color-pill">
+                            <span
+                              className="color-dot-preview"
+                              style={{ background: formData.lanyardStrapColor || '#f65c5c' }}
+                            />
+                            <input
+                              type="text"
+                              name="lanyardStrapColor"
+                              value={formData.lanyardStrapColor || '#f65c5c'}
+                              onChange={handleChange}
+                            />
+                            <input
+                              type="color"
+                              name="lanyardStrapColor"
+                              value={formData.lanyardStrapColor || '#f65c5c'}
+                              onChange={handleChange}
+                              className="hidden-native-color"
+                            />
+                            <span className="color-pencil-ico">✎</span>
+                          </label>
+                        </div>
+                      )}
 
-                                                          {/* Cover Image / Banner (Premium) */}
-                                                          <div className="media-card">
-                                                            <div className="media-card-header">
-                                                              <span className="media-label">Cover Image / Banner</span>
-                                                              {formData.coverImage && (
-                                                                <button
-                                                                  type="button"
-                                                                  className="remove-btn"
-                                                                  onClick={() => handleRemoveImage('coverImage')}
-                                                                >
-                                                                  ✕
-                                                                </button>
-                                                              )}
-                                                            </div>
-                                                            <div className="media-preview" style={{ position: 'relative' }}>
-                                                              {uploadingCover && (
-                                                                <div className="uploading-overlay">
-                                                                  <div className="spinner"></div>
-                                                                  <p>{language === 'vi' ? 'Đang tải...' : 'Uploading...'}</p>
-                                                                  <div className="tile-body">
-                                                                    <div className="tile-media-drop">
-                                                                      {uploadingBackground && <div className="uploading-overlay"><div className="spinner" /></div>}
-                                                                      {formData.backgroundImage ? (
-                                                                        <div className="tile-media-filled">
-                                                                          <img src={formData.backgroundImage} alt="Background" />
-                                                                          <button
-                                                                            type="button"
-                                                                            className="tile-remove-chip"
-                                                                            onClick={() => handleRemoveImage('backgroundImage')}
-                                                                          >
-                                                                            ✕ {language === 'vi' ? 'Xóa nền' : 'Remove'}
-                                                                          </button>
-                                                                        </div>
-                                                                      )}
-                                                                      {formData.coverImage ? (
-                                                                        <>
-                                                                          <img src={formData.coverImage} alt="Cover" />
-                                                                          <span className="file-format">UPLOAD</span>
-                                                                        </>
-                                                                      ) : (
-                    <div className="media-placeholder">
-                    <label className="tile-drop-label">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageChange(e, 'coverImage')}
-                        disabled={uploadingCover}
-                        className="media-input"
-                        onChange={(e) => handleImageChange(e, 'backgroundImage')}
-                        disabled={uploadingBackground}
-                      />
-                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="placeholder-icon" style={{ width: '32px', height: '32px', opacity: 0.5 }}>
-                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                        <circle cx="8.5" cy="8.5" r="1.5" />
-                        <polyline points="21 15 16 10 5 21" />
-                      </svg>
-                      <span className="placeholder-text">
-                        Click to upload cover image
-                      </span>
+                      {/* 3. Text Color */}
+                      <div className="custom-dark-field">
+                        <label>{L("Màu chữ", "Text Color")}</label>
+                        <label className="dark-color-pill">
+                          <span className="color-dot-preview" style={{ background: textColor }} />
+                          <input
+                            type="text"
+                            value={textColor}
+                            onChange={(e) => setTextColor(e.target.value)}
+                          />
+                          <input
+                            type="color"
+                            value={textColor}
+                            onChange={(e) => setTextColor(e.target.value)}
+                            className="hidden-native-color"
+                          />
+                          <span className="color-pencil-ico">✎</span>
+                        </label>
+                      </div>
+
+                      {/* 4. Background Color */}
+                      <div className="custom-dark-field">
+                        <label>{L("Màu nền", "Background Color")}</label>
+                        <label className="dark-color-pill">
+                          <span className="color-dot-preview" style={{ background: bgColor }} />
+                          <input
+                            type="text"
+                            value={bgColor}
+                            onChange={(e) => setBgColor(e.target.value)}
+                          />
+                          <input
+                            type="color"
+                            value={bgColor}
+                            onChange={(e) => setBgColor(e.target.value)}
+                            className="hidden-native-color"
+                          />
+                          <span className="color-pencil-ico">✎</span>
+                        </label>
+                      </div>
+
+                      {/* 5. Icon Color */}
+                      <div className="custom-dark-field">
+                        <label>{L("Màu icon", "Icon Color")}</label>
+                        <label className="dark-color-pill">
+                          <span className="color-dot-preview" style={{ background: iconColor }} />
+                          <input
+                            type="text"
+                            value={iconColor}
+                            onChange={(e) => setIconColor(e.target.value)}
+                          />
+                          <input
+                            type="color"
+                            value={iconColor}
+                            onChange={(e) => setIconColor(e.target.value)}
+                            className="hidden-native-color"
+                          />
+                          <span className="color-pencil-ico">✎</span>
+                        </label>
+                      </div>
+
+                      {/* 6. Màu ô nhạc (nền) & màu điểm nhấn (thanh tiến trình, nút) — chỉ bố cục Basic có ô nhạc */}
+                      {[
+                        {
+                          key: 'musicBoxColor',
+                          label: language === 'vi' ? "Màu ô nhạc" : 'Music Box Color',
+                          fallback: '#141418'
+                        },
+                        {
+                          key: 'musicAccentColor',
+                          label: language === 'vi' ? "Màu thanh nhạc & nút" : 'Music Accent Color',
+                          fallback: textColor || '#ffffff'
+                        }
+                      ].map((f) => (
+                        <div className="custom-dark-field" key={f.key}>
+                          <label>
+                            {f.label}
+                            {formData[f.key] && (
+                              <button
+                                type="button"
+                                className="color-reset-link"
+                                onClick={() => setFormData((prev) => ({ ...prev, [f.key]: '' }))}
+                              >
+                                {language === 'vi' ? 'Mặc định' : 'Reset'}
+                              </button>
+                            )}
+                          </label>
+                          <label className="dark-color-pill">
+                            <span className="color-dot-preview" style={{ background: formData[f.key] || f.fallback }} />
+                            <input
+                              type="text"
+                              name={f.key}
+                              value={formData[f.key] || f.fallback}
+                              onChange={handleChange}
+                            />
+                            <input
+                              type="color"
+                              name={f.key}
+                              value={/^#[0-9a-f]{6}$/i.test(formData[f.key] || f.fallback) ? formData[f.key] || f.fallback : '#141418'}
+                              onChange={handleChange}
+                              className="hidden-native-color"
+                            />
+                            <span className="color-pencil-ico">✎</span>
+                          </label>
+                        </div>
+                      ))}
+
+                      {/* 7. Lanyard Badge Label */}
+                      <div className="custom-dark-field">
+                        <label>{language === 'vi' ? "Nhãn thẻ 3D" : '3D Card Title'}</label>
+                        <div className="dark-input-box">
+                          <input
+                            type="text"
+                            name="lanyardBadgeLabel"
+                            maxLength={18}
+                            value={formData.lanyardBadgeLabel || ''}
+                            onChange={handleChange}
+                            placeholder="KONONE PASS"
+                          />
+                        </div>
+                      </div>
                     </div>
-                      <span>+ {language === 'vi' ? 'Tải hình nền toàn trang' : 'Click to upload page background'}</span>
-                    </label>
-                  )}
-                                                                  </div>
-                                                                </div>
-            </div>
 
-                                                            {/* Premium Banner */}
-                                                            {!isPremium && (
-                                                              <div className="premium-banner" onClick={() => navigate('/premium')} style={{ cursor: 'pointer' }}>
-                                                                <div className="premium-pattern"></div>
-                                                                <div className="premium-content">
+                    <div className="color-gradient-cta">
+                      <button
+                        type="button"
+                        className={`enable-gradient-btn ${profileGradient ? 'active' : ''}`}
+                        onClick={() => setProfileGradient((v) => !v)}
+                      >
+                        {profileGradient
+                          ? L('Đang bật nền chuyển sắc', 'Profile Gradient Enabled')
+                          : L('Bật nền chuyển sắc', 'Enable Profile Gradient')}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-                                                                  <span className="premium-text">Want exclusive features? Unlock more with Premium</span>
-                                                                  {/* 5. NHẠC NỀN (AUDIO YOUTUBE) */}
-                                                                  <div className={`editor-tile ${pinnedTile === 'audio' ? 'is-pinned' : ''}`}>
-                                                                    <div className="tile-head" onClick={() => toggleTile('audio')}>
-                                                                      <div className="tile-icon">
-                                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                          <path d="M9 18V5l12-2v13" />
-                                                                          <circle cx="6" cy="18" r="3" />
-                                                                          <circle cx="18" cy="16" r="3" />
-                                                                        </svg>
-                                                                      </div>
-                                                                      <div className="tile-meta">
-                                                                        <h3>Audio / Music</h3>
-                                                                        <span className="tile-summary">
-                                                                          {formData.musicUrl
-                                                                            ? language === 'vi' ? 'Đã gắn link nhạc YouTube' : 'YouTube audio linked'
-                                                                            : language === 'vi' ? 'Chưa có nhạc nền' : 'No background music'}
-                                                                        </span>
-                                                                      </div>
-                                                                      <span className="tile-chevron">⌄</span>
-                                                                    </div>
-            )}
-                                                                  </div>
+              {/* ================= SECTION 3.5: CURSOR EFFECT CUSTOMIZATION (SPLASH CURSOR & BLOB CURSOR) ================= */}
+              <section className="guns-section">
+                {!isPremium && (
+                  <div className="premium-notice">
+<DiamondIcon size={14} />
+                    <span>
+                      {language === 'vi'
+                        ? 'Hiệu ứng chuột là tính năng Premium — bạn vẫn xem thử được ở demo, nhưng cần Premium để lưu.'
+                        : 'Cursor effects are Premium — you can preview them in the demo, but saving requires Premium.'}
+                    </span>
+                    <button type="button" onClick={() => navigate('/premium')}>
+                      {language === 'vi' ? 'Nâng cấp' : 'Upgrade'}
+                    </button>
+                  </div>
+                )}
+                <div className="splash-section-head">
+                  <h2 className="guns-section-title">
+                    {language === 'vi' ? "Hiệu ứng Chuột" : 'Cursor Effects (Splash & Blob Cursor)'}
+                    <DiamondIcon className="pro-diamond" size={16} style={{ marginLeft: 8 }} />
+                  </h2>
 
-                                                                  {/* General Customization */}
-                                                                  <div className="customization-section">
-                                                                    <h2 className="section-title">{t(language, 'profileEditor.generalCustomization')}</h2>
-
-                                                                    <div className="form-group">
-                                                                      <label>Description</label>
-                                                                      <textarea
-                                                                        name="bio"
-                                                                        value={formData.bio}
-                                                                        onChange={handleChange}
-                                                                        placeholder="A this is my description"
-                                                                        rows="3"
-                                                                      />
-                                                                    </div>
-
-                                                                    {/* Card Color */}
-                                                                    <div className="form-group">
-                                                                      <label>
-                                                                        <span>Card Color</span>
-                                                                        <span className="form-hint">(Border in card)</span>
-                                                                      </label>
-                                                                      <div className="color-picker-container">
-                                                                        <input
-                                                                          type="color"
-                                                                          name="cardColor"
-                                                                          value={formData.cardColor || '#C71585'}
-                                                                          onChange={handleChange}
-                                                                          className="color-picker-input"
-                                                                        />
-                                                                        <input
-                                                                          type="text"
-                                                                          name="cardColor"
-                                                                          value={formData.cardColor || ''}
-                                                                          onChange={handleChange}
-                                                                          placeholder="#C71585 (default)"
-                                                                          className="color-text-input"
-                                                                        />
-                                                                        <button
-                                                                          type="button"
-                                                                          onClick={() => setFormData(prev => ({ ...prev, cardColor: '' }))}
-                                                                          className="color-reset-btn"
-                                                                          title="Reset to default"
-                                                                        >
-                                                                          Reset
-                                                                        </button>
-                                                                        <div className="tile-body">
-                                                                          <div className="tile-field">
-                                                                            <label>YouTube Audio URL</label>
-                                                                            <div className="tile-input-with-clear">
-                                                                              <input
-                                                                                type="url"
-                                                                                name="musicUrl"
-                                                                                value={formData.musicUrl}
-                                                                                onChange={handleChange}
-                                                                                placeholder="https://www.youtube.com/watch?v=..."
-                                                                              />
-                                                                              {formData.musicUrl && (
-                                                                                <button
-                                                                                  type="button"
-                                                                                  onClick={() => setFormData((prev) => ({ ...prev, musicUrl: '' }))}
-                                                                                >
-                                                                                  ✕
-                                                                                </button>
-                                                                              )}
-                                                                            </div>
-                                                                          </div>
-                                                                        </div>
-                                                                      </div>
-
-                                                                      {/* Presence Card (Modern Layout) */}
-                                                                      <div className="form-group presence-customization">
-                                                                        <label>
-                                                                          <span>{t(language, 'profileEditor.presenceCard')}</span>
-                                                                          <span className="form-hint">(Discord-style status)</span>
-                                                                        </label>
-
-                                                                        <div className="presence-grid" style={{
-                                                                          display: 'grid',
-                                                                          gridTemplateColumns: '1fr 2fr',
-                                                                          gap: '15px',
-                                                                          background: 'rgba(255, 255, 255, 0.03)',
-                                                                          padding: '15px',
-                                                                          borderRadius: '12px',
-                                                                          border: '1px solid rgba(255, 255, 255, 0.05)'
-                                                                        }}>
-                                                                          <div className="form-group">
-                                                                            <label>{t(language, 'profileEditor.presenceType')}</label>
-                                                                            <select
-                                                                              name="presenceType"
-                                                                              value={formData.presenceType}
-                                                                              onChange={handleChange}
-                                                                              className="custom-select"
-                                                                            >
-                                                                              <option value="playing">{t(language, 'profileEditor.activityPlaying')}</option>
-                                                                              <option value="listening">{t(language, 'profileEditor.activityListening')}</option>
-                                                                              <option value="watching">{t(language, 'profileEditor.activityWatching')}</option>
-                                                                              <option value="streaming">{t(language, 'profileEditor.activityStreaming')}</option>
-                                                                              <option value="competing">{t(language, 'profileEditor.activityCompeting')}</option>
-                                                                            </select>
-                                                                            {/* 6. VIDEO NỀN (BACKGROUND VIDEO - PREMIUM) */}
-                                                                            <div className={`editor-tile ${pinnedTile === 'video' ? 'is-pinned' : ''}`}>
-                                                                              <div className="tile-head" onClick={() => toggleTile('video')}>
-                                                                                <div className="tile-icon">
-                                                                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                                    <polygon points="23 7 16 12 23 17 23 7" />
-                                                                                    <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
-                                                                                  </svg>
-                                                                                </div>
-
-                                                                                <div className="form-group">
-                                                                                  <label>{t(language, 'profileEditor.presenceTitle')}</label>
-                                                                                  <input
-                                                                                    type="text"
-                                                                                    name="presenceTitle"
-                                                                                    value={formData.presenceTitle}
-                                                                                    onChange={handleChange}
-                                                                                    placeholder="e.g. YouTube Music, League of Legends"
-                                                                                  />
-                                                                                  <div className="tile-meta">
-                                                                                    <h3>
-                                                                                      Background Video
-                                                                                      <span className="tile-pro-tag">PRO</span>
-                                                                                    </h3>
-                                                                                    <span className="tile-summary">
-                                                                                      {formData.backgroundVideo
-                                                                                        ? 'YouTube Video Active'
-                                                                                        : isPremium
-                                                                                          ? language === 'vi' ? 'Chưa gắn video nền' : 'No video URL'
-                                                                                          : language === 'vi' ? 'Tính năng Premium' : 'Requires Premium'}
-                                                                                    </span>
-                                                                                  </div>
-                                                                                  <span className="tile-chevron">⌄</span>
-                                                                                </div>
-
-                                                                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                                                                                  <label>{t(language, 'profileEditor.presenceSubtitle')}</label>
-                                                                                  <div className="tile-body">
-                                                                                    <div className="tile-field">
-                                                                                      <label>YouTube Video URL</label>
-                                                                                      <input
-                                                                                        type="text"
-                                                                                        name="presenceSubtitle"
-                                                                                        value={formData.presenceSubtitle}
-                                                                                        type="url"
-                                                                                        name="backgroundVideo"
-                                                                                        value={formData.backgroundVideo}
-                                                                                        onChange={handleChange}
-                                                                                        placeholder="e.g. Listening to Lofi Hip Hop"
-                                                                                        placeholder="https://www.youtube.com/watch?v=..."
-                                                                                        disabled={!isPremium}
-                                                                                      />
-                                                                                      {!isPremium && (
-                                                                                        <div className="tile-pro-notice">
-                                                                                          <span>{language === 'vi' ? 'Nâng cấp Premium để dùng video nền.' : 'Unlock Premium to use video background.'}</span>
-                                                                                          <Link to="/premium">Unlock Premium →</Link>
-                                                                                        </div>
-                                                                                      )}
-                                                                                    </div>
-                                                                                  </div>
-                                                                                </div>
-
-                                                                                <div className="form-group" style={{ gridColumn: 'span 2' }}>
-                                                                                  <label>Presence Icon (Game/Coding)</label>
-                                                                                  <select
-                                                                                    name="presenceIcon"
-                                                                                    value={formData.presenceIcon}
-                                                                                    onChange={handleChange}
-                                                                                    className="custom-select"
-                                                                                  >
-                                                                                    <option value="">None (Use Avatar)</option>
-                                                                                    <optgroup label="Games">
-                                                                                      <option value="fivem">FiveM</option>
-                                                                                      <option value="pubg">PUBG</option>
-                                                                                      <option value="lol">League of Legends</option>
-                                                                                      <option value="valorant">Valorant</option>
-                                                                                      <option value="csgo">CS:GO</option>
-                                                                                      <option value="minecraft">Minecraft</option>
-                                                                                      <option value="roblox">Roblox</option>
-                                                                                    </optgroup>
-                                                                                    <optgroup label="Coding">
-                                                                                      <option value="lua">Lua</option>
-                                                                                      <option value="html">HTML</option>
-                                                                                      <option value="css">CSS</option>
-                                                                                      <option value="js">JavaScript</option>
-                                                                                      <option value="react">React</option>
-                                                                                      <option value="python">Python</option>
-                                                                                      <option value="cpp">C++</option>
-                                                                                    </optgroup>
-                                                                                  </select>
-                                                                                  {/* 7. MÀU THẺ & HIỆU ỨNG NỀN (APPEARANCE & EFFECTS) */}
-                                                                                  <div className={`editor-tile ${pinnedTile === 'effects' ? 'is-pinned' : ''}`}>
-                                                                                    <div className="tile-head" onClick={() => toggleTile('effects')}>
-                                                                                      <div className="tile-icon">
-                                                                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                                          <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
-                                                                                        </svg>
-                                                                                      </div>
-                                                                                      <div className="tile-meta">
-                                                                                        <h3>{language === 'vi' ? 'Màu sắc & Hiệu ứng' : 'Theme & Effects'}</h3>
-                                                                                        <span className="tile-summary">
-                                                                                          {formData.effect !== 'none' ? `Effect: ${formData.effect}` : 'No effect'} • {formData.cardColor || '#C71585'}
-                                                                                        </span>
-                                                                                      </div>
-                                                                                      <span className="tile-chevron">⌄</span>
-                                                                                    </div>
-                                                                                  </div>
-                                                                                  {/* Profile Opacity */}
-                                                                                  {/* <div className="form-group slider-group">
-              <label>Profile Opacity</label>
-              <div className="slider-container">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={profileOpacity}
-                  onChange={(e) => setProfileOpacity(e.target.value)}
-                  className="slider"
-                />
-                <div className="slider-markers">
-                  <span>20%</span>
-                  <span>50%</span>
-                  <span>80%</span>
-
-              <div className="tile-body">
-                <div className="tile-field">
-                  <label>Card Accent Color</label>
-                  <div className="color-picker-container">
-                    <input
-                      type="color"
-                      name="cardColor"
-                      value={formData.cardColor || '#C71585'}
-                      onChange={handleChange}
-                      className="color-picker-input"
-                    />
-                    <input
-                      type="text"
-                      name="cardColor"
-                      value={formData.cardColor || ''}
-                      onChange={handleChange}
-                      placeholder="#C71585 (default)"
-                      className="color-text-input"
-                    />
+                  <div className="cursor-mode-tabs">
                     <button
                       type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, cardColor: '' }))}
-                      className="color-reset-btn"
-                      title="Reset"
+                      className={`cursor-tab-btn ${cursorTab === 'splash' ? 'active' : ''}`}
+                      onClick={() => setCursorTab('splash')}
                     >
-                      ↺
+                      <svg className="cursor-tab-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 2.7s6 6.4 6 11.3a6 6 0 0 1-12 0c0-4.9 6-11.3 6-11.3z" />
+                      </svg>
+                      <span>Splash Cursor</span>
+                      {splashCursor.enabled && <span className="tab-on-dot" />}
+                    </button>
+                    <button
+                      type="button"
+                      className={`cursor-tab-btn ${cursorTab === 'blob' ? 'active' : ''}`}
+                      onClick={() => setCursorTab('blob')}
+                    >
+                      <svg className="cursor-tab-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="9" cy="10" r="5.5" />
+                        <circle cx="17" cy="16" r="3.5" />
+                      </svg>
+                      <span>Blob Cursor</span>
+                      {blobCursor.enabled && <span className="tab-on-dot" />}
                     </button>
                   </div>
                 </div>
-              </div> */}
-                                                                                  {/* </div> */}
 
-                                                                                  {/* Profile Blur */}
-                                                                                  {/* <div className="form-group slider-group">
-              <label>Profile Blur</label>
-              <div className="slider-container">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={profileBlur}
-                  onChange={(e) => setProfileBlur(e.target.value)}
-                  className="slider"
-                />
-                <div className="slider-markers">
-                  <span>20px</span>
-                  <span>50px</span>
-                  <span>80px</span>
-                <div className="tile-field">
-                  <label>Background Effect</label>
-                  <div className="tile-effect-row">
-                    <select
-                      name="effect"
-                      value={formData.effect}
-                      onChange={(e) => {
-                        handleChange(e);
-                        const selected = e.target.value;
-                        if (selected !== 'none') {
-                          setPreviewEffect(selected);
-                        }
-                      }}
-                      className="custom-select"
-                    >
-                      <option value="none">None</option>
-                      <option value="snow">Snow</option>
-                      <option value="particles">Particles</option>
-                      <option value="confetti">Confetti</option>
-                      <option value="fireworks">Fireworks</option>
-                      <option value="rain">Rain (Premium)</option>
-                      <option value="stars">Stars (Premium)</option>
-                      <option value="leaves">Leaves (Premium)</option>
-                      <option value="aurora">Aurora (Premium)</option>
-                      <option value="matrix">Matrix (Premium)</option>
-                      <option value="nebula">Nebula (Premium)</option>
-                    </select>
-                    {formData.effect !== 'none' && (
+                {cursorTab === 'splash' ? (
+                <div className="guns-panel">
+                  <div className="cursor-panel-topbar">
+                    <span className="cursor-panel-subtitle">
+                      {language === 'vi'
+                        ? "Hiệu ứng sóng nước chuyển màu theo chuột"
+                        : 'Fluid WebGL2 color wave trail (@react-bits/SplashCursor-JS-CSS)'}
+                    </span>
+                    <div className="splash-master-toggle">
+                      <span>
+                        {splashCursor.enabled
+                          ? (language === 'vi' ? 'Đang bật Splash' : 'Splash Enabled')
+                          : (language === 'vi' ? 'Đang tắt' : 'Disabled')}
+                      </span>
                       <button
                         type="button"
-                        className="tile-preview-btn"
-                        onClick={() => {
-                          setPreviewEffect(formData.effect);
-                          setShowPreview(true);
-                        }}
+                        role="switch"
+                        aria-checked={splashCursor.enabled}
+                        className={`guns-switch ${splashCursor.enabled ? 'on' : ''}`}
+                        onClick={() => setSplashCursor((prev) => ({ ...prev, enabled: !prev.enabled }))}
                       >
-                        Preview
+                        <span className="switch-knob" />
                       </button>
-                    )}
+                    </div>
                   </div>
+
+                  {/* Dải Preset Màu nhanh + Tùy chọn Rainbow / Click Splash */}
+                  <div className="splash-top-controls">
+                    <div className="splash-presets-group">
+                      <label className="splash-sub-label">
+                        {language === 'vi' ? "Bảng màu nhanh" : 'Color Presets'}
+                      </label>
+                      <div className="splash-preset-pills">
+                        {SPLASH_COLOR_PRESETS.map((preset) => {
+                          const isSelected =
+                            preset.rainbow === splashCursor.rainbow &&
+                            (!preset.rainbow
+                              ? JSON.stringify(preset.colors) === JSON.stringify(splashCursor.colors)
+                              : true);
+                          return (
+                            <button
+                              key={preset.name}
+                              type="button"
+                              className={`splash-preset-btn ${isSelected ? 'active' : ''}`}
+                              onClick={() =>
+                                setSplashCursor((prev) => ({
+                                  ...prev,
+                                  enabled: true,
+                                  rainbow: preset.rainbow,
+                                  colors: [...preset.colors]
+                                }))
+                              }
+                            >
+                              <span
+                                className="preset-dots"
+                                style={{
+                                  background: preset.rainbow
+                                    ? 'linear-gradient(90deg, #ff4d4d, #ffd166, #2dd4bf, #4f8cff, #c084fc)'
+                                    : `linear-gradient(90deg, ${preset.colors[0]}, ${preset.colors[1]}, ${preset.colors[2]})`
+                                }}
+                              />
+                              <span>{preset.name}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    <div className="splash-quick-switches">
+                      <div className="other-toggle-item">
+                        <label>{language === 'vi' ? "Chế độ Cầu vồng" : 'Rainbow Spectrum'}</label>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={splashCursor.rainbow}
+                          className={`guns-switch ${splashCursor.rainbow ? 'on' : ''}`}
+                          onClick={() =>
+                            setSplashCursor((prev) => ({ ...prev, enabled: true, rainbow: !prev.rainbow }))
+                          }
+                        >
+                          <span className="switch-knob" />
+                        </button>
+                      </div>
+
+                      <div className="other-toggle-item">
+                        <label>{language === 'vi' ? "Bung sóng khi Click" : 'Click Splash Burst'}</label>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={splashCursor.clickSplash}
+                          className={`guns-switch ${splashCursor.clickSplash ? 'on' : ''}`}
+                          onClick={() =>
+                            setSplashCursor((prev) => ({ ...prev, clickSplash: !prev.clickSplash }))
+                          }
+                        >
+                          <span className="switch-knob" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 3 Ô chọn màu chuột tùy chỉnh (hiển thị rõ để người dùng tự phối 3 màu) */}
+                  <div className="splash-colors-grid">
+                    {[0, 1, 2].map((idx) => {
+                      const cVal = (splashCursor.colors && splashCursor.colors[idx]) || '#f65c5c';
+                      return (
+                        <div className="custom-dark-field" key={idx}>
+                          <label>
+                            {language === 'vi' ? `Màu hiệu ứng chuột #${idx + 1}` : `Splash Color #${idx + 1}`}
+                          </label>
+                          <label className={`dark-color-pill ${splashCursor.rainbow ? 'is-dimmed' : ''}`}>
+                            <span className="color-dot-preview" style={{ background: cVal }} />
+                            <input
+                              type="text"
+                              value={cVal}
+                              onChange={(e) => {
+                                const nextColors = [...(splashCursor.colors || ['#f65c5c', '#dc2626', '#a21caf'])];
+                                nextColors[idx] = e.target.value;
+                                setSplashCursor((prev) => ({
+                                  ...prev,
+                                  enabled: true,
+                                  rainbow: false,
+                                  colors: nextColors
+                                }));
+                              }}
+                            />
+                            <input
+                              type="color"
+                              value={cVal}
+                              onChange={(e) => {
+                                const nextColors = [...(splashCursor.colors || ['#f65c5c', '#dc2626', '#a21caf'])];
+                                nextColors[idx] = e.target.value;
+                                setSplashCursor((prev) => ({
+                                  ...prev,
+                                  enabled: true,
+                                  rainbow: false,
+                                  colors: nextColors
+                                }));
+                              }}
+                              className="hidden-native-color"
+                            />
+                            <span className="color-pencil-ico">✎</span>
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 6 Thanh trượt tinh chỉnh — thu gọn, bấm mới mở */}
+                  <button
+                    type="button"
+                    className={`cursor-tuning-toggle ${showCursorTuning ? 'open' : ''}`}
+                    aria-expanded={showCursorTuning}
+                    onClick={() => setShowCursorTuning((v) => !v)}
+                  >
+                    <span>{language === 'vi' ? 'Tinh chỉnh nâng cao' : 'Advanced tuning'}</span>
+                    <span className="cursor-tuning-summary">
+                      Size {splashCursor.size} · Swirl {splashCursor.swirl} · Force {splashCursor.force}
+                    </span>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  {showCursorTuning && (
+                  <div className="splash-sliders-grid">
+                    {/* 1. Size */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Kích thước vệt" : 'Splash Size'}: <strong>{splashCursor.size}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0.2"
+                          max="2.5"
+                          step="0.1"
+                          value={splashCursor.size}
+                          onChange={(e) =>
+                            setSplashCursor((prev) => ({ ...prev, enabled: true, size: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${((splashCursor.size - 0.2) / 2.3) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 2. Swirl */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Độ xoáy" : 'Vortex Swirl'}: <strong>{splashCursor.swirl}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="10"
+                          step="0.5"
+                          value={splashCursor.swirl}
+                          onChange={(e) =>
+                            setSplashCursor((prev) => ({ ...prev, enabled: true, swirl: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${(splashCursor.swirl / 10) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 3. Force */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Lực đẩy" : 'Push Force'}: <strong>{splashCursor.force}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0.2"
+                          max="3"
+                          step="0.1"
+                          value={splashCursor.force}
+                          onChange={(e) =>
+                            setSplashCursor((prev) => ({ ...prev, enabled: true, force: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${((splashCursor.force - 0.2) / 2.8) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 4. Trail */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Độ lưu vệt" : 'Trail Length'}: <strong>{splashCursor.trail}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0.2"
+                          max="3"
+                          step="0.1"
+                          value={splashCursor.trail}
+                          onChange={(e) =>
+                            setSplashCursor((prev) => ({ ...prev, enabled: true, trail: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${((splashCursor.trail - 0.2) / 2.8) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 5. Intensity */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Cường độ màu" : 'Color Intensity'}: <strong>{splashCursor.intensity}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0.2"
+                          max="2.5"
+                          step="0.1"
+                          value={splashCursor.intensity}
+                          onChange={(e) =>
+                            setSplashCursor((prev) => ({ ...prev, enabled: true, intensity: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${((splashCursor.intensity - 0.2) / 2.3) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 6. Glow */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Phát sáng" : 'Bloom Glow'}: <strong>{splashCursor.glow}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={splashCursor.glow}
+                          onChange={(e) =>
+                            setSplashCursor((prev) => ({ ...prev, enabled: true, glow: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${splashCursor.glow * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  )}
+                </div>
+                ) : (
+                <div className="guns-panel">
+                  <div className="cursor-panel-topbar">
+                    <span className="cursor-panel-subtitle">
+                      {language === 'vi'
+                        ? "Hiệu ứng giọt chất lỏng 3D Three.js"
+                        : '3D Metaball Liquid Blob Cursor (@react-bits/BlobCursor-JS-CSS)'}
+                    </span>
+                    <div className="splash-master-toggle">
+                      <span>
+                        {blobCursor.enabled
+                          ? (language === 'vi' ? 'Đang bật Blob 3D' : 'Blob 3D Enabled')
+                          : (language === 'vi' ? 'Đang tắt' : 'Disabled')}
+                      </span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={blobCursor.enabled}
+                        className={`guns-switch ${blobCursor.enabled ? 'on' : ''}`}
+                        onClick={() => setBlobCursor((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Hàng 1: Chất liệu (Material), Màu sắc (Color), Hòa trộn (Blend Mode) */}
+                  <div className="splash-colors-grid">
+                    {/* 1. Material */}
+                    <div className="custom-dark-field">
+                      <label>{language === 'vi' ? "Chất liệu 3D" : '3D Material'}</label>
+                      <div className="dark-input-box">
+                        <select
+                          value={blobCursor.material}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, material: e.target.value }))
+                          }
+                        >
+                          <option value="chrome">{L("Chrome — kim loại phản chiếu", "Chrome — reflective metal")}</option>
+                          <option value="jelly">{L("Thạch — bóng trong", "Jelly — glossy")}</option>
+                          <option value="pearl">{L("Ngọc trai — ngũ sắc", "Pearl — iridescent")}</option>
+                          <option value="ink">{L("Mực — phẳng tối giản", "Ink — flat minimal")}</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* 2. Blob Color */}
+                    <div className="custom-dark-field">
+                      <label>{language === 'vi' ? "Màu giọt 3D" : 'Blob Color'}</label>
+                      <label className="dark-color-pill">
+                        <span className="color-dot-preview" style={{ background: blobCursor.color || '#3B82F6' }} />
+                        <input
+                          type="text"
+                          value={blobCursor.color || '#3B82F6'}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, color: e.target.value }))
+                          }
+                        />
+                        <input
+                          type="color"
+                          value={blobCursor.color || '#3B82F6'}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, color: e.target.value }))
+                          }
+                          className="hidden-native-color"
+                        />
+                        <span className="color-pencil-ico">✎</span>
+                      </label>
+                    </div>
+
+                    {/* 3. Blend Mode */}
+                    <div className="custom-dark-field">
+                      <label>{language === 'vi' ? "Hòa trộn" : 'Blend Mode'}</label>
+                      <div className="dark-input-box">
+                        <select
+                          value={blobCursor.blend}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, blend: e.target.value }))
+                          }
+                        >
+                          <option value="normal">{L("Bình thường", "Normal")}</option>
+                          <option value="difference">Difference</option>
+                          <option value="exclusion">Exclusion</option>
+                          <option value="screen">Screen</option>
+                          <option value="overlay">Overlay</option>
+                          <option value="multiply">Multiply</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Các công tắc nhanh cho BlobCursor */}
+                  <div className="cursor-switch-row">
+                      <div className="other-toggle-item">
+                        <label>{language === 'vi' ? "Bắn giọt khi Click" : 'Click Splash Drops'}</label>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={blobCursor.splash}
+                          className={`guns-switch ${blobCursor.splash ? 'on' : ''}`}
+                          onClick={() =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, splash: !prev.splash }))
+                          }
+                        >
+                          <span className="switch-knob" />
+                        </button>
+                      </div>
+
+                      <div className="other-toggle-item">
+                        <label>{language === 'vi' ? "Đổ bóng 3D" : '3D Drop Shadow'}</label>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={blobCursor.shadow}
+                          className={`guns-switch ${blobCursor.shadow ? 'on' : ''}`}
+                          onClick={() =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, shadow: !prev.shadow }))
+                          }
+                        >
+                          <span className="switch-knob" />
+                        </button>
+                      </div>
+
+                      <div className="other-toggle-item">
+                        <label>{language === 'vi' ? 'Ẩn chuột mặc định' : 'Hide System Cursor'}</label>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={blobCursor.hideCursor}
+                          className={`guns-switch ${blobCursor.hideCursor ? 'on' : ''}`}
+                          onClick={() =>
+                            setBlobCursor((prev) => ({ ...prev, hideCursor: !prev.hideCursor }))
+                          }
+                        >
+                          <span className="switch-knob" />
+                        </button>
+                      </div>
+                  </div>
+
+                  {/* 6 Thanh trượt tinh chỉnh — thu gọn, bấm mới mở */}
+                  <button
+                    type="button"
+                    className={`cursor-tuning-toggle ${showCursorTuning ? 'open' : ''}`}
+                    aria-expanded={showCursorTuning}
+                    onClick={() => setShowCursorTuning((v) => !v)}
+                  >
+                    <span>{language === 'vi' ? 'Tinh chỉnh nâng cao' : 'Advanced tuning'}</span>
+                    <span className="cursor-tuning-summary">
+                      Size {blobCursor.size}px · Trail {blobCursor.trail} · Goo {blobCursor.goo}
+                    </span>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  {showCursorTuning && (
+                  <div className="splash-sliders-grid">
+                    {/* 1. Size */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Kích thước giọt" : 'Blob Size'}: <strong>{blobCursor.size}px</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="30"
+                          max="260"
+                          step="5"
+                          value={blobCursor.size}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, size: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${((blobCursor.size - 30) / 230) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 2. Trail */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Độ dài đuôi" : 'Trail Segments'}: <strong>{blobCursor.trail}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="16"
+                          step="1"
+                          value={blobCursor.trail}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, trail: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${(blobCursor.trail / 16) * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 3. Goo */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Độ kết dính" : 'Gooey Blend'}: <strong>{blobCursor.goo}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={blobCursor.goo}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, goo: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${blobCursor.goo * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 4. Stretch */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Độ kéo giãn" : 'Stretch'}: <strong>{blobCursor.stretch}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={blobCursor.stretch}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, stretch: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${blobCursor.stretch * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 5. Wobble */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Độ nảy thạch" : 'Wobble'}: <strong>{blobCursor.wobble}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={blobCursor.wobble}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, wobble: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${blobCursor.wobble * 100}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* 6. Shine */}
+                    <div className="custom-dark-field">
+                      <label>
+                        {language === 'vi' ? "Độ bóng bề mặt" : 'Surface Shine'}: <strong>{blobCursor.shine}</strong>
+                      </label>
+                      <div className="guns-slider-wrap">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={blobCursor.shine}
+                          onChange={(e) =>
+                            setBlobCursor((prev) => ({ ...prev, enabled: true, shine: Number(e.target.value) }))
+                          }
+                          className="guns-range-slider"
+                          style={{ '--val': `${blobCursor.shine * 100}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  )}
+                </div>
+                )}
+              </section>
+
+              {/* ================= SECTION 4: OTHER CUSTOMIZATION ================= */}
+              <section className="guns-section">
+                <h2 className="guns-section-title">{L("Tùy chỉnh khác", "Other Customization")}</h2>
+                <div className="guns-panel">
+                  <div className="other-toggles-grid">
+                    <div className="other-toggle-item">
+                      <label>
+                        {L("Icon đơn sắc", "Monochrome Icons")}{' '}<span className="help-q-ico">?</span>
+                      </label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.monochromeIcons}
+                        className={`guns-switch ${otherSettings.monochromeIcons ? 'on' : ''}`}
+                        onClick={() => toggleOther('monochromeIcons')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Tiêu đề chuyển động", "Animated Title")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.animatedTitle}
+                        className={`guns-switch ${otherSettings.animatedTitle ? 'on' : ''}`}
+                        onClick={() => toggleOther('animatedTitle')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>
+                        {L("Đảo màu khung", "Swap Box Colors")}{' '}<span className="help-q-ico">?</span>
+                      </label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.swapBoxColors}
+                        className={`guns-switch ${otherSettings.swapBoxColors ? 'on' : ''}`}
+                        onClick={() => toggleOther('swapBoxColors')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Nút chỉnh âm lượng", "Volume Control")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.volumeControl}
+                        className={`guns-switch ${otherSettings.volumeControl ? 'on' : ''}`}
+                        onClick={() => toggleOther('volumeControl')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Dùng avatar Discord", "Use Discord Avatar")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.useDiscordAvatar}
+                        className={`guns-switch ${otherSettings.useDiscordAvatar ? 'on' : ''}`}
+                        onClick={() => toggleOther('useDiscordAvatar')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Khung trang trí avatar Discord", "Discord Avatar Decoration")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.discordAvatarDecoration}
+                        className={`guns-switch ${otherSettings.discordAvatarDecoration ? 'on' : ''}`}
+                        onClick={() => toggleOther('discordAvatarDecoration')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L('Viền avatar', 'Avatar Border')}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={Boolean(otherSettings.avatarBorder)}
+                        className={`guns-switch ${otherSettings.avatarBorder ? 'on' : ''}`}
+                        onClick={() => toggleOther('avatarBorder')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* ================= SECTION 5: BỐ CỤC WEB — POSTER ĐỨNG & CHỮ GIỚI THIỆU ================= */}
+              {formData.layout === 'web' && (
+                <section className="guns-section">
+                  <div className="splash-section-head">
+                    <h2 className="guns-section-title">
+                      {language === 'vi' ? 'Bố cục WEB — Poster Đứng & Giới thiệu' : 'WEB Layout — Vertical Poster & Intro'}
+                      <span className="new-pill-badge" style={{ marginLeft: 8 }}>WEB</span>
+                    </h2>
+                    <button
+                      type="button"
+                      className={`splash-preset-btn ${formData.layout === 'web' ? 'active' : ''}`}
+                      onClick={() => handleLayoutSwitch('web')}
+                    >
+                      <span>{formData.layout === 'web'
+                        ? L('✓ Đang dùng Bố cục WEB', '✓ Using WEB layout')
+                        : L('Chọn Bố cục WEB', 'Use WEB layout')}</span>
+                    </button>
+                  </div>
+
+                  <div className="guns-panel">
+                    <div className="web-layout-editor-grid">
+                      {/* Cột trái: Upload Poster đứng */}
+                      <div className="asset-col web-poster-upload-col">
+                        <div className="asset-col-head">
+                          <span className="asset-label">
+                            {language === 'vi' ? 'Poster đứng (Bên trái khi cuộn xuống)' : 'Vertical Poster (Left)'}
+                          </span>
+                          {formData.webPosterImage && (
+                            <button
+                              type="button"
+                              className="asset-clear-x"
+                              onClick={() => handleRemoveImage('webPosterImage')}
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                        <div className="asset-drop-box web-poster-drop">
+                          {uploadingPoster && (
+                            <div className="uploading-overlay"><div className="spinner" /></div>
+                          )}
+                          {formData.webPosterImage ? (
+                            <img src={formData.webPosterImage} alt="Poster" className="asset-filled-img" />
+                          ) : (
+                            <>
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleImageChange(e, 'webPosterImage')}
+                                disabled={uploadingPoster}
+                                className="asset-file-input"
+                              />
+                              <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
+                              </svg>
+                              <span className="asset-hint">
+                                {language === 'vi' ? 'Tải lên Poster đứng (Tỉ lệ 2:3)' : 'Upload Vertical Poster'}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Cột phải: Tiêu đề & Nội dung chữ giới thiệu bên phải poster */}
+                      <div className="web-intro-fields-col">
+                        <div className="custom-dark-field">
+                          <label>{language === 'vi' ? 'Tiêu đề giới thiệu (Bên phải Poster)' : 'Introduction Heading'}</label>
+                          <div className="dark-input-box">
+                            <input
+                              type="text"
+                              name="webIntroTitle"
+                              value={formData.webIntroTitle}
+                              onChange={handleChange}
+                              placeholder={
+                                language === 'vi'
+                                  ? `Về ${formData.displayName || formData.username || 'tôi'} / About Me`
+                                  : 'About Me / My Story'
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className="custom-dark-field">
+                          <label>
+                            {language === 'vi'
+                              ? 'Nội dung chữ giới thiệu (Hiển thị bên phải Poster khi cuộn xuống)'
+                              : 'Introduction Text (Right side of Poster)'}
+                          </label>
+                          <textarea
+                            name="webIntroText"
+                            rows={5}
+                            className="web-intro-textarea"
+                            value={formData.webIntroText}
+                            onChange={handleChange}
+                            placeholder={
+                              language === 'vi'
+                                ? 'Viết lời giới thiệu chi tiết, dự án, kỹ năng hoặc câu chuyện của bạn tại đây...'
+                                : 'Write your detailed bio, projects, or introduction here...'
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </div>
+
+            {/* BÊN PHẢI: KHUNG DEMO PROFILE TRỰC TIẾP + THANH CHUYỂN 3 BỐ CỤC Ở GÓC TRÊN ĐẦU */}
+            <aside className="editor-right-demo">
+              <div className="demo-panel-header">
+                {/* Nút chuyển đổi 3 bố cục ở góc trên đầu: Bố cục Basic, Bố cục Thẻ mới, Bố cục WEB */}
+                <div className="demo-layout-switcher" role="tablist" aria-label={L("Chuyển bố cục", "Layout Switcher")}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={formData.layout === 'card' || !formData.layout}
+                    className={`layout-switch-btn ${formData.layout === 'card' || !formData.layout ? 'active' : ''}`}
+                    onClick={() => handleLayoutSwitch('card')}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="3" y="4" width="18" height="16" rx="2" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span>{language === 'vi' ? 'Bố cục Basic' : 'Basic'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={formData.layout === 'lanyard'}
+                    className={`layout-switch-btn ${formData.layout === 'lanyard' ? 'active' : ''}`}
+                    onClick={() => handleLayoutSwitch('lanyard')}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2v5" />
+                      <rect x="5" y="7" width="14" height="15" rx="3" />
+                      <circle cx="12" cy="13" r="2.5" />
+                    </svg>
+                    <span>{language === 'vi' ? 'Bố cục Thẻ mới' : '3D Card'}</span>
+                    {!isPremium && <DiamondIcon className="layout-pro-tag" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={formData.layout === 'web'}
+                    className={`layout-switch-btn ${formData.layout === 'web' ? 'active' : ''}`}
+                    onClick={() => handleLayoutSwitch('web')}
+                  >
+                    <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="3" width="20" height="18" rx="2" />
+                      <line x1="2" y1="8" x2="22" y2="8" />
+                      <line x1="9" y1="13" x2="19" y2="13" />
+                    </svg>
+                    <span>{language === 'vi' ? 'Bố cục WEB' : 'WEB Layout'}</span>
+                    {!isPremium && <DiamondIcon className="layout-pro-tag" />}
+                  </button>
                 </div>
               </div>
-            </div> */}
 
-                                                                                  {/* Background Effects */}
-                                                                                  <div className="form-group">
-                                                                                    <label>
-                                                                                      <span>Background Effects</span>
-
-                                                                                    </label>
-                                                                                    <div className="effect-select-wrapper">
-                                                                                      <select
-                                                                                        name="effect"
-                                                                                        value={formData.effect}
-                                                                                        onChange={(e) => {
-                                                                                          handleChange(e);
-                                                                                          const selectedEffect = e.target.value;
-                                                                                          if (selectedEffect !== 'none') {
-                                                                                            setPreviewEffect(selectedEffect);
-                                                                                            setShowPreview(true);
-                                                                                          } else {
-                                                                                            setShowPreview(false);
-                                                                                          }
-                                                                                        }}
-                                                                                        onFocus={(e) => {
-                                                                                          if (e.target.value !== 'none') {
-                                                                                            setPreviewEffect(e.target.value);
-                                                                                            setShowPreview(true);
-                                                                                          }
-                                                                                        }}
-                                                                                        className="custom-select"
-                                                                                      >
-                                                                                        <option value="none">Choose an option</option>
-                                                                                        <option value="snow">Snow</option>
-                                                                                        <option value="particles">Particles</option>
-                                                                                        <option value="confetti">Confetti</option>
-                                                                                        <option value="fireworks">Fireworks</option>
-                                                                                        <option value="rain">Rain (Premium)</option>
-                                                                                        <option value="stars">Stars (Premium)</option>
-                                                                                        <option value="leaves">Leaves (Premium)</option>
-                                                                                        <option value="aurora">Aurora (Premium)</option>
-                                                                                        <option value="matrix">Matrix (Premium)</option>
-                                                                                        <option value="nebula">Nebula (Premium)</option>
-                                                                                      </select>
-                                                                                      {showPreview && previewEffect && previewEffect !== 'none' && (
-                                                                                        <div className="effect-preview-modal" onClick={() => setShowPreview(false)}>
-                                                                                          <div className="effect-preview-content" onClick={(e) => e.stopPropagation()}>
-                                                                                            <div className="preview-header">
-                                                                                              <h3>Effect Preview</h3>
-                                                                                              <button
-                                                                                                className="close-preview-btn"
-                                                                                                onClick={() => setShowPreview(false)}
-                                                                                              >
-                                                                                                ✕
-                                                                                              </button>
-                                                                                            </div>
-                                                                                            <div className="preview-container">
-                                                                                              {previewEffect === 'snow' && <SnowEffect />}
-                                                                                              {previewEffect === 'rain' && <RainEffect />}
-                                                                                              {previewEffect === 'stars' && <StarsEffect />}
-                                                                                              {previewEffect === 'particles' && <ParticlesEffect />}
-                                                                                              {previewEffect === 'leaves' && <LeavesEffect />}
-                                                                                              {previewEffect === 'aurora' && <AuroraEffect />}
-                                                                                              {previewEffect === 'fireworks' && <FireworksEffect />}
-                                                                                              {previewEffect === 'matrix' && <MatrixEffect />}
-                                                                                              {previewEffect === 'confetti' && <ConfettiEffect />}
-                                                                                              {previewEffect === 'nebula' && <NebulaEffect />}
-                                                                                              {previewEffect && ['rain', 'stars', 'leaves', 'aurora', 'matrix', 'nebula'].includes(previewEffect) && !isPremium && (
-                                                                                                <div className="preview-locked-overlay">
-                                                                                                  <div className="locked-icon"></div>
-                                                                                                  <p>Premium Effect</p>
-                                                                                                  <p className="preview-note">Bạn có thể xem preview nhưng cần Premium để sử dụng</p>
-                                                                                                  <button
-                                                                                                    className="unlock-preview-btn"
-                                                                                                    onClick={() => {
-                                                                                                      setShowPreview(false);
-                                                                                                      navigate('/premium');
-                                                                                                    }}
-                                                                                                  >
-                                                                                                    Unlock Premium
-                                                                                                  </button>
-                                                                                                </div>
-                                                                                              )}
-                                                                                            </div>
-                                                                                            {isPremium && (
-                                                                                              <div className="tile-field-row" style={{ marginTop: 8 }}>
-                                                                                                <div className="tile-field">
-                                                                                                  <label>Font Family <span className="tile-pro-tag">PRO</span></label>
-                                                                                                  <select
-                                                                                                    value={textFontFamily}
-                                                                                                    onChange={(e) => setTextFontFamily(e.target.value)}
-                                                                                                    className="custom-select"
-                                                                                                  >
-                                                                                                    <option value="Arial">Arial</option>
-                                                                                                    <option value="Georgia">Georgia</option>
-                                                                                                    <option value="Times New Roman">Times New Roman</option>
-                                                                                                    <option value="Courier New">Courier New</option>
-                                                                                                    <option value="Verdana">Verdana</option>
-                                                                                                    <option value="Impact">Impact</option>
-                                                                                                    <option value="Trebuchet MS">Trebuchet MS</option>
-                                                                                                    <option value="Monaco">Monaco</option>
-                                                                                                  </select>
-                                                                                                </div>
-                                                                                                <div className="tile-field" style={{ justifyContent: 'flex-end' }}>
-                                                                                                  <label className="checkbox-label" style={{ marginTop: 18 }}>
-                                                                                                    <input
-                                                                                                      type="checkbox"
-                                                                                                      checked={text3DEffect}
-                                                                                                      onChange={(e) => setText3DEffect(e.target.checked)}
-                                                                                                    />
-                                                                                                    <span>3D Text Effect</span>
-                                                                                                  </label>
-                                                                                                </div>
-                                                                                              </div>
-                                                                                            )}
-                                                                                          </div>
-                                                                                          {!isPremium && (
-                                                                                            <div className="premium-lock-message">
-                                                                                              Premium users get 6 exclusive effects: Rain, Stars, Leaves, Aurora, Matrix, Nebula! <button type="button" onClick={() => navigate('/premium')} className="premium-link">Unlock Premium</button>
-                                                                                            </div>
-                                                                                          )}
-                                                                                        </div>
-
-            {/* Premium Text Styling */}
-                                                                                      {isPremium && (
-              <>
-                                                                                          {/* Font Family */}
-                                                                                          <div className="form-group">
-                                                                                            <label>
-                                                                                              <span>Font Family</span>
-                                                                                              <span className="premium-badge">
-                                                                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
-                                                                                                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                                                                                                </svg>
-                                                                                                Premium
-                                                                                              </span>
-                                                                                            </label>
-                                                                                            <select
-                                                                                              value={textFontFamily}
-                                                                                              onChange={(e) => setTextFontFamily(e.target.value)}
-                                                                                              className="custom-select"
-                                                                                            >
-                                                                                              <option value="Arial">Arial</option>
-                                                                                              <option value="Georgia">Georgia</option>
-                                                                                              <option value="Times New Roman">Times New Roman</option>
-                                                                                              <option value="Courier New">Courier New</option>
-                                                                                              <option value="Verdana">Verdana</option>
-                                                                                              <option value="Impact">Impact</option>
-                                                                                              <option value="Comic Sans MS">Comic Sans MS</option>
-                                                                                              <option value="Trebuchet MS">Trebuchet MS</option>
-                                                                                              <option value="Lucida Console">Lucida Console</option>
-                                                                                              <option value="Palatino">Palatino</option>
-                                                                                              <option value="Garamond">Garamond</option>
-                                                                                              <option value="Bookman">Bookman</option>
-                                                                                              <option value="Courier">Courier</option>
-                                                                                              <option value="Monaco">Monaco</option>
-                                                                                              <option value="Helvetica">Helvetica</option>
-                                                                                            </select>
-                                                                                            {/* 8. THẺ HOẠT ĐỘNG DISCORD-STYLE (PRESENCE CARD) */}
-                                                                                            <div className={`editor-tile ${pinnedTile === 'presence' ? 'is-pinned' : ''}`}>
-                                                                                              <div className="tile-head" onClick={() => toggleTile('presence')}>
-                                                                                                <div className="tile-icon">
-                                                                                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                                                    <rect x="2" y="6" width="20" height="12" rx="3" />
-                                                                                                    <line x1="6" y1="12" x2="10" y2="12" />
-                                                                                                    <line x1="8" y1="10" x2="8" y2="14" />
-                                                                                                    <circle cx="15" cy="11" r="1" />
-                                                                                                    <circle cx="17" cy="13" r="1" />
-                                                                                                  </svg>
-                                                                                                </div>
-                                                                                                <div className="tile-meta">
-                                                                                                  <h3>{t(language, 'profileEditor.presenceCard')}</h3>
-                                                                                                  <span className="tile-summary">
-                                                                                                    {formData.presenceTitle
-                                                                                                      ? `${formData.presenceType}: ${formData.presenceTitle}`
-                                                                                                      : language === 'vi' ? 'Trạng thái kiểu Discord' : 'Discord-style activity'}
-                                                                                                  </span>
-                                                                                                </div>
-                                                                                                <span className="tile-chevron">⌄</span>
-                                                                                              </div>
-
-                                                                                              {/* 3D Text Effect */}
-                                                                                              <div className="form-group">
-                                                                                                <label>
-                                                                                                  <span>3D Text Effect</span>
-                                                                                                  <span className="premium-badge">
-                                                                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }}>
-                                                                                                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                                                                                                    </svg>
-                                                                                                    Premium
-                                                                                                  </span>
-                                                                                                </label>
-                                                                                                <div className="checkbox-group">
-                                                                                                  <label className="checkbox-label">
-                                                                                                    <input
-                                                                                                      type="checkbox"
-                                                                                                      checked={text3DEffect}
-                                                                                                      onChange={(e) => setText3DEffect(e.target.checked)}
-                                                                                                    />
-                                                                                                    <span>Enable 3D Effect</span>
-                                                                                                  </label>
-                                                                                                  <div className="tile-body">
-                                                                                                    <div className="tile-field-row">
-                                                                                                      <div className="tile-field">
-                                                                                                        <label>{t(language, 'profileEditor.presenceType')}</label>
-                                                                                                        <select
-                                                                                                          name="presenceType"
-                                                                                                          value={formData.presenceType}
-                                                                                                          onChange={handleChange}
-                                                                                                          className="custom-select"
-                                                                                                        >
-                                                                                                          <option value="playing">{t(language, 'profileEditor.activityPlaying')}</option>
-                                                                                                          <option value="listening">{t(language, 'profileEditor.activityListening')}</option>
-                                                                                                          <option value="watching">{t(language, 'profileEditor.activityWatching')}</option>
-                                                                                                          <option value="streaming">{t(language, 'profileEditor.activityStreaming')}</option>
-                                                                                                          <option value="competing">{t(language, 'profileEditor.activityCompeting')}</option>
-                                                                                                        </select>
-                                                                                                      </div>
-                                                                                                      <div className="tile-field">
-                                                                                                        <label>Icon (Game / Code)</label>
-                                                                                                        <select
-                                                                                                          name="presenceIcon"
-                                                                                                          value={formData.presenceIcon}
-                                                                                                          onChange={handleChange}
-                                                                                                          className="custom-select"
-                                                                                                        >
-                                                                                                          <option value="">None (Use Avatar)</option>
-                                                                                                          <optgroup label="Games">
-                                                                                                            <option value="fivem">FiveM</option>
-                                                                                                            <option value="pubg">PUBG</option>
-                                                                                                            <option value="lol">League of Legends</option>
-                                                                                                            <option value="valorant">Valorant</option>
-                                                                                                            <option value="csgo">CS:GO</option>
-                                                                                                            <option value="minecraft">Minecraft</option>
-                                                                                                            <option value="roblox">Roblox</option>
-                                                                                                          </optgroup>
-                                                                                                          <optgroup label="Coding">
-                                                                                                            <option value="lua">Lua</option>
-                                                                                                            <option value="html">HTML</option>
-                                                                                                            <option value="css">CSS</option>
-                                                                                                            <option value="js">JavaScript</option>
-                                                                                                            <option value="react">React</option>
-                                                                                                            <option value="python">Python</option>
-                                                                                                            <option value="cpp">C++</option>
-                                                                                                          </optgroup>
-                                                                                                        </select>
-                                                                                                      </div>
-                                                                                                    </div>
-
-
-
-                                                                                                  </>
-            )}
-
-                                                                                                  {/* Custom Cursor */}
-                                                                                                  {/* <div className="form-group">
-              <label>
-                <span>Custom Cursor</span>
-                <span className="premium-badge">💎 Premium</span>
-              </label>
-              <select
-                value={formData.cursorIcon}
-                onChange={(e) => setFormData(prev => ({ ...prev, cursorIcon: e.target.value }))}
-                className="custom-select"
-                disabled={!isPremium}
+              {/* Sân khấu hiển thị Demo Profile theo thời gian thực */}
+              <div
+                className="demo-stage-viewport"
+                style={{
+                  backgroundColor: bgColor || '#000000',
+                  backgroundImage: formData.backgroundImage ? `url(${formData.backgroundImage})` : undefined
+                }}
               >
-                <option value="">Default Cursor</option>
-                <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">Icon 1</option>
-              </select>
-              {!isPremium && (
-                <div className="premium-lock-message">
-                  Unlock Premium to customize cursor! <Link to="/premium" className="premium-link">Unlock Premium</Link>
-                <div className="tile-field-row">
-                  <div className="tile-field">
-                    <label>{t(language, 'profileEditor.presenceTitle')}</label>
-                    <input
-                      type="text"
-                      name="presenceTitle"
-                      value={formData.presenceTitle}
-                      onChange={handleChange}
-                      placeholder="Visual Studio Code / Valorant"
+                <div className="demo-stage-overlay" />
+
+                <div className="demo-stage-effects">
+                  {renderLiveEffect()}
+                  {splashCursor.enabled && (
+                    <SplashCursor
+                      colors={splashCursor.colors}
+                      rainbow={splashCursor.rainbow}
+                      size={splashCursor.size}
+                      force={splashCursor.force}
+                      swirl={splashCursor.swirl}
+                      trail={splashCursor.trail}
+                      clickSplash={splashCursor.clickSplash}
+                      colorSpeed={splashCursor.colorSpeed}
+                      intensity={splashCursor.intensity}
+                      momentum={splashCursor.momentum}
+                      shading={splashCursor.shading}
+                      glow={splashCursor.glow}
+                      quality={splashCursor.quality || 'high'}
+                      intro
+                      contained={true}
                     />
-                  </div>
-                  <div className="tile-field">
-                    <label>{t(language, 'profileEditor.presenceSubtitle')}</label>
-                    <input
-                      type="text"
-                      name="presenceSubtitle"
-                      value={formData.presenceSubtitle}
-                      onChange={handleChange}
-                      placeholder="Editing globals.css"
+                  )}
+                  {blobCursor.enabled && (
+                    <BlobCursor
+                      material={blobCursor.material}
+                      color={blobCursor.color}
+                      blend={blobCursor.blend}
+                      size={blobCursor.size}
+                      morph={blobCursor.morph}
+                      morphSpeed={blobCursor.morphSpeed}
+                      depth={blobCursor.depth}
+                      trail={blobCursor.trail}
+                      lag={blobCursor.lag}
+                      goo={blobCursor.goo}
+                      stretch={blobCursor.stretch}
+                      wobble={blobCursor.wobble}
+                      drip={blobCursor.drip}
+                      shine={blobCursor.shine}
+                      splash={blobCursor.splash}
+                      splashCount={blobCursor.splashCount}
+                      splashSpeed={blobCursor.splashSpeed}
+                      splashSize={blobCursor.splashSize}
+                      splashGravity={blobCursor.splashGravity}
+                      regrow={blobCursor.regrow}
+                      shadow={blobCursor.shadow}
+                      hideCursor={blobCursor.hideCursor}
                     />
-                  </div>
+                  )}
                 </div>
-              )}
-            </div> */}
 
-                                                                                                  {/* Username and Display Name */}
-                                                                                                  <div className="form-row">
-                                                                                                    <div className="form-group">
-                                                                                                      <label>Username *</label>
-                                                                                                      <input
-                                                                                                        type="text"
-                                                                                                        name="username"
-                                                                                                        value={formData.username}
-                                                                                                        onChange={handleChange}
-                                                                                                        required
-                                                                                                        placeholder="username"
-                                                                                                        pattern="[a-z0-9]+"
-                                                                                                      />
-                                                                                                    </div>
-                                                                                                    <div className="form-group">
-                                                                                                      <label>Display Name *</label>
-                                                                                                      <input
-                                                                                                        type="text"
-                                                                                                        name="displayName"
-                                                                                                        value={formData.displayName}
-                                                                                                        onChange={handleChange}
-                                                                                                        required
-                                                                                                        placeholder="Display Name"
-                                                                                                      />
-                                                                                                    </div>
-                                                                                                  </div>
+                <div className="demo-stage-content" style={{ flexDirection: 'column', gap: 14 }}>
+                  {formData.layout === 'web' ? (
+                    <div className="demo-web-layout-scroll">
+                      {/* Phần 1: Hero giống ảnh MonkeDev (Avatar vuông bo góc bên trái + Tên | Icon Kim cương & Bio bên phải + Đường kẻ ngang phát sáng) */}
+                      <div className="demo-web-hero">
+                        <div className="demo-web-hero-row">
+                          <div className={`demo-web-avatar-box ${otherSettings.avatarBorder ? 'avatar-bordered' : 'avatar-plain'}`}>
+                            {formData.avatar ? (
+                              <img src={formData.avatar} alt="" className="demo-web-avatar" />
+                            ) : (
+                              <img src="/logo-konone-v1.png" alt="KonOne" className="demo-web-avatar demo-default-logo" />
+                            )}
+                            {otherSettings.discordAvatarDecoration && formData.avatarFrame && (
+                              <img src={formData.avatarFrame} alt="" className="demo-web-avatar-frame" />
+                            )}
+                          </div>
 
-                                                                                                  {/* Social Links */}
-                                                                                                  <div className="form-group">
-                                                                                                    <label>Social Links</label>
-                                                                                                    <select
-                                                                                                      value={selectedSocialLink}
-                                                                                                      onChange={(e) => setSelectedSocialLink(e.target.value)}
-                                                                                                      className="custom-select"
-                                                                                                    >
-                                                                                                      <option value="">Choose an option</option>
-                                                                                                      <option value="facebook">Facebook</option>
-                                                                                                      <option value="instagram">Instagram</option>
-                                                                                                      <option value="twitter">Twitter</option>
-                                                                                                      <option value="linkedin">LinkedIn</option>
-                                                                                                      <option value="tiktok">TikTok</option>
-                                                                                                    </select>
-                                                                                                    {selectedSocialLink && (
-                                                                                                      <div className="form-group" style={{ marginTop: '10px' }}>
-                                                                                                        <label>
-                                                                                                          {selectedSocialLink.charAt(0).toUpperCase() + selectedSocialLink.slice(1)} URL
-                                                                                                          <button
-                                                                                                            type="button"
-                                                                                                            onClick={() => setSelectedSocialLink('')}
-                                                                                                            style={{
-                                                                                                              marginLeft: '10px',
-                                                                                                              background: 'transparent',
-                                                                                                              border: 'none',
-                                                                                                              color: '#999',
-                                                                                                              cursor: 'pointer',
-                                                                                                              fontSize: '14px'
-                                                                                                            }}
-                                                                                                            title="Đóng"
-                                                                                                          >
-                                                                                                            ✕
-                                                                                                          </button>
-                                                                                                        </label>
-                                                                                                        <input
-                                                                                                          type="url"
-                                                                                                          name={`social.${selectedSocialLink}`}
-                                                                                                          value={formData.socialLinks[selectedSocialLink] || ''}
-                                                                                                          onChange={handleChange}
-                                                                                                          placeholder={
-                                                                                                            selectedSocialLink === 'facebook' ? 'https://facebook.com/...' :
-                                                                                                              selectedSocialLink === 'instagram' ? 'https://instagram.com/...' :
-                                                                                                                selectedSocialLink === 'twitter' ? 'https://twitter.com/...' :
-                                                                                                                  selectedSocialLink === 'linkedin' ? 'https://linkedin.com/in/...' :
-                                                                                                                    'https://tiktok.com/@...'
-                                                                                                          }
-                                                                                                        />
-                                                                                                        {/* 9. LIÊN KẾT MẠNG XÃ HỘI (SOCIAL LINKS) */}
-                                                                                                        <div className={`editor-tile ${pinnedTile === 'socials' ? 'is-pinned' : ''}`}>
-                                                                                                          <div className="tile-head" onClick={() => toggleTile('socials')}>
-                                                                                                            <div className="tile-icon">
-                                                                                                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                                                                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                                                                                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                                                                                                              </svg>
-                                                                                                            </div>
-              )}
-                                                                                                            <div className="tile-meta">
-                                                                                                              <h3>Social Links</h3>
-                                                                                                              <span className="tile-summary">
-                                                                                                                {activeSocialCount > 0
-                                                                                                                  ? `${activeSocialCount} ${language === 'vi' ? 'liên kết đã thêm' : 'links connected'}`
-                                                                                                                  : language === 'vi' ? 'Chưa thêm mạng xã hội' : 'No social links yet'}
-                                                                                                              </span>
-                                                                                                            </div>
-                                                                                                            <span className="tile-chevron">⌄</span>
-                                                                                                          </div>
+                          <div className="demo-web-hero-text">
+                            <div className="demo-web-name-line">
+                              <h3
+                                className="demo-web-name"
+                                style={{
+                                  color: textColor,
+                                  textShadow: glowSettings.username
+                                    ? `0 0 14px ${textColor}, 0 0 26px ${textColor}66`
+                                    : 'none'
+                                }}
+                              >
+                                {formData.displayName || formData.username || 'MonkeDev'}
+                              </h3>
+                              <span className="demo-web-cursor-bar">|</span>
+                              {demoBadges.length > 0 && (
+                                <div className="demo-web-badge-circle" style={{ color: textColor }}>
+                                  {demoBadges.map((b) => (
+                                    <span
+                                      key={b.key}
+                                      className="demo-badge-ico"
+                                      title={b.label}
+                                      style={{
+                                        filter: glowSettings.badges
+                                          ? `drop-shadow(0 0 6px ${textColor})`
+                                          : 'none'
+                                      }}
+                                    >
+                                      {b.icon}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
-                                                                                                          <div className="tile-body">
-                                                                                                            <div className="tile-socials-list">
-                                                                                                              {SOCIAL_FIELDS.map((s) => (
-                                                                                                                <div key={s.key} className="tile-social-item">
-                                                                                                                  <span>{s.label}</span>
-                                                                                                                  <input
-                                                                                                                    type="url"
-                                                                                                                    name={`social.${s.key}`}
-                                                                                                                    value={formData.socialLinks[s.key] || ''}
-                                                                                                                    onChange={handleChange}
-                                                                                                                    placeholder={s.placeholder}
-                                                                                                                  />
-                                                                                                                </div>
-                                                                                                              ))}
-                                                                                                            </div>
-                                                                                                          </div>
-                                                                                                        </div>
-                                                                                                      </div>
+                            <div className="demo-web-bio-line" style={{ color: textColor }}>
+                              <span>{formData.bio || 'Owner @ LA | Over 1M Installs | 32K'}</span>
+                              <span className="demo-web-cursor-thin">|</span>
+                            </div>
+
+                            {renderDemoSocialsRow('demo-web-socials')}
+                          </div>
+                        </div>
+
+                        <div className="demo-web-scroll-hint">↓</div>
+                      </div>
+
+                      {/* Phần 2: Khi cuộn xuống — Poster đứng bên trái, Chữ giới thiệu bên phải */}
+                      <div className="demo-web-showcase">
+                        <div className="demo-web-poster-card">
+                          {formData.webPosterImage || formData.coverImage || formData.avatar ? (
+                            <img
+                              src={formData.webPosterImage || formData.coverImage || formData.avatar}
+                              alt="Poster"
+                              className="demo-web-poster-img"
+                            />
+                          ) : (
+                            <div className="demo-web-poster-placeholder">
+                              <span>{L("POSTER ĐỨNG", "VERTICAL POSTER")}</span>
+                              <small>2:3</small>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="demo-web-intro-col" style={{ color: textColor }}>
+                          <span className="demo-web-eyebrow" style={{ color: formData.lanyardStrapColor || '#22c55e' }}>
+                            {L("GIỚI THIỆU", "INTRODUCTION")}
+                          </span>
+                          <h4 className="demo-web-intro-title" style={{ color: textColor }}>
+                            {formData.webIntroTitle ||
+                              L(
+                                `Giới thiệu về ${formData.displayName || formData.username || 'tôi'}`,
+                                `About ${formData.displayName || formData.username || 'me'}`
+                              )}
+                          </h4>
+                          <p className="demo-web-intro-p" style={{ color: `${textColor}cc` }}>
+                            {formData.webIntroText ||
+                              formData.bio ||
+                              L(
+                                'Chào mừng bạn đến với không gian cá nhân của tôi. Cuộn xuống để khám phá các dự án, câu chuyện và liên kết mạng xã hội.',
+                                'Welcome to my personal space. Scroll down to explore my projects, stories and social links.'
+                              )}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : formData.layout === 'lanyard' ? (
+                    <>
+                      <LanyardCard
+                        profile={{
+                          ...formData,
+                          customLinks,
+                          socialPosition,
+                          profileOpacity,
+                          profileBlur,
+                          textColor,
+                          avatarFrame: otherSettings.discordAvatarDecoration ? formData.avatarFrame : '',
+                          userId: currentUser?.uid,
+                          viewCount,
+                          textFontFamily
+                        }}
+                        interactive={true}
+                        compact={true}
+                        strapColor={formData.lanyardStrapColor || accentColor}
+                        cardBgColor={formData.lanyardCardColor || formData.cardColor || '#18161c'}
+                        cardOpacity={profileOpacity}
+                        cardBlur={profileBlur}
+                        badgeLabel={formData.lanyardBadgeLabel || 'KONONE PASS'}
+                      />
+                      {socialPosition === 'outside' && renderDemoSocialsRow('outside-demo-socials')}
+                    </>
+                  ) : (
+                    <>
+                    <div
+                      className="demo-basic-card guns-style-demo-card"
+                      style={{
+                        borderColor:
+                          profileOpacity <= 5
+                            ? 'transparent'
+                            : `${formData.lanyardStrapColor || accentColor}33`,
+                        color: textColor,
+                        background:
+                          profileOpacity <= 2
+                            ? 'transparent'
+                            : profileGradient
+                              ? `linear-gradient(145deg, ${hexToRgba(
+                                  formData.lanyardCardColor || formData.cardColor || '#18161c',
+                                  Math.max(0, profileOpacity / 100)
+                                )}, ${hexToRgba(
+                                  formData.lanyardStrapColor || accentColor,
+                                  Math.max(0, (profileOpacity / 100) * 0.65)
+                                )})`
+                              : hexToRgba(
+                                  formData.lanyardCardColor || formData.cardColor || '#18161c',
+                                  Math.max(0, profileOpacity / 100)
+                                ),
+                        backdropFilter:
+                          profileBlur > 0 ? `blur(${Math.round((profileBlur / 100) * 40)}px)` : 'none',
+                        WebkitBackdropFilter:
+                          profileBlur > 0 ? `blur(${Math.round((profileBlur / 100) * 40)}px)` : 'none',
+                        boxShadow: profileOpacity <= 5 ? 'none' : undefined
+                      }}
+                    >
+                      <div className="demo-basic-body guns-demo-body">
+                        <div className={`demo-basic-avatar-wrap guns-demo-avatar-wrap ${otherSettings.avatarBorder ? 'avatar-bordered' : 'avatar-plain'}`}>
+                          {formData.avatar ? (
+                            <img src={formData.avatar} alt="" className="demo-basic-avatar" />
+                          ) : (
+                            <img src="/logo-konone-v1.png" alt="KonOne" className="demo-basic-avatar demo-default-logo" />
+                          )}
+                          {otherSettings.discordAvatarDecoration && formData.avatarFrame && (
+                            <img src={formData.avatarFrame} alt="" className="demo-basic-frame" />
+                          )}
+                        </div>
+
+                        <h3
+                          className="demo-basic-name"
+                          style={{
+                            color: textColor,
+                            fontFamily: textFontFamily || 'inherit',
+                            textShadow: glowSettings.username
+                              ? `0 0 14px ${textColor}aa, 0 0 26px ${textColor}44`
+                              : text3DEffect
+                                ? '2px 2px 0 rgba(0,0,0,0.4), 4px 4px 0 rgba(0,0,0,0.2)'
+                                : 'none'
+                          }}
+                        >
+                          {formData.displayName || formData.username || 'KonOne'}
+                        </h3>
+
+                        {/* Khung Pill chứa Danh hiệu (Icon Kim cương tự hiển thị khi có Premium + Danh hiệu Admin cấp) */}
+                        {demoBadges.length > 0 && (
+                          <div
+                            className="demo-badges-pill"
+                            style={{
+                              color: textColor,
+                              borderColor: `${textColor}1f`
+                            }}
+                          >
+                            {demoBadges.map((b) => (
+                              <span
+                                key={b.key}
+                                className="demo-badge-ico"
+                                title={b.label}
+                                style={{
+                                  filter: glowSettings.badges
+                                    ? `drop-shadow(0 0 6px ${textColor})`
+                                    : 'none'
+                                }}
+                              >
+                                {b.icon}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="demo-basic-bio" style={{ color: textColor, opacity: 0.88 }}>
+                          {formData.bio || 'this is my description'}
+                        </p>
+
+                        {formData.location && (
+                          <div className="demo-basic-location">
+                            <span>📍 {formData.location}</span>
+                          </div>
+                        )}
+
+                        {hasPresence && (
+                          <div className="demo-basic-presence">
+                            <span className="demo-presence-dot" />
+                            <div className="demo-presence-info">
+                              <strong>{formData.presenceTitle || 'Activity'}</strong>
+                              {formData.presenceSubtitle && <small>{formData.presenceSubtitle}</small>}
+                            </div>
+                          </div>
+                        )}
+
+                        {socialPosition === 'inside' && renderDemoSocialsRow('inside-demo-socials')}
+                      </div>
+                    </div>
+
+                    {socialPosition === 'outside' && renderDemoSocialsRow('outside-demo-socials')}
+
+                    {/* Khung Âm Thanh ở dưới nếu thêm âm thanh (giống ảnh mẫu spool) */}
+                    {formData.musicUrl && (
+                      <div
+                        className="demo-audio-player-card"
+                        style={{
+                          color: textColor,
+                          borderColor: `${textColor}18`,
+                          ...(formData.musicBoxColor ? { background: musicBoxBg(formData.musicBoxColor) } : {})
+                        }}
+                      >
+                        <img
+                          src={
+                            demoYoutubeId
+                              ? `https://img.youtube.com/vi/${demoYoutubeId}/hqdefault.jpg`
+                              : formData.avatar || '/logo-konone-v1.png'
+                          }
+                          alt=""
+                          className="demo-audio-thumb"
+                        />
+                        <div className="demo-audio-main">
+                          <div className="demo-audio-title" style={{ color: textColor }}>
+                            {demoAudioTitle || `${formData.displayName || formData.username || 'KONONE'} — AUDIO`}
+                          </div>
+                          <div className="demo-audio-timeline">
+                            <span>0:05</span>
+                            <div className="demo-audio-bar">
+                              <div className="demo-audio-fill" style={{ background: formData.musicAccentColor || textColor, width: '24%' }} />
+                            </div>
+                            <span>3:18</span>
+                          </div>
+                        </div>
+                        <div className="demo-audio-ctrls" style={{ color: formData.musicAccentColor || textColor }}>
+                          <span>⏮</span>
+                          <span>▶</span>
+                          <span>⏭</span>
+                        </div>
+                      </div>
+                    )}
+                    </>
+                  )}
+                </div>
+              </div>
+            </aside>
+          </div>
         </form>
-
-                                                                                                  {/* Form Actions */}
-                                                                                                  <div className="form-actions">
-                                                                                                    <button type="button" onClick={() => navigate('/dashboard')} className="cancel-btn">
-                                                                                                      {t(language, 'profileEditor.cancel')}
-                                                                                                    </button>
-                                                                                                    <button type="submit" disabled={loading || uploading} className="save-btn">
-                                                                                                      {uploading ? (language === 'vi' ? 'Đang tải lên...' : 'Uploading...') : loading ? (language === 'vi' ? 'Đang lưu...' : 'Saving...') : t(language, 'profileEditor.save')}
-                                                                                                    </button>
-                                                                                                    {/* Modal xem thử hiệu ứng */}
-                                                                                                    {showPreview && previewEffect && previewEffect !== 'none' && (
-                                                                                                      <div className="effect-preview-modal" onClick={() => setShowPreview(false)}>
-                                                                                                        <div className="effect-preview-content" onClick={(e) => e.stopPropagation()}>
-                                                                                                          <div className="preview-header">
-                                                                                                            <h3>Effect Preview: {previewEffect}</h3>
-                                                                                                            <button
-                                                                                                              type="button"
-                                                                                                              className="close-preview-btn"
-                                                                                                              onClick={() => setShowPreview(false)}
-                                                                                                            >
-                                                                                                              ✕
-                                                                                                            </button>
-                                                                                                          </div>
-                                                                                                          <div className="preview-container">
-                                                                                                            {previewEffect === 'snow' && <SnowEffect />}
-                                                                                                            {previewEffect === 'rain' && <RainEffect />}
-                                                                                                            {previewEffect === 'stars' && <StarsEffect />}
-                                                                                                            {previewEffect === 'particles' && <ParticlesEffect />}
-                                                                                                            {previewEffect === 'leaves' && <LeavesEffect />}
-                                                                                                            {previewEffect === 'aurora' && <AuroraEffect />}
-                                                                                                            {previewEffect === 'fireworks' && <FireworksEffect />}
-                                                                                                            {previewEffect === 'matrix' && <MatrixEffect />}
-                                                                                                            {previewEffect === 'confetti' && <ConfettiEffect />}
-                                                                                                            {previewEffect === 'nebula' && <NebulaEffect />}
-                                                                                                          </div>
-                                                                                                        </div>
-                                                                                                      </div>
-        </form>
-        )}
-                                                                                                </main>
-                                                                                              </div>
-                                                                                              );
+      </main>
+    </div>
+  );
 }

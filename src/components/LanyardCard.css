@@ -1,0 +1,447 @@
+/* ===== Tấm thẻ 3D Treo Lơ Lửng (ReactBits 3D Hanging Lanyard Card) ===== */
+.lanyard-scene {
+  --lanyard-accent: #f65c5c;
+  --lanyard-card-bg: #18161c;
+  --lanyard-text: #ffffff;
+  position: relative;
+  width: 100%;
+  min-height: 620px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding-top: 90px;
+  box-sizing: border-box;
+  user-select: none;
+  touch-action: none;
+  overflow: visible;
+}
+
+.lanyard-scene.is-compact {
+  min-height: 360px;
+  padding-top: 52px;
+}
+
+/* Dây đeo SVG nối từ trên đỉnh màn hình xuống móc thẻ */
+.lanyard-strap-svg {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 400px;
+  height: 320px;
+  pointer-events: none;
+  z-index: 1;
+  overflow: visible;
+}
+
+.lanyard-scene.is-compact .lanyard-strap-svg {
+  width: 280px;
+  height: 220px;
+}
+
+/* Cụm Móc khóa + Thẻ đung đưa quanh tâm móc trên cùng */
+.lanyard-rig {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: 50% -26px;
+  cursor: grab;
+  will-change: transform;
+}
+
+.lanyard-scene.is-dragging .lanyard-rig {
+  cursor: grabbing;
+}
+
+/* Bộ kẹp kim loại nối dây vải với khe thẻ */
+.lanyard-hardware {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: -10px;
+  position: relative;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.lanyard-clamp {
+  width: 46px;
+  height: 20px;
+  border-radius: 5px;
+  background: linear-gradient(135deg, #2d2d35 0%, #141418 55%, #3a2429 100%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clamp-brand {
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.lanyard-ring {
+  width: 16px;
+  height: 16px;
+  margin-top: -3px;
+  border-radius: 50%;
+  border: 3px solid #b8b8c2;
+  box-shadow:
+    0 3px 8px rgba(0, 0, 0, 0.6),
+    inset 0 1px 2px rgba(255, 255, 255, 0.7);
+}
+
+.lanyard-clip {
+  width: 14px;
+  height: 20px;
+  margin-top: -4px;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #e4e4ec 0%, #7d7d8a 50%, #2a2a32 100%);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.75);
+}
+
+/* Tấm thẻ ID 3D chính — Sử dụng màu thẻ (--lanyard-card-bg), độ mờ (--lanyard-card-blur) và màu dây đeo (--lanyard-accent) */
+.lanyard-card-3d {
+  position: relative;
+  width: 318px;
+  border-radius: 22px;
+  padding: 16px 18px 16px;
+  box-sizing: border-box;
+  background: var(--lanyard-card-bg, rgba(24, 22, 28, 0.9));
+  backdrop-filter: blur(var(--lanyard-card-blur, 14px));
+  -webkit-backdrop-filter: blur(var(--lanyard-card-blur, 14px));
+  border: 1.5px solid rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 30px 65px rgba(0, 0, 0, 0.78),
+    0 0 0 1px var(--lanyard-accent, rgba(246, 92, 92, 0.25)),
+    inset 0 1px 1px rgba(255, 255, 255, 0.24);
+  color: var(--lanyard-text, #ffffff);
+  overflow: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.lanyard-scene.is-compact .lanyard-card-3d {
+  width: 226px;
+  border-radius: 17px;
+  padding: 12px 13px 12px;
+}
+
+/* Khe đục lỗ ngang trên đầu thẻ */
+.lanyard-slot-hole {
+  width: 54px;
+  height: 9px;
+  margin: 0 auto 12px;
+  border-radius: 999px;
+  background: #07070a;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.9);
+}
+
+.lanyard-scene.is-compact .lanyard-slot-hole {
+  width: 40px;
+  height: 7px;
+  margin-bottom: 8px;
+}
+
+/* Ánh sáng phản quang Hologram di chuyển theo góc 3D */
+.lanyard-holo-glare {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at var(--glare-x, 50%) var(--glare-y, 30%),
+    rgba(255, 255, 255, 0.18) 0%,
+    rgba(246, 92, 92, 0.12) 28%,
+    rgba(162, 28, 175, 0.08) 48%,
+    transparent 72%
+  );
+  mix-blend-mode: screen;
+  pointer-events: none;
+  z-index: 4;
+}
+
+/* Header trên thẻ */
+.lanyard-card-top {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.lanyard-brand-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 1.3px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.lanyard-mini-logo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.lanyard-verified-chip {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(246, 92, 92, 0.16);
+  border: 1px solid rgba(246, 92, 92, 0.45);
+  color: #fda4af;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+}
+
+/* Khung hình nền & Avatar giữa thẻ */
+.lanyard-hero-visual {
+  position: relative;
+  z-index: 2;
+  height: 132px;
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(246, 92, 92, 0.42) 0%, transparent 55%),
+    radial-gradient(circle at 80% 80%, rgba(162, 28, 175, 0.45) 0%, transparent 60%),
+    linear-gradient(135deg, #221319 0%, #14131a 100%);
+  background-size: cover;
+  background-position: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.lanyard-scene.is-compact .lanyard-hero-visual {
+  height: 92px;
+  margin-bottom: 10px;
+}
+
+.lanyard-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(10, 10, 14, 0.15) 0%, rgba(12, 12, 16, 0.65) 100%);
+}
+
+.lanyard-avatar-shell {
+  position: relative;
+  z-index: 2;
+  width: 82px;
+  height: 82px;
+  border-radius: 50%;
+  padding: 3px;
+  background: linear-gradient(135deg, var(--lanyard-accent), #a21caf);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lanyard-scene.is-compact .lanyard-avatar-shell {
+  width: 58px;
+  height: 58px;
+}
+
+.lanyard-avatar-img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.lanyard-avatar-fallback {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #181820;
+  color: #fff;
+  font-size: 28px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.lanyard-scene.is-compact .lanyard-avatar-fallback {
+  font-size: 20px;
+}
+
+.lanyard-avatar-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 126%;
+  height: 126%;
+  transform: translate(-50%, -50%);
+  object-fit: contain;
+  pointer-events: none;
+}
+
+/* Nội dung chữ trên thẻ */
+.lanyard-card-body {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.lanyard-display-name {
+  margin: 0 0 3px;
+  font-size: 21px;
+  font-weight: 800;
+  color: var(--lanyard-text, #ffffff);
+  letter-spacing: -0.3px;
+}
+
+.lanyard-scene.is-compact .lanyard-display-name {
+  font-size: 15.5px;
+}
+
+.lanyard-handle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--lanyard-accent);
+  margin-bottom: 8px;
+}
+
+.lanyard-scene.is-compact .lanyard-handle {
+  font-size: 10.5px;
+  margin-bottom: 5px;
+}
+
+.lanyard-bio {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.72);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.lanyard-scene.is-compact .lanyard-bio {
+  font-size: 10.5px;
+}
+
+/* Chip trạng thái hoạt động */
+.lanyard-presence-pill {
+  margin-top: 11px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  max-width: 100%;
+}
+
+.lanyard-presence-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22c55e;
+  box-shadow: 0 0 8px #22c55e;
+  flex-shrink: 0;
+}
+
+.lanyard-presence-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.lanyard-presence-text strong {
+  font-size: 11px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lanyard-presence-text small {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Chân thẻ: ID + Mã vạch + Views */
+.lanyard-card-footer {
+  position: relative;
+  z-index: 2;
+  padding-top: 11px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lanyard-meta-col {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.lanyard-meta-col.right {
+  text-align: right;
+}
+
+.lanyard-meta-col small {
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.9px;
+  color: rgba(255, 255, 255, 0.42);
+}
+
+.lanyard-meta-col strong {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  font-family: monospace;
+}
+
+.lanyard-barcode {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 18px;
+  opacity: 0.7;
+}
+.lanyard-barcode span {
+  display: block;
+  height: 100%;
+  background: #fff;
+  width: 2px;
+}
+.lanyard-barcode span:nth-child(2n) {
+  width: 3.5px;
+}
+.lanyard-barcode span:nth-child(3n) {
+  width: 1.5px;
+  opacity: 0.55;
+}
+
+/* Dòng gợi ý kéo thả */
+.lanyard-drag-hint {
+  margin-top: 22px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(15, 15, 20, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.62);
+  backdrop-filter: blur(8px);
+}

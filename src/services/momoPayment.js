@@ -95,31 +95,21 @@ export const PREMIUM_PACKAGES = {
   '1month': {
     id: '1month',
     name: 'Premium 1 Month',
-    description: 'Get Nitro Discord 30 days.',
+    description: 'Trang trí tất cả các tính năng',
     days: 30,
     price: 39000, // 99,000 VNĐ
     originalPrice: 60000,
     discount: '50%',
     popular: false,
   },
-  '3months': {
-    id: '3months',
-    name: 'Premium 3 Months',
-    description: 'Get Nitro Discord 90 days.',
-    days: 90,
-    price: 105000, // 249,000 VNĐ
-    originalPrice: 150000,
-    discount: '30%',
-    popular: true,
-    
-  },
   '1year': {
     id: '1year',
     name: 'Premium 1 Year',
-    description: 'Get Nitro Discord 365 days.',
+   description: 'Trang trí tất cả các tính năng ',
+   
     days: 365,
-    price: 409000, // 799,000 VNĐ
-    originalPrice: 609000,
+    price: 390000, // 799,000 VNĐ
+    originalPrice: 720000,
     discount: '35%',
     popular: false,
     

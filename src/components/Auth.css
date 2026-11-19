@@ -1137,3 +1137,21 @@
     font-size: 24px;
   }
 }
+
+/* Nút submit ẩn (để Enter vẫn gửi form khi dùng thanh trượt) */
+.visually-hidden-submit {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  opacity: 0;
+}
+
+.auth-form .slide-commit,
+.auth-form > div:has(> .slide-commit) {
+  margin-top: 6px;
+}

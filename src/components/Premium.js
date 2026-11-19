@@ -1,17 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { collection, query, where, getDocs, updateDoc, doc, getDoc, setDoc, increment } from 'firebase/firestore';
 import { db } from '../firebase';
 import { createMoMoPayment, PREMIUM_PACKAGES, formatVND } from '../services/momoPayment';
 import { t } from '../translations';
+import SlideCommit from './SlideCommit';
+import AppSidebar from './AppSidebar';
 import './Premium.css';
 
 export default function Premium() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
-  const navigate = useNavigate();
+  const L = (vi, en) => (language === 'vi' ? vi : en);
+  const location = useLocation();
   const [profile, setProfile] = useState(null);
   const [profileId, setProfileId] = useState(null);
   const [activationCode, setActivationCode] = useState('');
@@ -21,6 +24,9 @@ export default function Premium() {
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [activeTab, setActiveTab] = useState('buy'); // 'buy' or 'activate'
+  const [profileReady, setProfileReady] = useState(false);
+  const [introMinDone, setIntroMinDone] = useState(false);
+  const [introPhase, setIntroPhase] = useState('showing'); // showing -> leaving -> done
 
   // Valid activation codes (in production, these should be stored in Firestore)
   const VALID_CODES = {
@@ -30,8 +36,19 @@ export default function Premium() {
     'PREMIUM2024YEAR': { days: 365, name: 'Premium 1 Year', maxUses: null },
     'PREMIUMFOREVER': { days: 9999, name: 'Premium Lifetime', maxUses: null },
     'TESTCODE': { days: 7, name: 'Test Premium 7 Days', maxUses: null },
-    'TIGERKON2025': { days: 30, name: 'Premium 1 Month', maxUses: 20 }
+    'TIGERKON2025': { days: 30, name: 'Premium 1 Month', maxUses: 20 },
+    // Dùng thử 7 ngày — mỗi tài khoản chỉ được dùng 1 lần
+    'KONONE7DAYS': { days: 7, name: 'Premium Trial 7 Days', maxUses: null, trial: true }
   };
+
+  // Mở từ nút "Dùng thử Premium 7 ngày" ở trang chủ: /premium?code=KONONE7DAYS
+  useEffect(() => {
+    const code = new URLSearchParams(location.search).get('code');
+    if (code) {
+      setActiveTab('activate');
+      setActivationCode(code.toUpperCase());
+    }
+  }, [location.search]);
 
   useEffect(() => {
     async function loadProfile() {
@@ -50,19 +67,37 @@ export default function Premium() {
         }
       } catch (error) {
         console.error('Error loading profile:', error);
+      } finally {
+        setProfileReady(true);
       }
     }
 
     if (currentUser) {
       loadProfile();
+    } else {
+      setProfileReady(true);
     }
   }, [currentUser]);
+
+  // Màn hình loading mở đầu: hiện tối thiểu ~1.8s và đến khi tải xong hồ sơ, rồi mờ dần
+  useEffect(() => {
+    const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const timer = setTimeout(() => setIntroMinDone(true), reduce ? 300 : 1800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!introMinDone || !profileReady) return undefined;
+    setIntroPhase('leaving');
+    const timer = setTimeout(() => setIntroPhase('done'), 650);
+    return () => clearTimeout(timer);
+  }, [introMinDone, profileReady]);
 
   async function handleActivatePremium() {
     if (!activationCode.trim()) {
       setMessage(t(language, 'premium.enterCodeError'));
       setMessageType('error');
-      return;
+      return false;
     }
 
     setLoading(true);
@@ -76,14 +111,24 @@ export default function Premium() {
         setMessage(t(language, 'premium.invalidCode'));
         setMessageType('error');
         setLoading(false);
-        return;
+        return false;
       }
 
       if (!profileId) {
         setMessage(t(language, 'premium.createProfileFirstActivate'));
         setMessageType('error');
         setLoading(false);
-        return;
+        return false;
+      }
+
+      // Mã dùng thử: mỗi tài khoản chỉ kích hoạt được 1 lần
+      if (codeData.trial && profile?.premiumTrialUsedAt) {
+        setMessage(language === 'vi'
+          ? 'Tài khoản này đã dùng thử Premium 7 ngày rồi. Hãy chọn một gói ở tab Buy Plan.'
+          : 'This account has already used the 7-day Premium trial. Please pick a plan in Buy Plan.');
+        setMessageType('error');
+        setLoading(false);
+        return false;
       }
 
       // Check code usage limit if maxUses is set
@@ -103,7 +148,7 @@ export default function Premium() {
               : `Code has reached usage limit (${currentUses}/${codeData.maxUses})`);
             setMessageType('error');
             setLoading(false);
-            return;
+            return false;
           }
         } catch (usageError) {
           // If we can't check usage (permission error), allow activation but skip usage tracking
@@ -122,6 +167,7 @@ export default function Premium() {
         premiumExpiresAt: expiresAt,
         premiumActivatedAt: new Date(),
         premiumCode: code,
+        ...(codeData.trial ? { premiumTrialUsedAt: new Date() } : {}),
         updatedAt: new Date()
       });
 
@@ -167,10 +213,12 @@ export default function Premium() {
           ...profileData
         });
       }
+      return true;
     } catch (error) {
       console.error('Error activating premium:', error);
       setMessage(t(language, 'premium.activateError', { error: error.message }));
       setMessageType('error');
+      return false;
     } finally {
       setLoading(false);
     }
@@ -250,13 +298,47 @@ export default function Premium() {
   const daysRemaining = getDaysRemaining();
 
   return (
+    <div className="profile-editor-layout premium-with-sidebar">
+    <AppSidebar active="premium" profile={profile} />
+    <main className="editor-main premium-main">
     <div className="premium-page">
+      {/* Loading mở đầu sang trọng */}
+      {introPhase !== 'done' && (
+        <div className={`pm-intro ${introPhase === 'leaving' ? 'is-leaving' : ''}`} aria-hidden="true">
+          <div className="pm-intro-glow" />
+          <div className="pm-intro-mark">
+            <img src="/logo-konone-v1.png" alt="" className="pm-intro-logo" />
+          </div>
+          <div className="pm-intro-word">
+            {'KONONE PREMIUM'.split('').map((ch, i) => (
+              <span key={i} style={{ animationDelay: `${0.35 + i * 0.05}s` }}>
+                {ch === ' ' ? ' ' : ch}
+              </span>
+            ))}
+          </div>
+          <div className="pm-intro-line">
+            <span />
+          </div>
+        </div>
+      )}
+
       <div className="premium-container">
         <div className="premium-header">
           <h1 className="premium-title">
             <span className="premium-icon"></span>
             {t(language, 'premium.membership')}
           </h1>
+          <p className="pm-greeting">
+            <span className="pm-greeting-hi">
+              {L('Xin chào', 'Hi')}, {profile?.displayName || profile?.username || currentUser?.displayName || L('bạn', 'there')}
+            </span>
+            <span className="pm-greeting-line">
+              {L(
+                'Nơi bạn có thể sáng tạo một cách tuyệt vời khi có gói Premium.',
+                'Where you can create without limits with a Premium plan.'
+              )}
+            </span>
+          </p>
           <p className="premium-subtitle">
             {t(language, 'premium.subtitle')}
           </p>
@@ -294,13 +376,13 @@ export default function Premium() {
             className={`tab-button ${activeTab === 'buy' ? 'active' : ''}`}
             onClick={() => setActiveTab('buy')}
           >
-            Buy Plan
+            {L("Mua gói", "Buy Plan")}
           </button>
           <button
             className={`tab-button ${activeTab === 'activate' ? 'active' : ''}`}
             onClick={() => setActiveTab('activate')}
           >
-            Active Code
+            {L("Nhập mã kích hoạt", "Activate Code")}
           </button>
         </div>
 
@@ -327,7 +409,7 @@ export default function Premium() {
                       )}
                     </div>
                     {pkg.discount && (
-                      <div className="package-discount">Discount {pkg.discount}</div>
+                      <div className="package-discount">{L("Giảm", "Discount")}{' '}{pkg.discount}</div>
                     )}
                     <div className="package-description">
                       {pkg.description}
@@ -374,13 +456,26 @@ export default function Premium() {
                 className="activation-input"
                 disabled={loading || premiumActive}
               />
-              <button
-                onClick={handleActivatePremium}
-                disabled={loading || premiumActive}
-                className="activate-btn"
-              >
-                {loading ? t(language, 'premium.processing') : premiumActive ? t(language, 'premium.activated') : t(language, 'premium.activatePremium')}
-              </button>
+              {/* Trượt để kích hoạt (ReactBits SlideCommit) */}
+              <SlideCommit
+                label={premiumActive ? t(language, 'premium.activated') : L('Trượt để kích hoạt', 'Slide to activate')}
+                doneLabel={L('Đã kích hoạt', 'Activated')}
+                errorLabel={L('Kích hoạt thất bại', 'Activation failed')}
+                onConfirm={async () => {
+                  const ok = await handleActivatePremium();
+                  if (!ok) throw new Error('activate-failed');
+                }}
+                trackColor="#141418"
+                handleColor="#f65c5c"
+                successColor="#22c55e"
+                dangerColor="#e5484d"
+                width={240}
+                height={52}
+                radius={14}
+                holdMs={2000}
+                disabled={premiumActive}
+                className="activate-slide"
+              />
             </div>
 
             {message && (
@@ -403,13 +498,9 @@ export default function Premium() {
 
         {/* Premium Features */}
 
-        {/* Back Button */}
-        <div className="premium-actions">
-          <button onClick={() => navigate('/dashboard')} className="back-btn">
-            {t(language, 'premium.backToDashboard')}
-          </button>
-        </div>
       </div>
+    </div>
+    </main>
     </div>
   );
 }

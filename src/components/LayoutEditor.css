@@ -1,16 +1,18 @@
 .layout-editor-page {
   min-height: 100vh;
   background: url('../../public/bg_konone.png') no-repeat center center fixed;
+  background-color: #0b0b0e;
   background-size: cover;
   color: white;
-  padding: 40px;
+  padding: 36px 40px 60px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 
 .layout-editor-header {
   display: flex;
   align-items: center;
   gap: 20px;
-  margin-bottom: 40px;
+  margin-bottom: 32px;
   max-width: 1200px;
   margin-left: auto;
   margin-right: auto;
@@ -18,7 +20,7 @@
 
 .layout-editor-header h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 26px;
   font-weight: 700;
 }
 
@@ -26,23 +28,25 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 20px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 8px;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 10px;
   color: white;
+  font-size: 13.5px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.3s;
+  transition: all 0.25s ease;
 }
 
 .back-btn:hover {
-  background: rgba(255, 255, 255, 0.15);
-  transform: translateX(-5px);
+  background: rgba(255, 255, 255, 0.14);
+  transform: translateX(-4px);
 }
 
 .back-btn svg {
-  width: 18px;
-  height: 18px;
+  width: 17px;
+  height: 17px;
 }
 
 .layout-editor-container {
@@ -51,84 +55,94 @@
 }
 
 .layout-intro {
-  margin-bottom: 30px;
+  margin-bottom: 26px;
 }
 
 .layout-intro h2 {
-  font-size: 24px;
-  margin-bottom: 10px;
+  font-size: 22px;
+  margin-bottom: 8px;
 }
 
 .layout-intro p {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 14px;
 }
 
 .message-banner {
-  padding: 15px 20px;
-  border-radius: 8px;
-  margin-bottom: 30px;
+  padding: 14px 18px;
+  border-radius: 10px;
+  margin-bottom: 24px;
   animation: slideIn 0.3s ease-out;
+  font-size: 13.5px;
+  font-weight: 500;
 }
 
 @keyframes slideIn {
-  from { transform: translateY(-20px); opacity: 0; }
+  from { transform: translateY(-16px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
 .message-banner.success {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid rgba(16, 185, 129, 0.3);
-  color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #34d399;
 }
 
 .message-banner.error {
-  background: rgba(239, 68, 68, 0.1);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #f87171;
 }
 
+/* Lưới 3 bố cục */
 .layout-options-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
-  gap: 30px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 22px;
+  margin-bottom: 36px;
 }
 
 .layout-option-card {
-  background: rgba(30, 30, 30, 0.6);
-  backdrop-filter: blur(10px);
-  border: 2px solid rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
+  background: rgba(22, 20, 26, 0.78);
+  backdrop-filter: blur(14px);
+  border: 1.5px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
   overflow: hidden;
   cursor: pointer;
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  display: flex;
+  flex-direction: column;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .layout-option-card:hover {
-  transform: translateY(-10px);
-  border-color: rgba(246, 92, 92, 0.5);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  transform: translateY(-6px);
+  border-color: rgba(246, 92, 92, 0.55);
+  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.5);
 }
 
 .layout-option-card.active {
   border-color: #f65c5c;
-  background: rgba(246, 92, 92, 0.05);
+  background: rgba(246, 92, 92, 0.07);
+  box-shadow: 0 18px 40px rgba(220, 38, 38, 0.22);
 }
 
 .layout-preview {
-  height: 200px;
-  padding: 20px;
-  background: rgba(0, 0, 0, 0.2);
+  height: 185px;
+  padding: 18px;
+  background: rgba(0, 0, 0, 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .preview-content {
   width: 100%;
   height: 100%;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.09);
   position: relative;
   overflow: hidden;
   padding: 10px;
@@ -151,8 +165,8 @@
 }
 
 .preview-avatar-centered {
-  width: 50px;
-  height: 50px;
+  width: 46px;
+  height: 46px;
   border-radius: 50%;
   background: #f65c5c;
   margin: 10px auto;
@@ -171,7 +185,7 @@
 
 .line {
   height: 6px;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.12);
   border-radius: 3px;
 }
 
@@ -181,7 +195,7 @@
 
 .preview-presence {
   margin-top: 15px;
-  height: 30px;
+  height: 28px;
   background: rgba(88, 101, 242, 0.2);
   border-radius: 6px;
   width: 70%;
@@ -190,36 +204,277 @@
   border: 1px solid rgba(88, 101, 242, 0.3);
 }
 
+/* Minh họa Mini cho Thẻ 3D Lanyard */
+.lanyard-mini-preview {
+  flex-direction: column;
+  justify-content: flex-start;
+  padding-top: 0;
+  background:
+    radial-gradient(circle at 50% 60%, rgba(246, 92, 92, 0.2) 0%, transparent 65%),
+    rgba(0, 0, 0, 0.35);
+}
+
+.mini-lanyard-rope {
+  width: 14px;
+  height: 34px;
+  background: linear-gradient(180deg, #1b1b22 0%, #dc2626 100%);
+  border-left: 1px dashed rgba(255, 255, 255, 0.4);
+  border-right: 1px dashed rgba(255, 255, 255, 0.4);
+}
+
+.mini-lanyard-clip {
+  width: 12px;
+  height: 8px;
+  border-radius: 2px;
+  background: #d4d4dc;
+  margin-bottom: -2px;
+}
+
+.mini-lanyard-pass {
+  width: 102px;
+  height: 126px;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #221c24 0%, #131218 100%);
+  border: 1px solid rgba(246, 92, 92, 0.45);
+  box-shadow: 0 14px 28px rgba(0, 0, 0, 0.65);
+  padding: 7px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: miniPassSwing 3.4s ease-in-out infinite alternate;
+  transform-origin: 50% -10px;
+}
+
+@keyframes miniPassSwing {
+  0% { transform: rotateZ(-6deg) rotateY(-10deg); }
+  100% { transform: rotateZ(6deg) rotateY(10deg); }
+}
+
+.mini-pass-slot {
+  width: 24px;
+  height: 4px;
+  border-radius: 99px;
+  background: #08080b;
+  margin-bottom: 8px;
+}
+
+.mini-pass-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #f65c5c 0%, #a21caf 100%);
+  margin-bottom: 8px;
+  box-shadow: 0 4px 12px rgba(246, 92, 92, 0.45);
+}
+
+.mini-pass-line {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.18);
+  margin-bottom: 5px;
+}
+.mini-pass-line.long { width: 76%; }
+.mini-pass-line.short { width: 48%; }
+
+.mini-pass-barcode {
+  margin-top: auto;
+  width: 72%;
+  height: 8px;
+  background: repeating-linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.55) 0px,
+    rgba(255, 255, 255, 0.55) 2px,
+    transparent 2px,
+    transparent 4px
+  );
+}
+
+.lanyard-3d-tag {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f65c5c 0%, #a21caf 100%);
+  color: #fff;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+}
+
 .layout-info {
-  padding: 25px;
+  padding: 22px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .layout-info h3 {
-  font-size: 20px;
-  margin-bottom: 12px;
+  font-size: 18px;
+  margin-bottom: 10px;
   color: white;
 }
 
 .layout-info p {
-  font-size: 14px;
+  font-size: 13.5px;
   color: rgba(255, 255, 255, 0.6);
-  line-height: 1.6;
-  margin-bottom: 20px;
+  line-height: 1.55;
+  margin-bottom: 18px;
+  flex: 1;
 }
 
 .select-badge {
+  align-self: flex-start;
   display: inline-block;
-  padding: 8px 20px;
-  border-radius: 20px;
-  font-size: 14px;
+  padding: 7px 18px;
+  border-radius: 999px;
+  font-size: 13px;
   font-weight: 600;
-  background: rgba(255, 255, 255, 0.05);
-  transition: all 0.3s;
+  background: rgba(255, 255, 255, 0.06);
+  transition: all 0.25s;
 }
 
 .layout-option-card.active .select-badge {
-  background: #f65c5c;
+  background: linear-gradient(95deg, #f65c5c 0%, #dc2626 55%, #a21caf 100%);
   color: white;
+}
+
+/* ================= KHU VỰC TÙY CHỈNH & KÉO THỬ THẺ 3D LANYARD ================= */
+.lanyard-playground-section {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 28px;
+  align-items: center;
+  background: rgba(18, 16, 22, 0.85);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 22px;
+  padding: 28px 34px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+}
+
+.lanyard-playground-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.playground-eyebrow {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #f65c5c;
+  margin-bottom: 8px;
+}
+
+.lanyard-playground-info h3 {
+  margin: 0 0 10px;
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.lanyard-playground-info p {
+  margin: 0 0 22px;
+  font-size: 13.5px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.lanyard-custom-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.lanyard-ctrl-field {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.lanyard-ctrl-field label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+.lanyard-ctrl-field input[type="text"] {
+  padding: 11px 14px;
+  border-radius: 10px;
+  background: rgba(10, 10, 14, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 13.5px;
+  outline: none;
+}
+.lanyard-ctrl-field input[type="text"]:focus {
+  border-color: #f65c5c;
+}
+
+.lanyard-color-swatches {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.strap-swatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.strap-swatch:hover {
+  transform: scale(1.1);
+}
+.strap-swatch.selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 2px rgba(246, 92, 92, 0.6);
+}
+
+.strap-color-input {
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.apply-lanyard-btn {
+  margin-top: 6px;
+  padding: 13px 20px;
+  border: none;
+  border-radius: 11px;
+  background: linear-gradient(95deg, #f65c5c 0%, #dc2626 52%, #a21caf 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(220, 38, 38, 0.32);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.apply-lanyard-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 14px 32px rgba(246, 92, 92, 0.45);
+}
+.apply-lanyard-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.lanyard-playground-stage {
+  position: relative;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 50% 42%, rgba(246, 92, 92, 0.18) 0%, transparent 62%),
+    rgba(8, 8, 12, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
 }
 
 .layout-editor-loading {
@@ -246,15 +501,19 @@
   to { transform: rotate(360deg); }
 }
 
+@media (max-width: 1024px) {
+  .layout-options-grid {
+    grid-template-columns: 1fr;
+  }
+  .lanyard-playground-section {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .layout-editor-page {
     padding: 20px;
   }
-  
-  .layout-options-grid {
-    grid-template-columns: 1fr;
-  }
-  
   .layout-editor-header h1 {
     font-size: 20px;
   }

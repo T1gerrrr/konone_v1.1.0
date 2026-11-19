@@ -736,3 +736,167 @@
   }
 }
 
+
+/* ================= Loading mở đầu trang Premium ================= */
+.pm-intro {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  background: #050506;
+  transition: opacity 0.6s ease, visibility 0.6s ease;
+}
+
+.pm-intro.is-leaving {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.pm-intro.is-leaving .pm-intro-mark {
+  transform: scale(1.08);
+}
+
+.pm-intro-glow {
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245, 208, 138, 0.10) 0%, rgba(246, 92, 92, 0.05) 35%, transparent 70%);
+  animation: pmGlow 3.2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes pmGlow {
+  0%, 100% { transform: scale(0.92); opacity: 0.7; }
+  50% { transform: scale(1.05); opacity: 1; }
+}
+
+.pm-intro-mark {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.6s ease;
+}
+
+.pm-intro-logo {
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 18px rgba(246, 92, 92, 0.35)) drop-shadow(0 0 40px rgba(245, 208, 138, 0.18));
+  animation: pmDiamondIn 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both, pmFloat 2.6s ease-in-out 0.9s infinite;
+}
+
+@keyframes pmDiamondIn {
+  from { opacity: 0; transform: translateY(8px) scale(0.6) rotate(-12deg); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes pmFloat {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+.pm-intro-word {
+  display: flex;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.55em;
+  text-indent: 0.55em;
+  color: #f4f1ea;
+}
+
+.pm-intro-word span {
+  opacity: 0;
+  filter: blur(6px);
+  animation: pmLetter 0.7s ease forwards;
+}
+
+@keyframes pmLetter {
+  to { opacity: 1; filter: blur(0); }
+}
+
+.pm-intro-line {
+  width: 160px;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.pm-intro-line span {
+  display: block;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, #f5d08a, #ffffff, transparent);
+  transform: translateX(-100%);
+  animation: pmLine 1.6s ease-in-out infinite;
+}
+
+@keyframes pmLine {
+  to { transform: translateX(100%); }
+}
+
+/* Lời chào */
+.pm-greeting {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 6px 0 10px;
+  text-align: center;
+}
+
+.pm-greeting-hi {
+  font-size: 22px;
+  font-weight: 700;
+  background: linear-gradient(90deg, #ffffff 0%, #f5d08a 40%, #ffffff 60%, #ffffff 100%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: pmShimmer 4s linear infinite;
+}
+
+@keyframes pmShimmer {
+  from { background-position: 120% 0; }
+  to { background-position: -120% 0; }
+}
+
+.pm-greeting-line {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pm-intro-glow,
+  .pm-intro-logo,
+  .pm-intro-line span,
+  .pm-greeting-hi {
+    animation: none;
+  }
+  .pm-intro-word span {
+    animation: none;
+    opacity: 1;
+    filter: none;
+  }
+}
+
+/* Trang Premium có menu bên trái (AppSidebar) */
+.premium-with-sidebar .premium-main {
+  padding: 0;
+}
+
+.premium-with-sidebar .premium-page {
+  min-height: 100vh;
+}
+
+.activate-slide {
+  flex-shrink: 0;
+}

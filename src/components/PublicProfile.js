@@ -16,11 +16,71 @@ import {
 } from './Effects';
 import { getYouTubeVideoId } from '../utils/youtube';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
+import { notifySuccess } from '../notify/notify';
+import LanyardCard from './LanyardCard';
+import WakeSlider from './WakeSlider';
+import SplashCursor from './SplashCursor';
+import BlobCursor from './BlobCursor';
+import { RevealText, TypeText } from './ProfileTextFx';
+import { dateKey } from '../utils/dateKey';
+import { musicBoxBg } from '../utils/color';
+import { PREMIUM_LAYOUTS, FREE_LINK_LIMIT, isPremiumActive } from '../constants/premium';
+import { PLATFORM_BY_KEY } from '../constants/socialPlatforms';
+import { resolveProfileBadges } from '../constants/badges';
 import './PublicProfile.css';
+
+// Tài khoản miễn phí: tắt các tính năng Premium (kể cả khi dữ liệu cũ còn lưu)
+function applyFreePlan(p) {
+  if (!p || isPremiumActive(p)) return p;
+  let left = FREE_LINK_LIMIT;
+  const socialLinks = {};
+  Object.entries(p.socialLinks || {}).forEach(([k, v]) => {
+    if (left > 0 && v && String(v).trim()) {
+      socialLinks[k] = v;
+      left -= 1;
+    }
+  });
+  const customLinks = (Array.isArray(p.customLinks) ? p.customLinks : [])
+    .filter((c) => c?.url)
+    .slice(0, Math.max(0, left));
+  return {
+    ...p,
+    layout: PREMIUM_LAYOUTS.includes(p.layout) ? 'card' : p.layout,
+    effect: 'none',
+    backgroundVideo: '',
+    splashCursor: p.splashCursor ? { ...p.splashCursor, enabled: false } : p.splashCursor,
+    blobCursor: p.blobCursor ? { ...p.blobCursor, enabled: false } : p.blobCursor,
+    socialLinks,
+    customLinks
+  };
+}
+
+function formatAudioTime(sec) {
+  const s = Math.max(0, Math.floor(Number(sec) || 0));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}:${rem < 10 ? '0' : ''}${rem}`;
+}
+
+function hexToRgba(hex, alpha = 0.5) {
+  if (!hex || typeof hex !== 'string') return `rgba(65, 65, 65, ${alpha})`;
+  if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const num = parseInt(full, 16);
+  if (Number.isNaN(num)) return `rgba(65, 65, 65, ${alpha})`;
+  const r = (num >> 16) & 255;
+  const g = (num >> 8) & 255;
+  const b = num & 255;
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 export default function PublicProfile() {
   const { username } = useParams();
   const { language } = useLanguage();
+  const { currentUser } = useAuth();
+  const L = (vi, en) => (language === 'vi' ? vi : en);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -28,10 +88,67 @@ export default function PublicProfile() {
   const [volume, setVolume] = useState(50);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
   const [showEnterOverlay, setShowEnterOverlay] = useState(true);
+  const [audioTrackTitle, setAudioTrackTitle] = useState('');
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [audioDuration, setAudioDuration] = useState(0);
+  const [scrolled, setScrolled] = useState(false);
   const viewCountUpdated = useRef(false);
+
+  // Ẩn toàn bộ thanh cuộn khi đang ở trang hồ sơ public
+  useEffect(() => {
+    const root = document.documentElement;
+    root.classList.add('pp-hide-scrollbar');
+    document.body.classList.add('pp-hide-scrollbar');
+    const onScroll = () => setScrolled(window.scrollY > 60);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      root.classList.remove('pp-hide-scrollbar');
+      document.body.classList.remove('pp-hide-scrollbar');
+      window.removeEventListener('scroll', onScroll);
+    };
+  }, []);
 
   // Get YouTube video ID (before early returns)
   const youtubeVideoId = profile?.musicUrl ? getYouTubeVideoId(profile.musicUrl) : null;
+
+  // Fetch YouTube track title & poll playback progress for the bottom Audio Player Box
+  useEffect(() => {
+    if (!youtubeVideoId) {
+      setAudioTrackTitle('');
+      setAudioCurrentTime(0);
+      setAudioDuration(0);
+      return undefined;
+    }
+
+    let cancelled = false;
+    fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${youtubeVideoId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (!cancelled && data?.title) {
+          setAudioTrackTitle(data.title);
+        }
+      })
+      .catch(() => {});
+
+    const timer = setInterval(() => {
+      const p = window.youtubePlayer;
+      if (p && typeof p.getCurrentTime === 'function') {
+        try {
+          const cur = p.getCurrentTime() || 0;
+          const dur = (typeof p.getDuration === 'function' ? p.getDuration() : 0) || 0;
+          setAudioCurrentTime(cur);
+          if (dur > 0) setAudioDuration(dur);
+        } catch {
+          // ignore
+        }
+      }
+    }, 500);
+
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [youtubeVideoId]);
 
   useEffect(() => {
     // Reset view count flag khi username thay đổi
@@ -50,38 +167,48 @@ export default function PublicProfile() {
         console.log('Query result:', querySnapshot.empty ? 'Empty' : `Found ${querySnapshot.size} profiles`);
 
         if (querySnapshot.empty) {
-          setError('Không tìm thấy hồ sơ này');
+          setError({ code: 'not-found' });
         } else {
           const profileDoc = querySnapshot.docs[0];
           const profileData = profileDoc.data();
           console.log('Profile data found:', profileData);
-          // Tăng view count chỉ 1 lần
-          if (!viewCountUpdated.current) {
+          // Tăng view count chỉ 1 lần (không đếm khi hồ sơ đang ẩn)
+          if (profileData.isHidden) {
+            viewCountUpdated.current = true;
+            setProfile(applyFreePlan(profileData));
+          } else if (!viewCountUpdated.current) {
             viewCountUpdated.current = true;
             try {
               const profileRef = doc(db, 'profiles', profileDoc.id);
-              await updateDoc(profileRef, {
-                viewCount: increment(1)
-              });
+              try {
+                // Tổng lượt xem + lượt xem theo ngày (cho biểu đồ ở Dashboard)
+                await updateDoc(profileRef, {
+                  viewCount: increment(1),
+                  [`viewsByDay.${dateKey()}`]: increment(1)
+                });
+              } catch (dayErr) {
+                // Rules cũ chỉ cho phép sửa viewCount -> vẫn đếm tổng
+                await updateDoc(profileRef, { viewCount: increment(1) });
+              }
               // Cập nhật view count trong profile data để hiển thị ngay
               const currentViewCount = profileData.viewCount || 0;
-              setProfile({
+              setProfile(applyFreePlan({
                 ...profileData,
                 viewCount: currentViewCount + 1
-              });
+              }));
             } catch (viewError) {
               console.error('Error updating view count:', viewError);
               // Nếu lỗi, vẫn hiển thị profile với view count cũ
-              setProfile(profileData);
+              setProfile(applyFreePlan(profileData));
             }
           } else {
             // Nếu đã tăng rồi, chỉ set profile data
-            setProfile(profileData);
+            setProfile(applyFreePlan(profileData));
           }
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
-        setError('Lỗi khi tải hồ sơ: ' + error.message);
+        setError({ code: 'load', message: error.message });
       } finally {
         setLoading(false);
       }
@@ -90,176 +217,188 @@ export default function PublicProfile() {
     if (username) {
       fetchProfile();
     } else {
-      setError('Username không hợp lệ');
+      setError({ code: 'invalid' });
       setLoading(false);
     }
   }, [username]);
 
-  // Load YouTube IFrame API - Only initialize once
-  useEffect(() => {
-    if (!youtubeVideoId) return;
+  // ===== Phát nhạc YouTube =====
+  // Trình duyệt chỉ cho phát nhạc có tiếng sau khi người dùng tương tác, nên:
+  //  1) Khi player sẵn sàng -> thử tự phát ngay (được thì phát luôn).
+  //  2) Nếu bị chặn -> phát ở lần chạm/click/phím đầu tiên (gồm nút Enter), gọi
+  //     playVideo() đồng bộ trong chính sự kiện đó để iOS/Android chấp nhận.
+  const volumeRef = useRef(volume);
+  volumeRef.current = volume;
+  const wantPlayRef = useRef(false); // người dùng đã yêu cầu phát
+  const userPausedRef = useRef(false); // người dùng tự bấm tắt nhạc
+  const playerHostRef = useRef(null);
 
-    if (!window.YT) {
-      const tag = document.createElement('script');
-      tag.src = 'https://www.youtube.com/iframe_api';
-      const firstScriptTag = document.getElementsByTagName('script')[0];
-      firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+  const startMusic = () => {
+    wantPlayRef.current = true;
+    const p = window.youtubePlayer;
+    if (!p || typeof p.playVideo !== 'function') return; // onReady sẽ phát tiếp
+    try {
+      if (volumeRef.current > 0) p.unMute();
+      p.setVolume(volumeRef.current);
+      p.playVideo();
+    } catch (e) {
+      // ignore
+    }
+  };
+
+  useEffect(() => {
+    if (!youtubeVideoId || !playerHostRef.current) return undefined;
+
+    // Div con do mình tạo để YouTube thay bằng iframe, tránh đụng DOM của React
+    const mount = document.createElement('div');
+    playerHostRef.current.appendChild(mount);
+
+    if (!window.YT || !window.YT.Player) {
+      if (!document.getElementById('yt-iframe-api')) {
+        const tag = document.createElement('script');
+        tag.id = 'yt-iframe-api';
+        tag.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(tag);
+      }
     }
 
-    let player;
-    let checkYT;
+    let player = null;
+    let disposed = false;
+    let checkYT = null;
 
     const initPlayer = () => {
-      if (window.YT && window.YT.Player && !window.youtubePlayer) {
-        clearInterval(checkYT);
-        player = new window.YT.Player('youtube-player', {
-          videoId: youtubeVideoId,
-          playerVars: {
-            autoplay: 0, // Don't autoplay, wait for Enter button
-            loop: 1,
-            playlist: youtubeVideoId,
-            controls: 0,
-            modestbranding: 1,
-            rel: 0,
-            mute: 0
-          },
-          events: {
-            onReady: (event) => {
-              event.target.setVolume(volume);
-              setIsPlaying(false); // Don't auto play
-              window.youtubePlayer = event.target;
+      if (disposed || !window.YT || !window.YT.Player) return;
+      clearInterval(checkYT);
+      player = new window.YT.Player(mount, {
+        width: '200',
+        height: '200',
+        videoId: youtubeVideoId,
+        playerVars: {
+          autoplay: 1,
+          loop: 1,
+          playlist: youtubeVideoId,
+          controls: 0,
+          modestbranding: 1,
+          rel: 0,
+          playsinline: 1
+        },
+        events: {
+          onReady: (event) => {
+            if (disposed) return;
+            window.youtubePlayer = event.target;
+            event.target.setVolume(volumeRef.current);
+            // Thử tự phát ngay khi vào trang
+            if (!userPausedRef.current) {
+              try {
+                event.target.playVideo();
+              } catch (e) {
+                // ignore
+              }
             }
+          },
+          onStateChange: (event) => {
+            const YTS = window.YT && window.YT.PlayerState;
+            if (!YTS) return;
+            if (event.data === YTS.PLAYING) setIsPlaying(true);
+            else if (event.data === YTS.PAUSED || event.data === YTS.ENDED) setIsPlaying(false);
           }
-        });
-      }
+        }
+      });
     };
 
-    // Check if YT API is ready
-    if (window.YT && window.YT.Player) {
-      initPlayer();
-    } else {
-      checkYT = setInterval(initPlayer, 100);
-    }
+    if (window.YT && window.YT.Player) initPlayer();
+    else checkYT = setInterval(initPlayer, 100);
 
     return () => {
-      if (checkYT) {
-        clearInterval(checkYT);
-      }
-      if (player && window.youtubePlayer === player) {
-        try {
-          player.destroy();
-          window.youtubePlayer = null;
-        } catch (e) { }
-      }
-    };
-  }, [youtubeVideoId, volume]);
-
-  // Update volume when changed - Separate effect to avoid reinitializing player
-  useEffect(() => {
-    if (window.youtubePlayer) {
+      disposed = true;
+      clearInterval(checkYT);
       try {
-        window.youtubePlayer.setVolume(volume);
-        if (volume === 0) {
-          window.youtubePlayer.mute();
-        } else {
-          window.youtubePlayer.unMute();
-        }
+        if (player && player.destroy) player.destroy();
       } catch (e) {
-        console.error('Error setting volume:', e);
+        // ignore
       }
+      if (window.youtubePlayer === player) window.youtubePlayer = null;
+      mount.remove();
+    };
+  }, [youtubeVideoId]);
+
+  // Nếu tự phát bị chặn: phát ở lần tương tác đầu tiên (desktop + mobile)
+  useEffect(() => {
+    if (!youtubeVideoId || isPlaying) return undefined;
+    const onFirstGesture = () => {
+      if (userPausedRef.current) return;
+      startMusic();
+    };
+    const opts = { capture: true, passive: true };
+    const events = ['pointerdown', 'touchend', 'click', 'keydown'];
+    events.forEach((ev) => document.addEventListener(ev, onFirstGesture, opts));
+    return () => events.forEach((ev) => document.removeEventListener(ev, onFirstGesture, opts));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [youtubeVideoId, isPlaying]);
+
+  // Đổi âm lượng (không khởi tạo lại player)
+  useEffect(() => {
+    const p = window.youtubePlayer;
+    if (!p || typeof p.setVolume !== 'function') return;
+    try {
+      p.setVolume(volume);
+      if (volume === 0) p.mute();
+      else p.unMute();
+    } catch (e) {
+      // ignore
     }
   }, [volume]);
 
-  // Handle visibility change to prevent YouTube player from showing other videos
+  // Rời tab thì tạm dừng, quay lại thì phát tiếp
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // When tab is hidden, pause the player if playing
-        if (window.youtubePlayer && isPlaying) {
-          try {
-            window.youtubePlayer.pauseVideo();
-          } catch (e) {
-            console.error('Error pausing video:', e);
-          }
+    const onVisibility = () => {
+      const p = window.youtubePlayer;
+      if (!p || typeof p.pauseVideo !== 'function') return;
+      try {
+        if (document.hidden) {
+          if (isPlaying) p.pauseVideo();
+        } else if (wantPlayRef.current && !userPausedRef.current) {
+          p.playVideo();
         }
-        // Hide player element completely when tab is hidden
-        const playerElement = document.getElementById('youtube-player');
-        if (playerElement) {
-          playerElement.style.display = 'none';
-          playerElement.style.visibility = 'hidden';
-        }
-      } else {
-        // When tab is visible again, ensure player is hidden and resume if needed
-        const playerElement = document.getElementById('youtube-player');
-        if (playerElement) {
-          playerElement.style.display = 'none';
-          playerElement.style.visibility = 'hidden';
-        }
-        // Resume if it was playing before
-        if (window.youtubePlayer && isPlaying && !showEnterOverlay) {
-          try {
-            // Small delay to ensure player is ready
-            setTimeout(() => {
-              if (window.youtubePlayer) {
-                window.youtubePlayer.playVideo();
-              }
-            }, 100);
-          } catch (e) {
-            console.error('Error resuming video:', e);
-          }
-        }
+      } catch (e) {
+        // ignore
       }
     };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [isPlaying]);
 
-    // Also handle window focus/blur
-    const handleWindowFocus = () => {
-      const playerElement = document.getElementById('youtube-player');
-      if (playerElement) {
-        playerElement.style.display = 'none';
-        playerElement.style.visibility = 'hidden';
+  // Desktop: nhấn phím Enter/Space để vào trang (như bấm nút Click)
+  useEffect(() => {
+    if (!showEnterOverlay) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        userPausedRef.current = false;
+        startMusic();
+        setShowEnterOverlay(false);
       }
     };
-
-    const handleWindowBlur = () => {
-      const playerElement = document.getElementById('youtube-player');
-      if (playerElement) {
-        playerElement.style.display = 'none';
-        playerElement.style.visibility = 'hidden';
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('focus', handleWindowFocus);
-    window.addEventListener('blur', handleWindowBlur);
-
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleWindowFocus);
-      window.removeEventListener('blur', handleWindowBlur);
-    };
-  }, [isPlaying, showEnterOverlay]);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showEnterOverlay]);
 
   function toggleMusic() {
-    if (!window.youtubePlayer) return;
-
+    const p = window.youtubePlayer;
+    if (!p) return;
     try {
       if (isPlaying) {
-        window.youtubePlayer.pauseVideo();
+        userPausedRef.current = true;
+        p.pauseVideo();
         setIsPlaying(false);
       } else {
-        window.youtubePlayer.playVideo();
-        setIsPlaying(true);
+        userPausedRef.current = false;
+        startMusic();
       }
     } catch (e) {
       console.error('Error toggling music:', e);
     }
-  }
-
-  function handleVolumeChange(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    const newVolume = parseInt(e.target.value, 10);
-    setVolume(newVolume);
   }
 
   // Apply custom cursor if available
@@ -322,7 +461,7 @@ export default function PublicProfile() {
     return (
       <div className="profile-loading">
         <div className="loading-spinner"></div>
-        <p>Đang tải hồ sơ...</p>
+        <p>{L("Đang tải hồ sơ...", "Loading profile...")}</p>
       </div>
     );
   }
@@ -330,8 +469,25 @@ export default function PublicProfile() {
   if (error || !profile) {
     return (
       <div className="profile-error">
-        <h2>😕 {error || 'Không tìm thấy hồ sơ'}</h2>
-        <p>Hồ sơ này không tồn tại hoặc đã bị xóa.</p>
+        <h2>
+          😕{' '}
+          {error?.code === 'load'
+            ? L('Lỗi khi tải hồ sơ: ', 'Error loading profile: ') + error.message
+            : error?.code === 'invalid'
+              ? L('Tên người dùng không hợp lệ', 'Invalid username')
+              : L('Không tìm thấy hồ sơ', 'Profile not found')}
+        </h2>
+        <p>{L("Hồ sơ này không tồn tại hoặc đã bị xóa.", "This profile does not exist or has been removed.")}</p>
+      </div>
+    );
+  }
+
+  // Hồ sơ bị chủ tạm ẩn: người khác chỉ thấy màn hình đen "TẠM ẨN"
+  const isOwner = Boolean(currentUser && currentUser.uid === profile.userId);
+  if (profile.isHidden && !isOwner) {
+    return (
+      <div className="profile-hidden-screen">
+        <span>{L('TẠM ẨN', 'TEMPORARILY HIDDEN')}</span>
       </div>
     );
   }
@@ -342,57 +498,12 @@ export default function PublicProfile() {
   const cardColor = profile.cardColor || '#C71585';
 
   // Handle Enter button click
+  // Nút Enter: gọi phát nhạc NGAY trong sự kiện click/chạm (không setTimeout)
+  // để Safari iOS / Chrome Android không chặn.
   const handleEnter = () => {
+    userPausedRef.current = false;
+    if (youtubeVideoId) startMusic();
     setShowEnterOverlay(false);
-    // Start music if available
-    if (youtubeVideoId) {
-      const playMusic = () => {
-        if (window.youtubePlayer) {
-          try {
-            // Check if player is ready
-            const playerState = window.youtubePlayer.getPlayerState();
-            if (playerState === window.YT.PlayerState.UNSTARTED ||
-              playerState === window.YT.PlayerState.PAUSED ||
-              playerState === window.YT.PlayerState.CUED) {
-              window.youtubePlayer.playVideo();
-              setIsPlaying(true);
-            }
-          } catch (e) {
-            console.error('Error playing music:', e);
-            // Retry after a short delay
-            setTimeout(() => {
-              if (window.youtubePlayer) {
-                try {
-                  window.youtubePlayer.playVideo();
-                  setIsPlaying(true);
-                } catch (retryError) {
-                  console.error('Error retrying music:', retryError);
-                }
-              }
-            }, 500);
-          }
-        } else {
-          // Wait for player to be ready
-          const checkPlayer = setInterval(() => {
-            if (window.youtubePlayer) {
-              clearInterval(checkPlayer);
-              try {
-                window.youtubePlayer.playVideo();
-                setIsPlaying(true);
-              } catch (e) {
-                console.error('Error playing music after wait:', e);
-              }
-            }
-          }, 100);
-
-          // Stop checking after 5 seconds
-          setTimeout(() => clearInterval(checkPlayer), 5000);
-        }
-      };
-
-      // Small delay to ensure overlay is hidden
-      setTimeout(playMusic, 100);
-    }
   };
 
   // Check if user has premium
@@ -402,6 +513,114 @@ export default function PublicProfile() {
 
   // Get background video ID
   const backgroundVideoId = profile.backgroundVideo ? getYouTubeVideoId(profile.backgroundVideo) : null;
+  const socialModes = profile.socialModes || {};
+  const isInsideSocial = (profile.socialPosition || 'inside') === 'inside';
+  const hasAnySocialOrCustom =
+    Object.values(socialLinks).some((v) => Boolean(v && String(v).trim())) ||
+    (Array.isArray(profile.customLinks) && profile.customLinks.length > 0);
+  const profileBadges = resolveProfileBadges(profile, isPremium);
+  const effectiveTextColor = profile.textColor || '#ffffff';
+  const glowOn = profile.glowSettings || { username: true, socials: true, badges: true };
+
+  const renderSocialIconsBlock = (extraClass = '') => {
+    if (!hasAnySocialOrCustom) return null;
+    return (
+      <div className={`social-icons-container ${extraClass}`.trim()}>
+        {Object.entries(socialLinks)
+          .filter(([, val]) => Boolean(val && String(val).trim()))
+          .map(([key, val]) => {
+            const p = PLATFORM_BY_KEY[key];
+            const raw = String(val).trim();
+            const isTextMode = socialModes[key] === 'text';
+            const href =
+              raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('mailto:')
+                ? raw
+                : key === 'email' && raw.includes('@')
+                  ? `mailto:${raw}`
+                  : `https://${raw}`;
+            const iconClr =
+              profile.otherSettings?.monochromeIcons !== false && profile.iconColor
+                ? profile.iconColor
+                : p?.color || '#ffffff';
+
+            const glowStyle =
+              glowOn.socials !== false
+                ? {
+                    color: iconClr,
+                    filter: `drop-shadow(0 0 9px ${iconClr}aa)`
+                  }
+                : { color: iconClr };
+
+            if (isTextMode) {
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={`social-icon ${key}`}
+                  title={`${p ? p.name : key}: ${raw} ${L('(bấm để sao chép)', '(click to copy)')}`}
+                  style={{ ...glowStyle, cursor: 'pointer' }}
+                  onClick={() => {
+                    navigator.clipboard?.writeText(raw);
+                    notifySuccess(`${L('Đã sao chép', 'Copied')} ${p ? p.name : key}: ${raw}`);
+                  }}
+                >
+                  {p ? (
+                    p.icon
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="9" />
+                    </svg>
+                  )}
+                </button>
+              );
+            }
+
+            return (
+              <a
+                key={key}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={`social-icon ${key}`}
+                title={p ? p.name : key}
+                style={glowStyle}
+              >
+                {p ? (
+                  p.icon
+                ) : (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="12" cy="12" r="9" />
+                  </svg>
+                )}
+              </a>
+            );
+          })}
+
+        {Array.isArray(profile.customLinks) &&
+          profile.customLinks.map((item) => {
+            if (!item?.url) return null;
+            const raw = String(item.url).trim();
+            const href = raw.startsWith('http://') || raw.startsWith('https://') ? raw : `https://${raw}`;
+            return (
+              <a
+                key={item.id || item.url}
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="social-icon custom-url"
+                title={item.label || item.url}
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M3 12h18" />
+                  <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z" />
+                </svg>
+              </a>
+            );
+          })}
+      </div>
+    );
+  };
 
   // Render effect based on profile.effect
   // Free effects: snow, particles, confetti, fireworks
@@ -435,7 +654,7 @@ export default function PublicProfile() {
 
   return (
     <div
-      className="public-profile"
+      className={`public-profile ${profile.layout === 'lanyard' ? 'public-profile-lanyard' : ''} ${profile.layout === 'web' ? 'public-profile-web' : ''}`.trim()}
       style={{
         backgroundImage: profile.backgroundImage ? `url(${profile.backgroundImage})` : 'none',
         backgroundSize: 'cover',
@@ -451,7 +670,7 @@ export default function PublicProfile() {
           alt="KonOne Logo"
           className="logo-icon"
         />
-        <span className="logo-text">KonOne</span>
+        {/* <span className="logo-text">KonOne</span> */}
       </Link>
 
       {/* Background Video (Premium) */}
@@ -463,7 +682,7 @@ export default function PublicProfile() {
             allow="autoplay; encrypted-media"
             allowFullScreen
             className="background-video"
-            title="Background Video"
+            title={L("Video nền", "Background Video")}
           />
           <div className="video-overlay"></div>
         </div>
@@ -485,7 +704,7 @@ export default function PublicProfile() {
               className="enter-button"
               onClick={handleEnter}
             >
-              <span className="enter-text">Click</span>
+              <span className="enter-text">{L("Nhấn để vào", "Click to enter")}</span>
               {/* <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="enter-icon">
                 <path d="M5 12h14M12 5l7 7-7 7"/>
               </svg> */}
@@ -496,255 +715,288 @@ export default function PublicProfile() {
 
       {/* YouTube Music Player (Hidden) */}
       {youtubeVideoId && (
+        // Không dùng display:none — iOS/Safari sẽ không phát iframe bị ẩn hẳn.
         <div
-          id="youtube-player"
+          ref={playerHostRef}
+          aria-hidden="true"
           style={{
             position: 'fixed',
-            width: '1px',
-            height: '1px',
+            left: '-9999px',
+            top: 0,
+            width: '200px',
+            height: '200px',
             opacity: 0,
             pointerEvents: 'none',
-            zIndex: -1,
-            visibility: 'hidden',
-            display: 'none'
+            overflow: 'hidden'
           }}
         ></div>
       )}
 
-      {/* Music Controls */}
-      {youtubeVideoId && (
+      {/* Music Controls with ReactBits WakeSlider */}
+      {profile.splashCursor?.enabled && (
+        <SplashCursor
+          colors={
+            Array.isArray(profile.splashCursor.colors) && profile.splashCursor.colors.length
+              ? profile.splashCursor.colors
+              : ['#f65c5c', '#dc2626', '#a21caf']
+          }
+          rainbow={Boolean(profile.splashCursor.rainbow)}
+          size={Number(profile.splashCursor.size ?? 1)}
+          force={Number(profile.splashCursor.force ?? 1)}
+          swirl={Number(profile.splashCursor.swirl ?? 3)}
+          trail={Number(profile.splashCursor.trail ?? 1)}
+          clickSplash={profile.splashCursor.clickSplash !== false}
+          colorSpeed={Number(profile.splashCursor.colorSpeed ?? 1)}
+          intensity={Number(profile.splashCursor.intensity ?? 1)}
+          momentum={Number(profile.splashCursor.momentum ?? 1)}
+          shading={Number(profile.splashCursor.shading ?? 1)}
+          glow={Number(profile.splashCursor.glow ?? 0)}
+          quality={profile.splashCursor.quality || 'high'}
+          intro
+          contained={false}
+        />
+      )}
+
+      {profile.blobCursor?.enabled && !profile.splashCursor?.enabled && (
+        <BlobCursor
+          material={profile.blobCursor.material || 'chrome'}
+          color={profile.blobCursor.color || '#3B82F6'}
+          blend={profile.blobCursor.blend || 'normal'}
+          size={Number(profile.blobCursor.size ?? 140)}
+          morph={Number(profile.blobCursor.morph ?? 0)}
+          morphSpeed={Number(profile.blobCursor.morphSpeed ?? 0.4)}
+          depth={Number(profile.blobCursor.depth ?? 1)}
+          trail={Number(profile.blobCursor.trail ?? 16)}
+          lag={Number(profile.blobCursor.lag ?? 0.55)}
+          goo={Number(profile.blobCursor.goo ?? 1)}
+          stretch={Number(profile.blobCursor.stretch ?? 0.6)}
+          wobble={Number(profile.blobCursor.wobble ?? 1)}
+          drip={Number(profile.blobCursor.drip ?? 0)}
+          shine={Number(profile.blobCursor.shine ?? 1)}
+          splash={profile.blobCursor.splash !== false}
+          splashCount={Number(profile.blobCursor.splashCount ?? 6)}
+          splashSpeed={Number(profile.blobCursor.splashSpeed ?? 0.5)}
+          splashSize={Number(profile.blobCursor.splashSize ?? 0.5)}
+          splashGravity={Number(profile.blobCursor.splashGravity ?? 0)}
+          regrow={Number(profile.blobCursor.regrow ?? 0.5)}
+          shadow={Boolean(profile.blobCursor.shadow)}
+          hideCursor={profile.blobCursor.hideCursor !== false}
+          style={{ position: 'fixed', inset: 0, zIndex: 48 }}
+        />
+      )}
+
+      {youtubeVideoId && profile.otherSettings?.volumeControl !== false && (
         <div
           className="music-controls"
           onMouseEnter={() => setShowVolumeControl(true)}
           onMouseLeave={() => setShowVolumeControl(false)}
         >
           <div className="music-controls-wrapper">
+            <div
+              className={`wake-volume-popover ${showVolumeControl ? 'is-open' : ''}`}
+              aria-hidden={!showVolumeControl}
+            >
+              <WakeSlider
+                value={volume}
+                defaultValue={50}
+                min={0}
+                max={100}
+                step={1}
+                bars={32}
+                height={44}
+                restHeight={10}
+                gap={4}
+                fillColor="#f5f5f5"
+                trackColor="#27272a"
+                sensitivity={1}
+                reach={6}
+                skew={0.6}
+                glide={0.3}
+                smoothing={100}
+                showValue
+                formatValue={(v) => `${v}%`}
+                onChange={(val) => setVolume(val)}
+                disabled={!showVolumeControl}
+                ariaLabel={L('Âm lượng', 'Volume')}
+              />
+            </div>
             <button
               onClick={toggleMusic}
               className="music-toggle-btn"
-              title={isPlaying ? 'Tắt nhạc' : 'Bật nhạc'}
+              title={isPlaying ? L('Tắt nhạc', 'Pause music') : L('Bật nhạc', 'Play music')}
             >
               {isPlaying ? (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                   <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" />
                 </svg>
               ) : (
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
                   <path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z" />
                 </svg>
               )}
             </button>
-            {showVolumeControl && (
-              <div className="volume-slider-container">
-                <input
-                  type="range"
-                  min="0"
-                  max="100"
-                  value={volume}
-                  onChange={handleVolumeChange}
-                  className="volume-slider"
-                  title={`Âm lượng: ${volume}%`}
-                />
-                <span className="volume-value">{volume}%</span>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Profile Content - Centered Card with 3D Effect */}
-      <div className="profile-container">
-        {/* Hanging String and Hook - Only show when there's a coverImage banner */}
-        {(profile.coverImage && (!profile.layout || profile.layout === 'card')) && (
-          <div className="card-hanger">
-            <div className="hanger-hook"></div>
-            <div className="hanger-string"></div>
-          </div>
-        )}
-
-        {/* Standard Card Layout or Custom Card Layout */}
+      {/* Profile Content - Centered Card */}
+      <div className={`profile-container ${profile.layout === 'lanyard' ? 'lanyard-mode' : ''} ${profile.layout === 'web' ? 'web-mode' : ''}`.trim()}>
+        {/* Standard Basic Layout (guns.lol style matching user screenshots) */}
         {(!profile.layout || profile.layout === 'card') && (
           <div
-            className={`profile-card-3d ${(profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0)) ? 'custom-card-layout' : ''}`}
+            className="profile-card-3d guns-basic-card"
             style={{
-              borderColor: cardColor ? `${cardColor}66` : undefined
+              borderColor:
+                (profile.profileOpacity ?? 0) <= 5
+                  ? 'transparent'
+                  : cardColor
+                    ? `${cardColor}33`
+                    : 'rgba(255, 255, 255, 0.07)',
+              background:
+                (profile.profileOpacity ?? 0) <= 2
+                  ? 'transparent'
+                  : profile.profileGradient
+                    ? `linear-gradient(145deg, ${hexToRgba(
+                        profile.lanyardCardColor || profile.cardColor || '#141417',
+                        Math.max(0, (profile.profileOpacity ?? 0) / 100)
+                      )}, ${hexToRgba(
+                        profile.lanyardStrapColor || cardColor,
+                        Math.max(0, ((profile.profileOpacity ?? 0) / 100) * 0.65)
+                      )})`
+                    : hexToRgba(
+                        profile.lanyardCardColor || profile.cardColor || '#141417',
+                        Math.max(0, (profile.profileOpacity ?? 0) / 100)
+                      ),
+              backdropFilter:
+                (profile.profileBlur ?? 0) > 0
+                  ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
+                  : 'none',
+              WebkitBackdropFilter:
+                (profile.profileBlur ?? 0) > 0
+                  ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
+                  : 'none',
+              boxShadow: (profile.profileOpacity ?? 0) <= 5 ? 'none' : undefined
             }}
           >
-            {/* Profile Cover Image (Banner) - Only show if coverImage exists */}
-            {profile.coverImage && (
-              <div
-                className="profile-card-cover"
+            <div className="profile-card-info guns-basic-info">
+              {/* 1. Circular Centered Avatar */}
+              <div className={`guns-basic-avatar-wrap ${profile.otherSettings?.avatarBorder ? 'avatar-bordered' : 'avatar-plain'}`}>
+                {profile.avatar ? (
+                  <img
+                    src={profile.avatar}
+                    alt={profile.displayName || profile.username}
+                    className="guns-basic-avatar"
+                  />
+                ) : (
+                  <div className="guns-basic-avatar guns-basic-avatar-fallback">
+                    {(profile.displayName || profile.username || 'K').charAt(0).toUpperCase()}
+                  </div>
+                )}
+                {profile.avatarFrame && (
+                  <img
+                    src={profile.avatarFrame}
+                    alt={L("Khung avatar", "Avatar Frame")}
+                    className="guns-basic-avatar-frame"
+                  />
+                )}
+              </div>
+
+              {/* 2. Display Name / Username with Neon Glow */}
+              <h1
+                className="guns-basic-username"
                 style={{
-                  backgroundImage: `url(${profile.coverImage})`,
-                  zIndex: 0,
-                  position: 'relative'
+                  color: effectiveTextColor,
+                  fontFamily: profile.textFontFamily || 'inherit',
+                  textShadow:
+                    glowOn.username !== false
+                      ? `0 0 16px ${effectiveTextColor}aa, 0 0 30px ${effectiveTextColor}44`
+                      : profile.text3DEffect
+                        ? '3px 3px 0px rgba(0,0,0,0.35), 6px 6px 0px rgba(0,0,0,0.2)'
+                        : 'none'
                 }}
               >
-                {/* Text Overlay on Banner for Custom Card */}
-                {(profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0)) && (
-                  <div className="card-overlay-content" style={{ position: 'relative', zIndex: 1 }}>
-                    {/* Avatar on Banner */}
-                    {profile.avatar ? (
-                      <div className="profile-avatar-container-overlay" style={{ position: 'relative', zIndex: 9998 }}>
-                        <img src={profile.avatar} alt={profile.displayName} className="profile-avatar-overlay" style={{ position: 'relative', zIndex: 1 }} />
-                        {profile.avatarFrame && (
-                          <img
-                            src={profile.avatarFrame}
-                            alt="Avatar Frame"
-                            style={{
-                              position: 'absolute',
-                              top: '50%',
-                              left: '50%',
-                              transform: 'translate(-50%, -50%)',
-                              width: '140%',
-                              height: '140%',
-                              objectFit: 'contain',
-                              pointerEvents: 'none',
-                              zIndex: 9999
-                            }}
-                          />
-                        )}
-                      </div>
-                    ) : (
-                      <div className="profile-avatar-container-overlay">
-                        <div className="profile-avatar-placeholder-overlay">
-                          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
-                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                            <circle cx="12" cy="7" r="4" />
-                          </svg>
-                        </div>
-                      </div>
-                    )}
+                <RevealText
+                  text={profile.displayName || profile.username || 'KonOne'}
+                  play={!showEnterOverlay}
+                  delay={150}
+                />
+              </h1>
 
-                    {/* Name and Info Overlay */}
-                    <h1
-                      className="profile-name-overlay"
-                      style={{
-                        fontFamily: profile.textFontFamily || 'Arial',
-                        textShadow: profile.text3DEffect
-                          ? `3px 3px 0px rgba(0,0,0,0.3), 6px 6px 0px rgba(0,0,0,0.2), 9px 9px 0px rgba(0,0,0,0.1)`
-                          : '0 2px 10px rgba(0, 0, 0, 0.8)',
-                      }}
-                    >
-                      {profile.displayName || 'Chưa có tên'}
-                    </h1>
-
-                    {profile.jobTitle && (
-                      <div className="profile-job-title-overlay" style={{ color: cardColor }}>
-                        {profile.jobTitle}
-                      </div>
-                    )}
-
-                    {profile.status && (
-                      <div className="profile-status-overlay">
-                        <span className="status-value-overlay" style={{ color: cardColor }}>{profile.status}</span>
-                      </div>
-                    )}
-
-                    {profile.turma && (
-                      <div className="profile-turma-overlay">{profile.turma}</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Profile Info Section */}
-            {!(profile.jobTitle || profile.status || profile.turma || (profile.hashtags && profile.hashtags.length > 0)) ? (
-              <div className="profile-card-info">
-                {/* Avatar overlapping cover */}
-                {profile.avatar ? (
-                  <div className="profile-avatar-container" style={{ position: 'relative', zIndex: 9998 }}>
-                    <img src={profile.avatar} alt={profile.displayName} className="profile-avatar" style={{ position: 'relative', zIndex: 1 }} />
-                    {profile.avatarFrame && (
-                      <img
-                        src={profile.avatarFrame}
-                        alt="Avatar Frame"
-                        style={{
-                          position: 'absolute',
-                          top: '50%',
-                          left: '50%',
-                          transform: 'translate(-50%, -50%)',
-                          width: '140%',
-                          height: '140%',
-                          objectFit: 'contain',
-                          pointerEvents: 'none',
-                          zIndex: 9999
-                        }}
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <div className="profile-avatar-container">
-                    <div className="profile-avatar-placeholder">
-                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
-                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                        <circle cx="12" cy="7" r="4" />
-                      </svg>
-                    </div>
-                  </div>
-                )}
-
-                <h1
-                  className="profile-name"
+              {/* 3. Badges Pill dưới Avatar & Tên (Icon Kim cương tự hiện khi có Premium + Danh hiệu Admin cấp) */}
+              {profileBadges.length > 0 && (
+                <div
+                  className="guns-badges-pill"
                   style={{
-                    fontFamily: profile.textFontFamily || 'Arial',
-                    textShadow: profile.text3DEffect
-                      ? `3px 3px 0px rgba(0,0,0,0.3), 6px 6px 0px rgba(0,0,0,0.2), 9px 9px 0px rgba(0,0,0,0.1)`
-                      : 'none',
-                    WebkitTextShadow: profile.text3DEffect
-                      ? `3px 3px 0px rgba(0,0,0,0.3), 6px 6px 0px rgba(0,0,0,0.2), 9px 9px 0px rgba(0,0,0,0.1)`
-                      : 'none',
-                    borderWidth: profile.textBorderWidth ? `${profile.textBorderWidth}px` : '0',
-                    borderStyle: profile.textBorderStyle || 'solid',
-                    borderColor: profile.textBorderColor || 'transparent',
-                    transform: profile.text3DEffect ? 'perspective(500px) rotateX(5deg)' : 'none',
-                    transformStyle: profile.text3DEffect ? 'preserve-3d' : 'flat'
+                    color: effectiveTextColor,
+                    borderColor: `${effectiveTextColor}1f`
                   }}
                 >
-                  {profile.displayName || 'Chưa có tên'}
-                </h1>
+                  {profileBadges.map((b) => (
+                    <span
+                      key={b.key}
+                      className={`guns-badge-ico badge-${b.key}`}
+                      title={b.label}
+                      style={{
+                        filter:
+                          glowOn.badges !== false
+                            ? `drop-shadow(0 0 7px ${effectiveTextColor})`
+                            : 'none'
+                      }}
+                    >
+                      {b.icon}
+                    </span>
+                  ))}
+                </div>
+              )}
 
-                {profile.username && (
-                  <div className="profile-username">@{profile.username}</div>
-                )}
+              {/* 4. Bio / Description */}
+              {profile.bio && (
+                <p
+                  className="guns-basic-bio"
+                  style={{
+                    color: effectiveTextColor,
+                    fontFamily: profile.textFontFamily || 'inherit'
+                  }}
+                >
+                  <TypeText text={profile.bio} play={!showEnterOverlay} delay={700} />
+                </p>
+              )}
 
-                {profile.bio && (
-                  <p
-                    className="profile-bio"
-                    style={{
-                      fontFamily: profile.textFontFamily || 'Arial',
-                      borderWidth: profile.textBorderWidth ? `${profile.textBorderWidth}px` : '0',
-                      borderStyle: profile.textBorderStyle || 'solid',
-                      borderColor: profile.textBorderColor || 'transparent'
-                    }}
-                  >
-                    {profile.bio}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="profile-card-info custom-info-layout">
-                {/* Only show hashtags at bottom for custom layout */}
-                {profile.hashtags && profile.hashtags.length > 0 && (
-                  <div className="profile-hashtags">
-                    {profile.hashtags.map((tag, index) => (
-                      <span
-                        key={index}
-                        className="hashtag-tag"
-                        style={{
-                          background: `${cardColor}33`,
-                          borderColor: `${cardColor}66`,
-                          color: 'rgba(255, 255, 255, 0.9)'
-                        }}
-                      >
-                        {tag.startsWith('#') ? tag : `#${tag}`}
+              {/* 5. Location (nếu có) */}
+              {profile.location && (
+                <div className="guns-basic-location" style={{ color: `${effectiveTextColor}aa` }}>
+                  <span>📍 {profile.location}</span>
+                </div>
+              )}
+
+              {/* 6. Presence / Discord Box (nếu có) */}
+              {(profile.presenceTitle || profile.presenceSubtitle) && (
+                <div
+                  className="guns-discord-presence-card"
+                  style={{ borderColor: `${effectiveTextColor}1a` }}
+                >
+                  <div className="guns-presence-left">
+                    <img
+                      src={profile.avatar || '/logo-konone-v1.png'}
+                      alt=""
+                      className="guns-presence-thumb"
+                    />
+                    <div className="guns-presence-meta">
+                      <strong style={{ color: effectiveTextColor }}>
+                        {profile.presenceTitle || profile.displayName}
+                      </strong>
+                      <span>
+                        <i className="presence-online-dot" />
+                        {profile.presenceSubtitle || L('Đang hoạt động trên KonOne', 'Active on KonOne')}
                       </span>
-                    ))}
+                    </div>
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+
+              {/* 7. Hàng Icon Mạng xã hội bên trong thẻ */}
+              {isInsideSocial && renderSocialIconsBlock('inside-card-socials guns-glow-socials')}
+            </div>
           </div>
         )}
 
@@ -754,12 +1006,12 @@ export default function PublicProfile() {
             <div className="modern-avatar-wrapper">
               <div className="modern-avatar-halo" style={{ background: `radial-gradient(circle, ${cardColor}66 0%, transparent 70%)` }}></div>
               {profile.avatar ? (
-                <div className="modern-avatar-container">
+                <div className={`modern-avatar-container ${profile.otherSettings?.avatarBorder ? 'avatar-bordered' : 'avatar-plain'}`}>
                   <img src={profile.avatar} alt={profile.displayName} className="modern-avatar" />
                   {profile.avatarFrame && (
                     <img
                       src={profile.avatarFrame}
-                      alt="Avatar Frame"
+                      alt={L("Khung avatar", "Avatar Frame")}
                       className="modern-avatar-frame"
                     />
                   )}
@@ -785,7 +1037,7 @@ export default function PublicProfile() {
                     : '0 2px 10px rgba(0, 0, 0, 0.5)',
                 }}
               >
-                {profile.displayName || 'Chưa có tên'}
+                {profile.displayName || L('Chưa có tên', 'No name yet')}
               </h1>
 
               {profile.bio && (
@@ -810,7 +1062,7 @@ export default function PublicProfile() {
                       <div className="vinyl-texture"></div>
                       <div className="disc-avatar-container">
                         {profile.avatar ? (
-                          <img src={profile.avatar} alt="Avatar" className="disc-avatar" />
+                          <img src={profile.avatar} alt={L("Ảnh đại diện", "Avatar")} className="disc-avatar" />
                         ) : (
                           <div className="disc-avatar-placeholder">
                             {profile.displayName?.charAt(0).toUpperCase() || '?'}
@@ -858,57 +1110,347 @@ export default function PublicProfile() {
               )}
 
               {/* View Count at bottom for Modern layout */}
+              {isInsideSocial && renderSocialIconsBlock('inside-card-socials')}
               {profile.viewCount !== undefined && (
                 <div className="modern-views">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
                     <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
                   </svg>
-                  <span>{profile.viewCount.toLocaleString()} lượt xem</span>
+                  <span>{profile.viewCount.toLocaleString()}{' '}{L("lượt xem", "views")}</span>
                 </div>
               )}
             </div>
           </div>
         )}
+
+        {/* ReactBits 3D Hanging Lanyard Card Layout */}
+        {profile.layout === 'lanyard' && (
+          <LanyardCard
+            profile={profile}
+            interactive={true}
+            compact={false}
+            fullScreen={true}
+            strapColor={profile.lanyardStrapColor || cardColor}
+            cardBgColor={profile.lanyardCardColor || profile.cardColor || '#18161c'}
+            cardOpacity={profile.profileOpacity ?? 0}
+            cardBlur={profile.profileBlur ?? 0}
+            badgeLabel={profile.lanyardBadgeLabel || 'KONONE PASS'}
+          />
+        )}
+
+        {/* Bố cục WEB (MonkeDev Hero + Scroll xuống Poster Đứng bên trái & Chữ Giới thiệu bên phải) */}
+        {profile.layout === 'web' && (
+          <div className="web-layout-root">
+            <div className="web-crt-grid-overlay" aria-hidden="true" />
+
+            {/* PHẦN 1: HERO TRÊN ĐẦU GIỐNG ẢNH MONKEDEV */}
+            <section className="web-hero-section">
+              <div className="web-hero-inner">
+                <div className={`web-hero-avatar-box ${profile.otherSettings?.avatarBorder ? 'avatar-bordered' : 'avatar-plain'}`}>
+                  {profile.avatar ? (
+                    <img
+                      src={profile.avatar}
+                      alt={profile.displayName || profile.username}
+                      className="web-hero-avatar"
+                    />
+                  ) : (
+                    <div className="web-hero-avatar web-hero-avatar-fallback">
+                      {(profile.displayName || profile.username || 'K').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  {profile.avatarFrame && (
+                    <img
+                      src={profile.avatarFrame}
+                      alt={L("Khung avatar", "Avatar Frame")}
+                      className="web-hero-avatar-frame"
+                    />
+                  )}
+                </div>
+
+                <div className="web-hero-meta">
+                  <div className="web-hero-title-row">
+                    <h1
+                      className="web-hero-name"
+                      style={{
+                        color: effectiveTextColor,
+                        fontFamily:
+                          profile.textFontFamily && profile.textFontFamily !== 'Arial'
+                            ? profile.textFontFamily
+                            : "'Courier New', Consolas, monospace",
+                        textShadow:
+                          glowOn.username !== false
+                            ? `0 0 18px ${effectiveTextColor}cc, 0 0 34px ${effectiveTextColor}55`
+                            : 'none'
+                      }}
+                    >
+                      <RevealText
+                        text={profile.displayName || profile.username || 'KonOne'}
+                        play={!showEnterOverlay}
+                        delay={150}
+                      />
+                    </h1>
+
+                    <span className="web-hero-divider-bar">|</span>
+
+                    {profileBadges.length > 0 && (
+                      <div className="web-hero-badges-pill" style={{ color: effectiveTextColor }}>
+                        {profileBadges.map((b) => (
+                          <span
+                            key={b.key}
+                            className={`guns-badge-ico badge-${b.key}`}
+                            title={b.label}
+                            style={{
+                              filter:
+                                glowOn.badges !== false
+                                  ? `drop-shadow(0 0 8px ${effectiveTextColor})`
+                                  : 'none'
+                            }}
+                          >
+                            {b.icon}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div
+                    className="web-hero-tagline"
+                    style={{
+                      color: effectiveTextColor,
+                      fontFamily:
+                        profile.textFontFamily && profile.textFontFamily !== 'Arial'
+                          ? profile.textFontFamily
+                          : "'Courier New', Consolas, monospace"
+                    }}
+                  >
+                    <TypeText
+                      text={
+                        profile.bio ||
+                        (profile.location
+                          ? `${profile.location} | ${profile.viewCount || 0} Views`
+                          : `KonOne Creator | @${profile.username}`)
+                      }
+                      play={!showEnterOverlay}
+                      delay={800}
+                    />
+                    <span className="web-hero-blinking-cursor">|</span>
+                  </div>
+
+                  {isInsideSocial && renderSocialIconsBlock('web-hero-socials guns-glow-socials')}
+                </div>
+              </div>
+
+              <a
+                href="#web-poster-showcase"
+                className={`web-scroll-down-cta ${scrolled ? 'is-hidden' : ''}`}
+                aria-label={language === 'vi' ? 'Cuộn xuống' : 'Scroll down'}
+              >
+                <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </a>
+            </section>
+
+            {/* PHẦN 2: CUỘN XUỐNG — BÊN TRÁI LÀ 1 POSTER ĐỨNG, BÊN PHẢI LÀ CHỮ GIỚI THIỆU */}
+            <section id="web-poster-showcase" className="web-showcase-section">
+              <div
+                className="web-showcase-container"
+                style={{
+                  background:
+                    (profile.profileOpacity ?? 0) <= 2
+                      ? 'transparent'
+                      : hexToRgba(
+                          profile.lanyardCardColor || profile.cardColor || '#121216',
+                          Math.max(0.15, (profile.profileOpacity ?? 0) / 100)
+                        ),
+                  backdropFilter:
+                    (profile.profileBlur ?? 0) > 0
+                      ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
+                      : 'none',
+                  WebkitBackdropFilter:
+                    (profile.profileBlur ?? 0) > 0
+                      ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
+                      : 'none'
+                }}
+              >
+                {/* Cột trái: Poster đứng */}
+                <div className="web-poster-column">
+                  <div
+                    className="web-vertical-poster-frame"
+                    style={{
+                      borderColor: `${profile.lanyardStrapColor || '#22c55e'}44`
+                    }}
+                  >
+                    {profile.webPosterImage || profile.coverImage || profile.avatar ? (
+                      <img
+                        src={profile.webPosterImage || profile.coverImage || profile.avatar}
+                        alt={profile.displayName || profile.username}
+                        className="web-vertical-poster-img"
+                      />
+                    ) : (
+                      <div className="web-vertical-poster-fallback">
+                        <span>{(profile.displayName || profile.username || 'K').charAt(0).toUpperCase()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Cột phải: Chữ giới thiệu */}
+                <div className="web-intro-column" style={{ color: effectiveTextColor }}>
+                  <span
+                    className="web-intro-eyebrow"
+                    style={{ color: profile.lanyardStrapColor || '#22c55e' }}
+                  >
+                    {L("GIỚI THIỆU", "ABOUT / INTRODUCTION")}
+                  </span>
+
+                  <h2
+                    className="web-intro-heading"
+                    style={{
+                      color: effectiveTextColor,
+                      textShadow:
+                        glowOn.username !== false
+                          ? `0 0 16px ${effectiveTextColor}55`
+                          : 'none'
+                    }}
+                  >
+                    {profile.webIntroTitle ||
+                      L(
+                        `Giới thiệu về ${profile.displayName || profile.username}`,
+                        `About ${profile.displayName || profile.username}`
+                      )}
+                  </h2>
+
+                  <div
+                    className="web-intro-body-text"
+                    style={{ color: `${effectiveTextColor}dd` }}
+                  >
+                    {profile.webIntroText ||
+                      profile.bio ||
+                      L(
+                        `Xin chào! Tôi là ${profile.displayName || profile.username}. Cảm ơn bạn đã ghé thăm trang hồ sơ cá nhân của tôi trên KonOne.`,
+                        `Hi! I'm ${profile.displayName || profile.username}. Thanks for visiting my profile on KonOne.`
+                      )}
+                  </div>
+
+                  {profile.location && (
+                    <div className="web-intro-meta-tags">
+                      <span className="web-meta-chip">📍 {profile.location}</span>
+                      <span className="web-meta-chip">@{profile.username}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        )}
       </div>
 
-      {/* Social Links Icons */}
-      {(socialLinks.facebook || socialLinks.instagram || socialLinks.twitter || socialLinks.linkedin || socialLinks.tiktok) && (
-        <div className="social-icons-container">
-          {socialLinks.facebook && (
-            <a href={socialLinks.facebook} target="_blank" rel="noopener noreferrer" className="social-icon facebook" title="Facebook">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+      {/* Social Links Icons Outside Card */}
+      {!isInsideSocial && renderSocialIconsBlock('outside-card-socials guns-glow-socials')}
+
+      {/* Khung Âm Thanh ở dưới — chỉ hiện ở bố cục Basic */}
+      {youtubeVideoId && (!profile.layout || profile.layout === 'card') && (
+        <div
+          className="guns-audio-player-card"
+          style={{
+            borderColor: `${effectiveTextColor}14`,
+            color: effectiveTextColor,
+            ...(profile.musicBoxColor ? { background: musicBoxBg(profile.musicBoxColor) } : {})
+          }}
+        >
+          <img
+            src={`https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`}
+            alt={L("Ảnh bìa nhạc", "Audio Thumbnail")}
+            className="guns-audio-thumb"
+          />
+
+          <div className="guns-audio-main">
+            <div className="guns-audio-title" style={{ color: effectiveTextColor }}>
+              {audioTrackTitle || profile.musicTitle || `${profile.displayName || profile.username} — Audio`}
+            </div>
+            <div className="guns-audio-timeline-row">
+              <span className="guns-audio-time" style={{ color: `${effectiveTextColor}b3` }}>
+                {formatAudioTime(audioCurrentTime)}
+              </span>
+              <div
+                className="guns-audio-progress-track"
+                onClick={(e) => {
+                  const p = window.youtubePlayer;
+                  if (!p || !audioDuration) return;
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+                  const nextSec = ratio * audioDuration;
+                  try {
+                    p.seekTo(nextSec, true);
+                    setAudioCurrentTime(nextSec);
+                  } catch {
+                    // ignore
+                  }
+                }}
+              >
+                <div
+                  className="guns-audio-progress-fill"
+                  style={{
+                    width: `${audioDuration > 0 ? Math.min(100, (audioCurrentTime / audioDuration) * 100) : 12}%`,
+                    background: profile.musicAccentColor || effectiveTextColor
+                  }}
+                />
+              </div>
+              <span className="guns-audio-time" style={{ color: `${effectiveTextColor}b3` }}>
+                {formatAudioTime(audioDuration || 198)}
+              </span>
+            </div>
+          </div>
+
+          <div className="guns-audio-controls" style={{ color: profile.musicAccentColor || effectiveTextColor }}>
+            <button
+              type="button"
+              className="guns-audio-ctrl-btn"
+              title={L("Phát lại", "Restart")}
+              onClick={() => {
+                try {
+                  window.youtubePlayer?.seekTo(0, true);
+                  setAudioCurrentTime(0);
+                } catch {}
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
               </svg>
-            </a>
-          )}
-          {socialLinks.instagram && (
-            <a href={socialLinks.instagram} target="_blank" rel="noopener noreferrer" className="social-icon instagram" title="Instagram">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+            </button>
+            <button
+              type="button"
+              className="guns-audio-ctrl-btn play"
+              title={isPlaying ? 'Pause' : 'Play'}
+              onClick={toggleMusic}
+            >
+              {isPlaying ? (
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+            </button>
+            <button
+              type="button"
+              className="guns-audio-ctrl-btn"
+              title={L("Bài tiếp", "Next")}
+              onClick={() => {
+                try {
+                  window.youtubePlayer?.seekTo(0, true);
+                  setAudioCurrentTime(0);
+                } catch {}
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
+                <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
               </svg>
-            </a>
-          )}
-          {socialLinks.twitter && (
-            <a href={socialLinks.twitter} target="_blank" rel="noopener noreferrer" className="social-icon twitter" title="Twitter">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
-              </svg>
-            </a>
-          )}
-          {socialLinks.linkedin && (
-            <a href={socialLinks.linkedin} target="_blank" rel="noopener noreferrer" className="social-icon linkedin" title="LinkedIn">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
-              </svg>
-            </a>
-          )}
-          {socialLinks.tiktok && (
-            <a href={socialLinks.tiktok} target="_blank" rel="noopener noreferrer" className="social-icon tiktok" title="TikTok">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z" />
-              </svg>
-            </a>
-          )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -936,7 +1478,7 @@ export default function PublicProfile() {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
           </svg>
-          <span>{profile.viewCount.toLocaleString()} lượt xem</span>
+          <span>{profile.viewCount.toLocaleString()}</span>
         </div>
       )}
     </div>

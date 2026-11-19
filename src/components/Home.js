@@ -3,16 +3,81 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { t } from '../translations';
+import GooeyNav from './GooeyNav';
+import DiamondIcon from './DiamondIcon';
 import './Home.css';
 
 export default function Home() {
   const { currentUser, logout } = useAuth();
   const navigate = useNavigate();
   const { language, changeLanguage } = useLanguage();
+  const L = (vi, en) => (language === 'vi' ? vi : en);
   const statsRef = useRef(null);
   const pricingRef = useRef(null);
   const [isHeaderVisible, setIsHeaderVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
+
+  // ===== Menu header (GooeyNav, chỉ chữ) =====
+  const [navIndex, setNavIndex] = useState(0);
+  const navItems = [
+    { key: 'home', label: L('Trang chủ', 'Home') },
+    { key: 'lang', label: language === 'vi' ? 'English' : 'Tiếng Việt' },
+    { key: 'leaderboard', label: L('Xếp hạng', 'Leaderboard') },
+    { key: 'discord', label: 'Discord' },
+    ...(currentUser
+      ? [
+          { key: 'dashboard', label: L('Bảng điều khiển', 'Dashboard') },
+          { key: 'logout', label: L('Đăng xuất', 'Log out') }
+        ]
+      : [
+          { key: 'login', label: L('Đăng nhập', 'Log in') },
+          { key: 'register', label: L('Đăng ký', 'Sign up') }
+        ])
+  ];
+
+  // Giọt chạy tới mục được bấm, sau đó mới thực hiện hành động
+  function handleNav(index, item) {
+    setNavIndex(index);
+    const backHome = () => setTimeout(() => setNavIndex(0), 700);
+    switch (item.key) {
+      case 'home':
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        break;
+      case 'lang':
+        setTimeout(() => changeLanguage(language === 'vi' ? 'en' : 'vi'), 350);
+        backHome();
+        break;
+      case 'discord':
+        window.open('https://discord.gg/YVJSEN3s6v', '_blank', 'noopener,noreferrer');
+        backHome();
+        break;
+      case 'dashboard':
+        setTimeout(() => navigate('/dashboard'), 450);
+        break;
+      case 'leaderboard':
+        setTimeout(() => navigate('/leaderboard'), 450);
+        break;
+      case 'login':
+        setTimeout(() => navigate('/login'), 450);
+        break;
+      case 'register':
+        setTimeout(() => navigate('/register'), 450);
+        break;
+      case 'logout':
+        setTimeout(async () => {
+          try {
+            await logout();
+            navigate('/');
+            window.location.reload();
+          } catch (error) {
+            console.error('Logout error:', error);
+          }
+        }, 450);
+        break;
+      default:
+        break;
+    }
+  }
 
   // Scroll animation observer
   useEffect(() => {
@@ -104,111 +169,23 @@ export default function Home() {
             <span className="logo-text">KonOne</span>
           </Link>
 
-          <nav className="header-nav" aria-label="Main navigation">
-            {/* 1. Icon Ngôn ngữ (Click để đổi VI / EN, hover hiện tên ngôn ngữ) */}
-            <button
-              type="button"
-              className="header-icon-pill"
-              onClick={() => changeLanguage(language === 'vi' ? 'en' : 'vi')}
-              aria-label={language === 'vi' ? t(language, 'home.vietnamese') : t(language, 'home.english')}
-            >
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
-              <span className="icon-pill-label">
-                {language === 'vi' ? t(language, 'home.vietnamese') : t(language, 'home.english')}
-              </span>
-            </button>
-
-            {/* 2. Icon Discord */}
-            <a
-              href="https://discord.gg/YVJSEN3s6v"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="header-icon-pill"
-              aria-label="Discord"
-            >
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
-              </svg>
-              <span className="icon-pill-label">Discord</span>
-            </a>
-
-            {currentUser ? (
-              <>
-                {/* 3. Icon Dashboard */}
-                <Link
-                  to="/dashboard"
-                  className="header-icon-pill accent"
-                  aria-label={t(language, 'home.dashboard')}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="7" height="7" rx="1.5" />
-                    <rect x="14" y="3" width="7" height="7" rx="1.5" />
-                    <rect x="14" y="14" width="7" height="7" rx="1.5" />
-                    <rect x="3" y="14" width="7" height="7" rx="1.5" />
-                  </svg>
-                  <span className="icon-pill-label">{t(language, 'home.dashboard')}</span>
-                </Link>
-
-                {/* 4. Icon Đăng xuất */}
-                <button
-                  type="button"
-                  onClick={async () => {
-                    try {
-                      await logout();
-                      navigate('/');
-                      window.location.reload();
-                    } catch (error) {
-                      console.error('Logout error:', error);
-                    }
-                  }}
-                  className="header-icon-pill"
-                  aria-label={t(language, 'home.logout')}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                    <polyline points="16 17 21 12 16 7" />
-                    <line x1="21" y1="12" x2="9" y2="12" />
-                  </svg>
-                  <span className="icon-pill-label">{t(language, 'home.logout')}</span>
-                </button>
-              </>
-            ) : (
-              <>
-                {/* 3. Icon Đăng nhập */}
-                <Link
-                  to="/login"
-                  className="header-icon-pill"
-                  aria-label={t(language, 'home.login')}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                    <polyline points="10 17 15 12 10 7" />
-                    <line x1="15" y1="12" x2="3" y2="12" />
-                  </svg>
-                  <span className="icon-pill-label">{t(language, 'home.login')}</span>
-                </Link>
-
-                {/* 4. Icon Đăng ký */}
-                <Link
-                  to="/register"
-                  className="header-icon-pill accent"
-                  aria-label={t(language, 'home.register')}
-                >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="8.5" cy="7" r="4" />
-                    <line x1="20" y1="8" x2="20" y2="14" />
-                    <line x1="23" y1="11" x2="17" y2="11" />
-                  </svg>
-                  <span className="icon-pill-label">{t(language, 'home.register')}</span>
-                </Link>
-              </>
-            )}
-          </nav>
+          {/* Menu chữ dạng giọt (ReactBits GooeyNav) */}
+          <GooeyNav
+            className="home-gooey-nav"
+            items={navItems}
+            activeIndex={navIndex}
+            onChange={handleNav}
+            theme="dark"
+            size="md"
+            frame
+            particleCount={15}
+            spread={56}
+            animationTime={600}
+            timeVariance={300}
+            gooeyness={0.5}
+            wobble={0.5}
+            hoverEffect
+          />
         </div>
       </header>
 
@@ -227,20 +204,35 @@ export default function Home() {
             </p>
             <div className="hero-buttons">
               {currentUser ? (
-                <Link to="/dashboard" className="btn-primary">
-                  <div className="button-top">{t(language, 'home.goToDashboard')}</div>
-                  <div className="button-bottom" />
-                  <div className="button-base" />
-                </Link>
+                <>
+                  <Link to="/dashboard" className="btn-primary">
+                    <div className="button-top">{t(language, 'home.goToDashboard')}</div>
+                    <div className="button-bottom" />
+                    <div className="button-base" />
+                  </Link>
+                  <Link to="/premium?code=KONONE7DAYS" className="btn-trial-lux">
+                    <span className="btn-trial-icon">
+                      <DiamondIcon size={16} />
+                    </span>
+                    <span className="btn-trial-text">
+                      <span className="btn-trial-title">{L('Dùng thử Premium', 'Try Premium')}</span>
+                      <span className="btn-trial-sub">{L('Miễn phí 7 ngày', 'Free for 7 days')}</span>
+                    </span>
+                    <svg className="btn-trial-arrow" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <line x1="5" y1="12" x2="19" y2="12" />
+                      <polyline points="12 5 19 12 12 19" />
+                    </svg>
+                  </Link>
+                </>
               ) : (
                 <>
                   <Link to="/register" className="btn-primary">
-                    <div className="button-top">Explore</div>
+                    <div className="button-top">{L("Khám phá", "Explore")}</div>
                     <div className="button-bottom" />
                     <div className="button-base" />
                   </Link>
                   <Link to="/login" className="btn-secondary">
-                    How it works?
+                    {L("Cách hoạt động?", "How it works?")}
                   </Link>
                 </>
               )}
@@ -252,7 +244,7 @@ export default function Home() {
             <div className="hero-image-halo" aria-hidden="true" />
             <img
               src="profile_showcase_bg.png"
-              alt="Profile Showcase"
+              alt={L("Hồ sơ mẫu", "Profile Showcase")}
               className="hero-showcase-image"
             />
           </div>
@@ -270,20 +262,19 @@ export default function Home() {
             <div className="dashboard-image-wrapper scroll-animate slide-in-left">
               <img
                 src="dashboard_showcase.png"
-                alt="Dashboard Showcase"
+                alt={L("Giao diện bảng điều khiển", "Dashboard Showcase")}
                 className="dashboard-showcase-image"
               />
             </div>
 
             {/* Right Side - Info Description */}
             <div className="dashboard-info-text scroll-animate slide-in-right">
-              <div className="features-label">Dashboard View</div>
+              <div className="features-label">{L("Bảng điều khiển", "Dashboard View")}</div>
               <h2 className="dashboard-info-title">
-                Powerful Dashboard<br />to Manage Everything
+                {L("Bảng điều khiển mạnh mẽ", "Powerful Dashboard")}<br />{L("quản lý mọi thứ", "to Manage Everything")}
               </h2>
               <p className="dashboard-info-description">
-                Control every aspect of your profile from our intuitive dashboard.
-                Monitor your views, customize your layout, and update your information in real-time.
+                {L("Điều khiển mọi chi tiết hồ sơ từ bảng điều khiển trực quan. Theo dõi lượt xem, tùy chỉnh bố cục và cập nhật thông tin theo thời gian thực.", "Control every aspect of your profile from our intuitive dashboard. Monitor your views, customize your layout, and update your information in real-time.")}
               </p>
 
               <div className="dashboard-features-list">
@@ -296,7 +287,7 @@ export default function Home() {
                   </div> */}
                   <div className="feature-info">
                     <h4>{t(language, 'home.views')}</h4>
-                    <p>Track your profile analytics and engagement.</p>
+                    <p>{L("Theo dõi lượt xem và tương tác của hồ sơ.", "Track your profile analytics and engagement.")}</p>
                   </div>
                 </div>
 
@@ -309,8 +300,8 @@ export default function Home() {
                     </svg>
                   </div> */}
                   <div className="feature-info">
-                    <h4>Easy Customization</h4>
-                    <p>Personalize your page with various layouts and themes.</p>
+                    <h4>{L("Tùy chỉnh dễ dàng", "Easy Customization")}</h4>
+                    <p>{L("Cá nhân hóa trang với nhiều bố cục và giao diện.", "Personalize your page with various layouts and themes.")}</p>
                   </div>
                 </div>
               </div>
@@ -353,19 +344,19 @@ export default function Home() {
               <ul className="pricing-features">
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Basic customization
+                  {L("Tùy chỉnh cơ bản", "Basic customization")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Profile statistics
+                  {L("Thống kê hồ sơ", "Profile statistics")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Basic effects
+                  {L("Hiệu ứng cơ bản", "Basic effects")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Add social networks
+                  {L("Thêm mạng xã hội", "Add social networks")}
                 </li>
               </ul>
               {currentUser ? (
@@ -396,31 +387,31 @@ export default function Home() {
               <ul className="pricing-features">
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Exclusive badge
+                  {L("Huy hiệu độc quyền", "Exclusive badge")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Profile layout
+                  {L("Bố cục hồ sơ", "Profile layout")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Custom font
+                  {L("Phông chữ tùy chỉnh", "Custom font")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Typewriter effect
+                  {L("Hiệu ứng gõ chữ", "Typewriter effect")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Special profile effect
+                  {L("Hiệu ứng hồ sơ đặc biệt", "Special profile effect")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Advanced customization
+                  {L("Tùy chỉnh nâng cao", "Advanced customization")}
                 </li>
                 <li className="feature-item">
                   <span className="checkmark">✓</span>
-                  Integrate multiple platforms
+                  {L("Tích hợp nhiều nền tảng", "Integrate multiple platforms")}
                 </li>
               </ul>
               <Link to="/register" className="pricing-button premium-button">
@@ -450,7 +441,7 @@ export default function Home() {
                 </div>
               </div>
               <p className="footer-description">
-                Create feature-rich, customizable and modern link-in-bio pages with KonOne.
+                {L("Tạo trang link-in-bio hiện đại, nhiều tính năng và dễ tùy biến với KonOne.", "Create feature-rich, customizable and modern link-in-bio pages with KonOne.")}
               </p>
 
             </div>
@@ -459,45 +450,45 @@ export default function Home() {
             <div className="footer-links">
               {/* General */}
               <div className="footer-column">
-                <h4 className="footer-column-title">General</h4>
+                <h4 className="footer-column-title">{L("Chung", "General")}</h4>
                 <ul className="footer-link-list">
-                  <li><Link to="/login">Login</Link></li>
-                  <li><Link to="/register">Sign Up</Link></li>
-                  <li><a href="#pricing">Pricing</a></li>
-                  <li><a href="#features">Reset Password</a></li>
-                  <li><a href="#features">Website Status</a></li>
+                  <li><Link to="/login">{L("Đăng nhập", "Login")}</Link></li>
+                  <li><Link to="/register">{L("Đăng ký", "Sign Up")}</Link></li>
+                  <li><a href="#pricing">{L("Bảng giá", "Pricing")}</a></li>
+                  <li><a href="#features">{L("Đặt lại mật khẩu", "Reset Password")}</a></li>
+                  <li><a href="#features">{L("Trạng thái hệ thống", "Website Status")}</a></li>
                 </ul>
               </div>
 
               {/* Resources */}
               <div className="footer-column">
-                <h4 className="footer-column-title">Resources</h4>
+                <h4 className="footer-column-title">{L("Tài nguyên", "Resources")}</h4>
                 <ul className="footer-link-list">
 
-                  <li><a href="#features">Changelog</a></li>
-                  <li><Link to="/premium">Redeem Code</Link></li>
+                  <li><a href="#features">{L("Nhật ký cập nhật", "Changelog")}</a></li>
+                  <li><Link to="/premium">{L("Đổi mã", "Redeem Code")}</Link></li>
                   <li><a href="#features">Salad.com Product</a></li>
                 </ul>
               </div>
 
               {/* Contact */}
               <div className="footer-column">
-                <h4 className="footer-column-title">Contact</h4>
+                <h4 className="footer-column-title">{L("Liên hệ", "Contact")}</h4>
                 <ul className="footer-link-list">
                   <li><a href="#features">Discord Server</a></li>
-                  <li><a href="mailto:support@konone.com">Support Email</a></li>
-                  <li><a href="mailto:business@konone.com">Business Email</a></li>
-                  <li><a href="mailto:konone@gmail.com">Legal Email</a></li>
+                  <li><a href="mailto:support@konone.com">{L("Email hỗ trợ", "Support Email")}</a></li>
+                  <li><a href="mailto:business@konone.com">{L("Email hợp tác", "Business Email")}</a></li>
+                  <li><a href="mailto:konone@gmail.com">{L("Email pháp lý", "Legal Email")}</a></li>
                 </ul>
               </div>
 
               {/* Legal */}
               <div className="footer-column">
-                <h4 className="footer-column-title">Legal</h4>
+                <h4 className="footer-column-title">{L("Pháp lý", "Legal")}</h4>
                 <ul className="footer-link-list">
-                  <li><Link to="/terms">Terms of Service</Link></li>
-                  <li><Link to="/privacy">Privacy Policy</Link></li>
-                  <li><Link to="/copyright">Copyright Policy</Link></li>
+                  <li><Link to="/terms">{L("Điều khoản dịch vụ", "Terms of Service")}</Link></li>
+                  <li><Link to="/privacy">{L("Chính sách bảo mật", "Privacy Policy")}</Link></li>
+                  <li><Link to="/copyright">{L("Chính sách bản quyền", "Copyright Policy")}</Link></li>
                 </ul>
               </div>
             </div>
@@ -506,7 +497,7 @@ export default function Home() {
           {/* Bottom Section */}
           <div className="footer-bottom">
             <div className="footer-copyright">
-              Copyright © {new Date().getFullYear()} KonOne - All Rights Reserved | Developed by <span>Tigerrr</span>
+              {L("Bản quyền ©", "Copyright ©")}{' '}{new Date().getFullYear()}{' '}{L("KonOne - Bảo lưu mọi quyền | Phát triển bởi", "KonOne - All Rights Reserved | Developed by")}{' '}<span>KonOne Team</span>
             </div>
 
             <div className="footer-social">

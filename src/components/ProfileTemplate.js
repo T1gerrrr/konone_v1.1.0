@@ -1,11 +1,15 @@
 import React, { useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../contexts/LanguageContext';
+import { notifyError, notifySuccess } from '../notify/notify';
 import { uploadToCloudinary } from '../config/cloudinary';
 import './ProfileTemplate.css';
 
 export default function ProfileTemplate() {
   const { currentUser } = useAuth();
+  const { language } = useLanguage();
+  const L = (vi, en) => (language === 'vi' ? vi : en);
   const navigate = useNavigate();
   const [uploadingSection, setUploadingSection] = useState(null);
 
@@ -32,12 +36,12 @@ export default function ProfileTemplate() {
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      alert('Vui lòng chọn file ảnh');
+      notifyError(L("Vui lòng chọn file ảnh", "Please choose an image file"));
       return;
     }
 
     if (file.size > 10 * 1024 * 1024) {
-      alert('Kích thước ảnh không được vượt quá 10MB');
+      notifyError(L("Kích thước ảnh không được vượt quá 10MB", "Image size must not exceed 10MB"));
       return;
     }
 
@@ -51,7 +55,7 @@ export default function ProfileTemplate() {
       }));
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Lỗi khi tải ảnh lên: ' + error.message);
+      notifyError(L('Lỗi khi tải ảnh lên: ', 'Image upload failed: ') + error.message);
     } finally {
       setUploadingSection(null);
     }
@@ -80,7 +84,7 @@ export default function ProfileTemplate() {
   function handleSaveTemplate() {
     // Lưu template vào localStorage hoặc Firestore
     localStorage.setItem('profileTemplate', JSON.stringify(templateData));
-    alert('Template đã được lưu thành công!');
+    notifySuccess(L("Template đã được lưu thành công!", "Template saved successfully!"));
   }
 
   function handleApplyToProfile() {
@@ -94,15 +98,15 @@ export default function ProfileTemplate() {
       <header className="template-header">
         <div className="template-header-content">
           <button onClick={() => navigate('/dashboard')} className="back-btn">
-            ← Quay lại
+            {L("← Quay lại", "← Back")}
           </button>
-          <h1 className="template-title">Profile Template</h1>
+          <h1 className="template-title">{L("Mẫu hồ sơ", "Profile Template")}</h1>
           <div className="template-actions">
             <button onClick={handleSaveTemplate} className="save-btn">
-              💾 Lưu Template
+              {L("💾 Lưu mẫu", "💾 Save Template")}
             </button>
             <button onClick={handleApplyToProfile} className="apply-btn">
-              ✨ Áp dụng vào Profile
+              {L("✨ Áp dụng vào hồ sơ", "✨ Apply to Profile")}
             </button>
           </div>
         </div>
@@ -113,10 +117,10 @@ export default function ProfileTemplate() {
         <div className="template-container">
           {/* Instructions */}
           <div className="template-instructions">
-            <p>📌 Nhấn vào các vùng để upload ảnh tương ứng</p>
-            <p>🖼️ Background: Nhấn vào nền để upload ảnh nền</p>
-            <p>👤 Avatar: Nhấn vào avatar để upload ảnh đại diện</p>
-            <p>📸 Sections: Nhấn vào các phần để upload ảnh</p>
+            <p>{L("📌 Nhấn vào các vùng để tải ảnh tương ứng", "📌 Click each area to upload its image")}</p>
+            <p>{L("🖼️ Nền: nhấn vào nền để tải ảnh nền", "🖼️ Background: click the background to upload")}</p>
+            <p>{L("👤 Ảnh đại diện: nhấn vào avatar để tải ảnh", "👤 Avatar: click the avatar to upload")}</p>
+            <p>{L("📸 Các phần: nhấn vào từng phần để tải ảnh", "📸 Sections: click a section to upload")}</p>
           </div>
 
           {/* Template Preview */}
@@ -135,13 +139,13 @@ export default function ProfileTemplate() {
                 {uploadingSection === 'background' && (
                   <div className="uploading-overlay">
                     <div className="upload-spinner"></div>
-                    <p>Đang tải lên...</p>
+                    <p>{L("Đang tải lên...", "Uploading...")}</p>
                   </div>
                 )}
                 {!templateData.background && !uploadingSection && (
                   <div className="upload-hint">
                     <span className="hint-icon">🖼️</span>
-                    <span className="hint-text">Nhấn để upload Background</span>
+                    <span className="hint-text">{L("Nhấn để tải ảnh nền", "Click to upload background")}</span>
                   </div>
                 )}
                 {templateData.background && (
@@ -177,7 +181,7 @@ export default function ProfileTemplate() {
                     </div>
                   ) : templateData.avatar ? (
                     <>
-                      <img src={templateData.avatar} alt="Avatar" />
+                      <img src={templateData.avatar} alt={L("Ảnh đại diện", "Avatar")} />
                       <button
                         className="remove-image-btn small"
                         onClick={(e) => {
@@ -191,7 +195,7 @@ export default function ProfileTemplate() {
                   ) : (
                     <div className="upload-hint">
                       <span className="hint-icon">👤</span>
-                      <span className="hint-text">Avatar</span>
+                      <span className="hint-text">{L("Ảnh đại diện", "Avatar")}</span>
                     </div>
                   )}
                   <input
@@ -205,7 +209,7 @@ export default function ProfileTemplate() {
 
                 {/* Name Section */}
                 <div className="template-name-section">
-                  <h2 className="template-name">Your Name</h2>
+                  <h2 className="template-name">{L("Tên của bạn", "Your Name")}</h2>
                   <p className="template-username">@username</p>
                 </div>
 
@@ -222,7 +226,7 @@ export default function ProfileTemplate() {
                       </div>
                     ) : templateData.section1 ? (
                       <>
-                        <img src={templateData.section1} alt="Section 1" />
+                        <img src={templateData.section1} alt={L("Phần 1", "Section 1")} />
                         <button
                           className="remove-image-btn small"
                           onClick={(e) => {
@@ -236,7 +240,7 @@ export default function ProfileTemplate() {
                     ) : (
                       <div className="upload-hint">
                         <span className="hint-icon">📸</span>
-                        <span className="hint-text">Section 1</span>
+                        <span className="hint-text">{L("Phần 1", "Section 1")}</span>
                       </div>
                     )}
                     <input
@@ -259,7 +263,7 @@ export default function ProfileTemplate() {
                       </div>
                     ) : templateData.section2 ? (
                       <>
-                        <img src={templateData.section2} alt="Section 2" />
+                        <img src={templateData.section2} alt={L("Phần 2", "Section 2")} />
                         <button
                           className="remove-image-btn small"
                           onClick={(e) => {
@@ -273,7 +277,7 @@ export default function ProfileTemplate() {
                     ) : (
                       <div className="upload-hint">
                         <span className="hint-icon">📸</span>
-                        <span className="hint-text">Section 2</span>
+                        <span className="hint-text">{L("Phần 2", "Section 2")}</span>
                       </div>
                     )}
                     <input
@@ -296,7 +300,7 @@ export default function ProfileTemplate() {
                       </div>
                     ) : templateData.section3 ? (
                       <>
-                        <img src={templateData.section3} alt="Section 3" />
+                        <img src={templateData.section3} alt={L("Phần 3", "Section 3")} />
                         <button
                           className="remove-image-btn small"
                           onClick={(e) => {
@@ -310,7 +314,7 @@ export default function ProfileTemplate() {
                     ) : (
                       <div className="upload-hint">
                         <span className="hint-icon">📸</span>
-                        <span className="hint-text">Section 3</span>
+                        <span className="hint-text">{L("Phần 3", "Section 3")}</span>
                       </div>
                     )}
                     <input
@@ -333,7 +337,7 @@ export default function ProfileTemplate() {
                       </div>
                     ) : templateData.section4 ? (
                       <>
-                        <img src={templateData.section4} alt="Section 4" />
+                        <img src={templateData.section4} alt={L("Phần 4", "Section 4")} />
                         <button
                           className="remove-image-btn small"
                           onClick={(e) => {
@@ -347,7 +351,7 @@ export default function ProfileTemplate() {
                     ) : (
                       <div className="upload-hint">
                         <span className="hint-icon">📸</span>
-                        <span className="hint-text">Section 4</span>
+                        <span className="hint-text">{L("Phần 4", "Section 4")}</span>
                       </div>
                     )}
                     <input
