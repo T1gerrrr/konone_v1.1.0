@@ -1,7 +1,13 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { 
-  signInWithEmailAndPassword, 
+import {
+  signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  signInWithPopup,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
   signOut,
   onAuthStateChanged,
   sendPasswordResetEmail
@@ -22,8 +28,16 @@ export function AuthProvider({ children }) {
     return createUserWithEmailAndPassword(auth, email, password);
   }
 
-  function login(email, password) {
+  // remember = false: chỉ giữ đăng nhập trong phiên trình duyệt hiện tại
+  async function login(email, password, remember = true) {
+    await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence);
     return signInWithEmailAndPassword(auth, email, password);
+  }
+
+  // Đăng nhập bằng Google / GitHub (popup)
+  function loginWithProvider(name) {
+    const provider = name === 'github' ? new GithubAuthProvider() : new GoogleAuthProvider();
+    return signInWithPopup(auth, provider);
   }
 
   function logout() {
@@ -79,6 +93,7 @@ export function AuthProvider({ children }) {
     currentUser,
     signup,
     login,
+    loginWithProvider,
     logout,
     sendVerificationEmail,
     verifyOtp,

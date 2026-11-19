@@ -1,6 +1,6 @@
 // Kiểm tra mã OTP; nếu đúng thì đánh dấu emailVerified = true cho user.
 const crypto = require('crypto');
-const { getAdmin, requireUser } = require('./_lib/common');
+const { adminAuth, adminDb, requireUser } = require('./_lib/common');
 
 const MAX_ATTEMPTS = 5;
 
@@ -23,7 +23,7 @@ module.exports = async function handler(req, res) {
     const code = String((req.body && req.body.code) || '').trim();
     if (!/^\d{6}$/.test(code)) throw fail(400, 'otp/invalid-format', 'Mã phải gồm 6 chữ số');
 
-    const db = getAdmin().firestore();
+    const db = adminDb();
     const ref = db.collection('emailOtps').doc(uid);
 
     // Transaction để chống gửi nhiều request song song nhằm dò mã
@@ -55,7 +55,7 @@ module.exports = async function handler(req, res) {
     });
     if (failure) throw failure;
 
-    await getAdmin().auth().updateUser(uid, { emailVerified: true });
+    await adminAuth().updateUser(uid, { emailVerified: true });
     return res.status(200).json({ ok: true });
   } catch (err) {
     if (!err.otpCode) console.error('verify-otp error:', err);

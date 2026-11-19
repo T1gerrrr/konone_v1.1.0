@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import './Auth.css';
+import AuthLayout from './AuthLayout';
 
 const RESEND_COOLDOWN = 60;
 
@@ -74,10 +74,9 @@ export default function VerifyEmail() {
   }
 
   return (
-    <div className="auth-container">
-      <img src="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png" alt="KonOne Logo" className="auth-logo" />
-      <div className="auth-card">
-        <h2>VERIFY EMAIL</h2>
+    <AuthLayout>
+        <h1 className="auth-title">Verify email</h1>
+        <p className="auth-subtitle">One last step to activate your account</p>
         {error && <div className="error-message">{error}</div>}
         {info && <div className="success-message">{info}</div>}
         <div className="verification-notice">
@@ -116,7 +115,6 @@ export default function VerifyEmail() {
         <p className="auth-link">
           Sai tài khoản? <a href="/login" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Đăng xuất</a>
         </p>
-      </div>
-    </div>
+    </AuthLayout>
   );
 }

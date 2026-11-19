@@ -2,7 +2,7 @@
 // Env: GMAIL_USER, GMAIL_APP_PASSWORD, FIREBASE_SERVICE_ACCOUNT
 const crypto = require('crypto');
 const nodemailer = require('nodemailer');
-const { getAdmin, requireUser } = require('./_lib/common');
+const { adminAuth, adminDb, requireUser } = require('./_lib/common');
 
 const OTP_TTL_MS = 10 * 60 * 1000; // mã có hạn 10 phút
 const RESEND_COOLDOWN_MS = 60 * 1000; // 60 giây mới được gửi lại
@@ -42,7 +42,7 @@ module.exports = async function handler(req, res) {
     if (!email) return res.status(400).json({ error: 'User has no email' });
     if (decoded.email_verified) return res.status(200).json({ ok: true, alreadyVerified: true });
 
-    const ref = getAdmin().firestore().collection('emailOtps').doc(uid);
+    const ref = adminDb().collection('emailOtps').doc(uid);
     const snap = await ref.get();
     const now = Date.now();
     if (snap.exists) {

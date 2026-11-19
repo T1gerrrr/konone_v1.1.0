@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, Link } from 'react-router-dom';
-import './Auth.css';
+import AuthLayout from './AuthLayout';
+import { PasswordInput, SocialButtons } from './AuthWidgets';
 
 export default function Register() {
   const [email, setEmail] = useState('');
@@ -41,52 +42,64 @@ export default function Register() {
     setLoading(false);
   }
 
+  function handleSocial(user) {
+    navigate(user.emailVerified ? '/dashboard' : '/verify-email');
+  }
+
   return (
-    <div className="auth-container">
-      <img src="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png" alt="KonOne Logo" className="auth-logo" />
-      <div className="auth-card">
-        <h2>REGISTER</h2>
-        {error && <div className="error-message">{error}</div>}
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="Enter your email"
-            />
-          </div>
-          <div className="form-group">
-            <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="Enter your password (minimum 6 characters)"
-              minLength={6}
-            />
-          </div>
-          <div className="form-group">
-            <label>Confirm Password</label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              placeholder="Enter your password again"
-            />
-          </div>
-          <button type="submit" disabled={loading} className="auth-button">
-            {loading ? 'Registering...' : 'Register'}
-          </button>
-        </form>
-        <p className="auth-link">
-          Already have an account? <Link to="/login">Login</Link>
-        </p>
-      </div>
-    </div>
+    <AuthLayout>
+      <h1 className="auth-title">Create account</h1>
+      <p className="auth-subtitle">Start building your KonOne profile</p>
+
+      {error && <div className="error-message">{error}</div>}
+
+      <form onSubmit={handleSubmit}>
+        <div className="form-group">
+          <label htmlFor="reg-email">Email</label>
+          <input
+            id="reg-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            placeholder="Enter your email"
+            autoComplete="email"
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="reg-password">Password</label>
+          <PasswordInput
+            id="reg-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            placeholder="Minimum 6 characters"
+            autoComplete="new-password"
+          />
+        </div>
+        <div className="form-group">
+          <label htmlFor="reg-confirm">Confirm Password</label>
+          <PasswordInput
+            id="reg-confirm"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            placeholder="Enter your password again"
+            autoComplete="new-password"
+          />
+        </div>
+
+        <button type="submit" disabled={loading} className="auth-button" style={{ marginTop: 10 }}>
+          {loading ? 'Registering...' : 'Sign up'}
+        </button>
+      </form>
+
+      <SocialButtons onSuccess={handleSocial} onError={setError} disabled={loading} />
+
+      <p className="auth-link">
+        Already have an account? <Link to="/login">Login</Link>
+      </p>
+    </AuthLayout>
   );
 }
