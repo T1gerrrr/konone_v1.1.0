@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
@@ -128,6 +128,20 @@ export function AuthProvider({ children }) {
     return data;
   }
 
+  // API quản trị (api/admin.js) — định danh hàm ổn định để dùng trong useEffect
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const adminCall = useCallback(async (body) => {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Chưa đăng nhập');
+    return callApi(user, '/api/admin', body);
+  }, []);
+
+  async function claimInviteReward(milestoneId, choice) {
+    const user = auth.currentUser;
+    if (!user) throw new Error('Chưa đăng nhập');
+    return callApi(user, '/api/invite', { action: 'claim', milestoneId, choice });
+  }
+
   async function redeemInviteCode(code) {
     const user = auth.currentUser;
     if (!user) throw new Error('Chưa đăng nhập');
@@ -156,7 +170,9 @@ export function AuthProvider({ children }) {
     reauthenticate,
     deleteAccount,
     getInviteInfo,
-    redeemInviteCode
+    redeemInviteCode,
+    claimInviteReward,
+    adminCall
   };
 
   return (

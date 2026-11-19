@@ -16,6 +16,7 @@ import ProfileEditor from './components/ProfileEditor';
 import PublicProfile from './components/PublicProfile';
 import Premium from './components/Premium';
 import Invite from './components/Invite';
+import Admin from './components/Admin';
 import Community from './components/Community';
 import ProfileTemplate from './components/ProfileTemplate';
 import LayoutEditor from './components/LayoutEditor';
@@ -60,6 +61,14 @@ function App() {
                 element={
                   <PrivateRoute>
                     <LinksPage />
+                  </PrivateRoute>
+                }
+              />
+              <Route
+                path="/admin"
+                element={
+                  <PrivateRoute>
+                    <Admin />
                   </PrivateRoute>
                 }
               />

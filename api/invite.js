@@ -10,24 +10,9 @@
 //   inviteRedemptions/{uid}   { code, inviterUid, redeemedAt }
 // Đồng bộ sang hồ sơ (profiles) để xem trực tiếp trong database:
 //   inviteCode (mã của tôi), inviteCount (số lần có người nhập mã của tôi), invitedByCode (mã tôi đã nhập)
-const crypto = require('crypto');
 const { FieldValue } = require('firebase-admin/firestore');
 const { adminAuth, adminDb, requireUser } = require('./_lib/common');
-
-// Bỏ các ký tự dễ nhầm: 0/O, 1/I
-const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-const CODE_LENGTH = 8;
-
-function randomCode() {
-  const bytes = crypto.randomBytes(CODE_LENGTH);
-  let out = '';
-  for (let i = 0; i < CODE_LENGTH; i++) out += ALPHABET[bytes[i] % ALPHABET.length];
-  return out;
-}
-
-function normalize(raw) {
-  return String(raw || '').trim().toUpperCase().replace(/[\s-]/g, '');
-}
+const { loadConfig, eventState, CODE_LENGTH, randomCode, normalizeCode: normalize, isValidCode } = require('./_lib/inviteEvent');
 
 async function getOrCreateOwnCode(db, uid) {
   const existing = await db.collection('inviteCodes').where('uid', '==', uid).limit(1).get();
@@ -96,9 +81,15 @@ module.exports = async function handler(req, res) {
       return res.status(403).json({ error: 'Bạn cần tạo hồ sơ public trước khi dùng mã mời.', code: 'invite/profile-required' });
     }
 
+    const config = await loadConfig(db);
+    const MILESTONES = config.milestones;
+
     if (body.action === 'redeem') {
+      if (eventState(config) !== 'active') {
+        return res.status(403).json({ error: 'Sự kiện mời bạn hiện không diễn ra.', code: 'invite/event-closed' });
+      }
       const code = normalize(body.code);
-      if (code.length !== CODE_LENGTH || ![...code].every((c) => ALPHABET.includes(c))) {
+      if (!isValidCode(code)) {
         return res.status(400).json({ error: 'Mã mời không hợp lệ.', code: 'invite/invalid' });
       }
 
@@ -114,14 +105,18 @@ module.exports = async function handler(req, res) {
         const [codeSnap, redeemedSnap] = await Promise.all([tx.get(codeRef), tx.get(redemptionRef)]);
         if (redeemedSnap.exists) return { error: 'Bạn đã nhập mã mời rồi.', code: 'invite/already-redeemed', status: 409 };
         if (!codeSnap.exists) return { error: 'Mã mời không tồn tại.', code: 'invite/not-found', status: 404 };
-        const inviterUid = codeSnap.data().uid;
-        if (inviterUid === uid) return { error: 'Bạn không thể nhập mã của chính mình.', code: 'invite/own-code', status: 400 };
+        const inviterUid = codeSnap.data().uid || null; // null = mã do admin tạo (không có người mời)
+        const maxUses = codeSnap.data().maxUses || 0;
+        if (maxUses && (codeSnap.data().uses || 0) >= maxUses) return { error: 'Mã này đã hết lượt dùng.', code: 'invite/code-exhausted', status: 409 };
+        if (inviterUid && inviterUid === uid) return { error: 'Bạn không thể nhập mã của chính mình.', code: 'invite/own-code', status: 400 };
 
-        // Người mời phải còn tồn tại
-        try {
-          await adminAuth().getUser(inviterUid);
-        } catch (e) {
-          return { error: 'Mã mời không còn hiệu lực.', code: 'invite/not-found', status: 404 };
+        // Người mời (nếu có) phải còn tồn tại
+        if (inviterUid) {
+          try {
+            await adminAuth().getUser(inviterUid);
+          } catch (e) {
+            return { error: 'Mã mời không còn hiệu lực.', code: 'invite/not-found', status: 404 };
+          }
         }
 
         // Mọi điều kiện hợp lệ -> mới ghi và cộng lượt (increment nguyên tử, không tăng 2 lần nhờ bản ghi theo uid)
@@ -134,11 +129,64 @@ module.exports = async function handler(req, res) {
 
       // Đồng bộ cột trên hồ sơ (không làm hỏng kết quả nếu lỗi)
       await Promise.all([
-        syncProfile(db, result.inviterUid, { inviteCount: result.uses }),
+        result.inviterUid ? syncProfile(db, result.inviterUid, { inviteCount: result.uses }) : Promise.resolve(),
         syncProfile(db, uid, { invitedByCode: code })
       ]).catch((e) => console.error('invite sync error:', e));
 
       return res.status(200).json({ ok: true, redeemedCode: code });
+    }
+
+    if (body.action === 'claim') {
+      if (eventState(config) !== 'active') {
+        return res.status(403).json({ error: 'Sự kiện mời bạn hiện không diễn ra.', code: 'invite/event-closed' });
+      }
+      const milestone = MILESTONES.find((m) => m.id === body.milestoneId);
+      if (!milestone) return res.status(400).json({ error: 'Cột mốc không hợp lệ.', code: 'invite/bad-milestone' });
+      const keys = milestone.choices.map((c) => c.key);
+      const choice = keys.length > 1 ? String(body.choice || '') : keys[0] || null;
+      if (keys.length && !keys.includes(choice)) {
+        return res.status(400).json({ error: 'Vui lòng chọn phần quà.', code: 'invite/choice-required' });
+      }
+      if (!decoded.email_verified) {
+        return res.status(403).json({ error: 'Vui lòng xác minh email trước khi nhận quà.', code: 'invite/email-not-verified' });
+      }
+
+      const claimRef = db.collection('inviteClaims').doc(`${uid}_${milestone.id}`);
+      const statRef = db.collection('inviteRewardStats').doc(milestone.id);
+      const codeQuery = db.collection('inviteCodes').where('uid', '==', uid).limit(1);
+      const profileQuery = db.collection('profiles').where('userId', '==', uid);
+
+      const result = await db.runTransaction(async (tx) => {
+        const [claimSnap, statSnap, codeSnap, profileSnap] = await Promise.all([
+          tx.get(claimRef), tx.get(statRef), tx.get(codeQuery), tx.get(profileQuery)
+        ]);
+        if (claimSnap.exists) return { error: 'Bạn đã nhận phần quà này rồi.', code: 'invite/already-claimed', status: 409 };
+        const uses = codeSnap.empty ? 0 : codeSnap.docs[0].data().uses || 0;
+        if (uses < milestone.need) {
+          return { error: 'Bạn chưa đạt cột mốc này.', code: 'invite/not-reached', status: 400 };
+        }
+        const claimed = statSnap.exists ? statSnap.data().claimed || 0 : 0;
+        if (claimed >= milestone.slots) return { error: 'Phần quà này đã hết slot.', code: 'invite/sold-out', status: 409 };
+
+        // Mọi điều kiện hợp lệ -> giữ slot
+        tx.set(statRef, { claimed: claimed + 1 }, { merge: true });
+        tx.set(claimRef, {
+          uid, milestoneId: milestone.id, choice, reward: milestone.title.vi,
+          email: decoded.email || null, status: milestone.type === 'auto' ? 'granted' : 'pending',
+          usesAtClaim: uses, claimedAt: new Date()
+        });
+        if (milestone.type === 'auto' && !profileSnap.empty) {
+          const ref = profileSnap.docs[0].ref;
+          const cur = profileSnap.docs[0].data().premiumExpiresAt;
+          const curDate = cur && typeof cur.toDate === 'function' ? cur.toDate() : cur ? new Date(cur) : null;
+          const base = curDate && curDate > new Date() ? curDate : new Date();
+          tx.update(ref, { isPremium: true, premiumExpiresAt: new Date(base.getTime() + milestone.days * 86400000) });
+        }
+        return { ok: true, status: milestone.type === 'auto' ? 'granted' : 'pending' };
+      });
+
+      if (result.error) return res.status(result.status).json({ error: result.error, code: result.code });
+      return res.status(200).json({ ok: true, milestoneId: milestone.id, status: result.status });
     }
 
     // Mặc định: lấy thông tin mã mời của tôi
@@ -149,10 +197,24 @@ module.exports = async function handler(req, res) {
       inviteCount: own.uses,
       ...(redeemed.exists ? { invitedByCode: redeemed.data().code } : {})
     }).catch((e) => console.error('invite sync error:', e));
+    const [stats, mine] = await Promise.all([
+      db.getAll(...MILESTONES.map((m) => db.collection('inviteRewardStats').doc(m.id))),
+      db.getAll(...MILESTONES.map((m) => db.collection('inviteClaims').doc(`${uid}_${m.id}`)))
+    ]);
+    const claimed = {};
+    const myClaims = {};
+    MILESTONES.forEach((m, i) => {
+      claimed[m.id] = stats[i].exists ? stats[i].data().claimed || 0 : 0;
+      if (mine[i].exists) myClaims[m.id] = { status: mine[i].data().status, choice: mine[i].data().choice };
+    });
     return res.status(200).json({
       code: own.code,
       uses: own.uses,
-      redeemedCode: redeemed.exists ? redeemed.data().code : null
+      redeemedCode: redeemed.exists ? redeemed.data().code : null,
+      event: { state: eventState(config), start: config.start, end: config.end },
+      milestones: MILESTONES,
+      claimed,
+      myClaims
     });
   } catch (err) {
     console.error('invite error:', err);

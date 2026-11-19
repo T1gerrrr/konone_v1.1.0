@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import AppSidebar from './AppSidebar';
 import UserMenu from './UserMenu';
+import InviteMilestones from './InviteMilestones';
 import './ProfileEditor.css';
 import './Invite.css';
 
@@ -22,7 +23,8 @@ const ERROR_VI = {
   'invite/own-code': 'Bạn không thể nhập mã của chính mình.',
   'invite/already-redeemed': 'Bạn đã nhập mã mời rồi.',
   'invite/email-not-verified': 'Vui lòng xác minh email trước khi nhập mã mời.',
-  'invite/profile-required': 'Bạn cần tạo hồ sơ public trước khi dùng mã mời.'
+  'invite/profile-required': 'Bạn cần tạo hồ sơ public trước khi dùng mã mời.',
+  'invite/event-closed': 'Sự kiện mời bạn hiện không diễn ra.'
 };
 const ERROR_EN = {
   'invite/invalid': 'Invalid invite code.',
@@ -30,11 +32,31 @@ const ERROR_EN = {
   'invite/own-code': 'You cannot use your own code.',
   'invite/already-redeemed': 'You have already used an invite code.',
   'invite/email-not-verified': 'Please verify your email before using an invite code.',
-  'invite/profile-required': 'You need a public profile before using invite codes.'
+  'invite/profile-required': 'You need a public profile before using invite codes.',
+  'invite/event-closed': 'The invite event is not running right now.'
+};
+
+const CLAIM_ERR = {
+  vi: {
+    'invite/not-reached': 'Bạn chưa đạt cột mốc này.',
+    'invite/sold-out': 'Phần quà này đã hết slot.',
+    'invite/already-claimed': 'Bạn đã nhận phần quà này rồi.',
+    'invite/choice-required': 'Vui lòng chọn phần quà.',
+    'invite/email-not-verified': 'Vui lòng xác minh email trước khi nhận quà.',
+    'invite/event-closed': 'Sự kiện hiện không diễn ra.'
+  },
+  en: {
+    'invite/not-reached': 'You have not reached this milestone.',
+    'invite/sold-out': 'This gift is sold out.',
+    'invite/already-claimed': 'You already claimed this gift.',
+    'invite/choice-required': 'Please pick a gift.',
+    'invite/email-not-verified': 'Please verify your email before claiming.',
+    'invite/event-closed': 'The event is not running.'
+  }
 };
 
 export default function Invite() {
-  const { currentUser, getInviteInfo, redeemInviteCode } = useAuth();
+  const { currentUser, getInviteInfo, redeemInviteCode, claimInviteReward } = useAuth();
   const { language } = useLanguage();
   const L = (vi, en) => (language === 'vi' ? vi : en);
 
@@ -74,6 +96,16 @@ export default function Invite() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
+
+  async function handleClaim(id, choice) {
+    try {
+      await claimInviteReward(id, choice);
+    } catch (err) {
+      throw new Error(CLAIM_ERR[language][err.code] || err.message || L('Có lỗi xảy ra.', 'Something went wrong.'));
+    }
+    const fresh = await getInviteInfo();
+    setInfo((prev) => ({ ...(prev || {}), ...fresh }));
+  }
 
   function copyCode() {
     if (!info?.code) return;
@@ -175,6 +207,8 @@ export default function Invite() {
               )}
             </section>
             )}
+
+            <InviteMilestones info={info} language={language} eligible={!loadError} onClaim={handleClaim} />
 
             {/* Nhập mã — tạm ẩn khi đã nhập 1 lần */}
             {!loadError && (!info?.redeemedCode || justRedeemed) && (

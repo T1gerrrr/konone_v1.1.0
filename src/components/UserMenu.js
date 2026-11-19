@@ -28,6 +28,7 @@ const ico = {
       <line x1="21" y1="12" x2="9" y2="12" />
     </>
   ),
+  shield: <path d="M12 3 4 6v6c0 5 3.4 8 8 9 4.6-1 8-4 8-9V6z" />,
   chevron: <polyline points="6 9 12 15 18 9" />
 };
 
@@ -41,7 +42,7 @@ function Svg({ children }) {
 
 // Avatar ở góc phải: bấm mở menu Tài khoản / Mã mời / Đăng xuất
 export default function UserMenu({ profile: profileProp, afterLogout = '/' }) {
-  const { currentUser, logout, signInMethod, getInviteInfo } = useAuth();
+  const { currentUser, logout, signInMethod, getInviteInfo, adminCall } = useAuth();
   const { language } = useLanguage();
   const navigate = useNavigate();
   const L = (vi, en) => (language === 'vi' ? vi : en);
@@ -50,6 +51,7 @@ export default function UserMenu({ profile: profileProp, afterLogout = '/' }) {
   const [showAccount, setShowAccount] = useState(false);
   const [fetched, setFetched] = useState(null);
   const [inviteCount, setInviteCount] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   const profile = profileProp || fetched;
 
@@ -79,6 +81,18 @@ export default function UserMenu({ profile: profileProp, afterLogout = '/' }) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentUser]);
+
+  // Tài khoản quản trị mới thấy mục "Quản trị" (server kiểm tra lại mọi thao tác)
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    let cancelled = false;
+    adminCall({ action: 'whoami' })
+      .then((r) => !cancelled && setIsAdmin(Boolean(r.admin)))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser, adminCall]);
 
   // Đóng khi bấm ra ngoài hoặc nhấn Esc
   useEffect(() => {
@@ -197,6 +211,21 @@ export default function UserMenu({ profile: profileProp, afterLogout = '/' }) {
             <Svg>{ico.gift}</Svg>
             <span>{L('Mã mời', 'Invite code')}</span>
           </button>
+
+          {isAdmin && (
+            <button
+              type="button"
+              className="um-item"
+              role="menuitem"
+              onClick={() => {
+                setOpen(false);
+                navigate('/admin');
+              }}
+            >
+              <Svg>{ico.shield}</Svg>
+              <span>{L('Quản trị', 'Admin')}</span>
+            </button>
+          )}
 
           <div className="um-sep" />
 
