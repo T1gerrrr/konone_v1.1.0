@@ -146,7 +146,16 @@ module.exports = async function handler(req, res) {
     return fail(res, 400, 'Dữ liệu không hợp lệ.', 'admin/bad-request');
   }
 
-  if (body.action === 'whoami') return res.status(200).json({ admin: isAdmin(decoded) });
+  if (body.action === 'whoami') {
+    const ok = isAdmin(decoded);
+    let reason = null;
+    if (!ok) {
+      if (!adminEmails().length) reason = 'no-env'; // chưa cấu hình ADMIN_EMAILS (hoặc chưa deploy lại sau khi thêm)
+      else if (!decoded.email_verified) reason = 'email-not-verified';
+      else reason = 'not-listed';
+    }
+    return res.status(200).json({ admin: ok, reason, email: decoded.email || null });
+  }
   if (!isAdmin(decoded)) return fail(res, 403, 'Không có quyền quản trị.', 'admin/forbidden');
 
   const db = adminDb();

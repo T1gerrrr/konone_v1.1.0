@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { lastNDays } from '../utils/dateKey';
 import ViewsChart from './ViewsChart';
@@ -25,20 +25,44 @@ export default function Admin() {
   const { adminCall } = useAuth();
   const navigate = useNavigate();
   const [allowed, setAllowed] = useState(null); // null = đang kiểm tra
+  const [denied, setDenied] = useState(null); // { reason, email, apiError }
   const [tab, setTab] = useState('overview');
 
   useEffect(() => {
     let cancelled = false;
     adminCall({ action: 'whoami' })
-      .then((r) => !cancelled && setAllowed(Boolean(r.admin)))
-      .catch(() => !cancelled && setAllowed(false));
+      .then((r) => {
+        if (cancelled) return;
+        setAllowed(Boolean(r.admin));
+        if (!r.admin) setDenied({ reason: r.reason, email: r.email });
+      })
+      .catch((e) => {
+        if (cancelled) return;
+        setAllowed(false);
+        setDenied({ apiError: e.code || e.message || 'unknown' });
+      });
     return () => {
       cancelled = true;
     };
   }, [adminCall]);
 
   if (allowed === null) return <div className="adm-loading">Đang kiểm tra quyền…</div>;
-  if (!allowed) return <Navigate to="/dashboard" replace />;
+  if (!allowed) {
+    const hint = denied?.apiError
+      ? `Không gọi được máy chủ API (${denied.apiError}). Hãy deploy lên Vercel hoặc chạy "vercel dev" — "npm start" không có /api.`
+      : denied?.reason === 'no-env'
+        ? 'Máy chủ chưa có biến môi trường ADMIN_EMAILS (hoặc chưa deploy lại sau khi thêm biến này).'
+        : denied?.reason === 'email-not-verified'
+          ? 'Email của tài khoản này chưa được xác minh.'
+          : `Email ${denied?.email || ''} không nằm trong ADMIN_EMAILS (kiểm tra chính tả, dấu phẩy, đúng tài khoản đang đăng nhập).`;
+    return (
+      <div className="adm-loading" style={{ flexDirection: 'column', gap: 14, textAlign: 'center', padding: 24 }}>
+        <strong style={{ color: '#fff', fontSize: 18 }}>Không có quyền vào trang quản trị</strong>
+        <span style={{ maxWidth: 520 }}>{hint}</span>
+        <Link to="/dashboard" className="adm-btn ghost" style={{ textDecoration: 'none' }}>Về Dashboard</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="adm">
