@@ -91,7 +91,7 @@ export default function Dashboard() {
       <aside className="dashboard-sidebar">
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <span className="logo-icon"></span>
+            <img src="/logo-konone-v1.png" alt="KonOne Logo" className="sidebar-logo-img" />
             <span className="logo-text">KONONE</span>
           </div>
         </div>

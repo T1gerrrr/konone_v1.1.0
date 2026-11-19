@@ -75,46 +75,62 @@ export default function VerifyEmail() {
 
   return (
     <AuthLayout>
-        <h1 className="auth-title">Verify email</h1>
-        <p className="auth-subtitle">One last step to activate your account</p>
-        {error && <div className="error-message">{error}</div>}
-        {info && <div className="success-message">{info}</div>}
-        <div className="verification-notice">
-          <p>Nhập mã 6 số đã gửi đến <strong>{currentUser.email}</strong></p>
-          <p className="verification-hint">Mã có hiệu lực 10 phút. Nếu không thấy, hãy kiểm tra <strong>Spam/Junk</strong>.</p>
+      <div className="auth-header-block">
+        <h1 className="auth-title">Verify Your Email</h1>
+        <p className="auth-subtitle">One Last Step to Activate Account</p>
+      </div>
+
+      {error && <div className="error-message">{error}</div>}
+      {info && <div className="success-message">{info}</div>}
+
+      <div className="verification-notice">
+        <p>Nhập mã 6 số đã gửi đến <strong>{currentUser.email}</strong></p>
+        <p className="verification-hint">Mã có hiệu lực 10 phút. Nếu không thấy, hãy kiểm tra <strong>Spam/Junk</strong>.</p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="auth-form">
+        <div className="form-group">
+          <input
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={code}
+            onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+            required
+            placeholder="• • • • • •"
+            aria-label="Verification Code"
+            className="otp-input"
+          />
         </div>
-        <form onSubmit={handleSubmit}>
-          <div className="form-group">
-            <label>Mã xác thực</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              maxLength={6}
-              value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-              required
-              placeholder="______"
-              style={{ textAlign: 'center', letterSpacing: '10px', fontSize: '24px' }}
-            />
-          </div>
-          <button type="submit" disabled={loading || code.length !== 6} className="auth-button">
-            {loading ? 'Verifying...' : 'Verify'}
-          </button>
-        </form>
-        <p className="auth-link">
-          <button
-            type="button"
-            className="resend-btn"
-            onClick={handleSend}
-            disabled={cooldown > 0}
-          >
-            {cooldown > 0 ? `Gửi lại mã (${cooldown}s)` : 'Gửi lại mã'}
-          </button>
-        </p>
-        <p className="auth-link">
-          Sai tài khoản? <a href="/login" onClick={(e) => { e.preventDefault(); handleLogout(); }}>Đăng xuất</a>
-        </p>
+        <button type="submit" disabled={loading || code.length !== 6} className="auth-button">
+          {loading ? 'Verifying...' : 'Verify Account'}
+        </button>
+      </form>
+
+      <div className="verify-actions">
+        <button
+          type="button"
+          className="resend-btn"
+          onClick={handleSend}
+          disabled={cooldown > 0}
+        >
+          {cooldown > 0 ? `Gửi lại mã (${cooldown}s)` : 'Gửi lại mã'}
+        </button>
+      </div>
+
+      <p className="auth-link">
+        Sai tài khoản?{' '}
+        <a
+          href="/login"
+          onClick={(e) => {
+            e.preventDefault();
+            handleLogout();
+          }}
+        >
+          Đăng xuất
+        </a>
+      </p>
     </AuthLayout>
   );
 }

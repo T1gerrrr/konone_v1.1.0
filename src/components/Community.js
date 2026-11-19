@@ -74,7 +74,7 @@ export default function Community() {
         <div className="community-header-content">
           <Link to="/" className="community-logo">
             <img
-              src="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png"
+              src="/logo-konone-v1.png"
               alt="KonOne Logo"
               className="logo-icon"
             />

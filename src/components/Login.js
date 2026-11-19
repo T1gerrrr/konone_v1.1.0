@@ -39,7 +39,7 @@ export default function Login() {
   async function handleForgot() {
     if (!email) {
       setInfo('');
-      return setError('Nhập email của bạn ở trên, rồi bấm "Forgot Password" lần nữa.');
+      return setError('Nhập email của bạn ở trên, rồi bấm "Forgot Password?" lần nữa.');
     }
     try {
       setError('');
@@ -53,56 +53,72 @@ export default function Login() {
 
   return (
     <AuthLayout>
-      <h1 className="auth-title">Welcome back</h1>
-      <p className="auth-subtitle">Please enter your account details</p>
+      <div className="auth-header-block">
+        <h1 className="auth-title">Login to Your Account</h1>
+        <p className="auth-subtitle">Your Own Digital Profile</p>
+      </div>
 
       {error && <div className="error-message">{error}</div>}
       {info && <div className="success-message">{info}</div>}
 
-      <form onSubmit={handleSubmit}>
+      <SocialButtons
+        mode="login"
+        onSuccess={goAfterLogin}
+        onError={setError}
+        disabled={loading}
+      />
+
+      <div className="auth-divider">
+        <span>OR</span>
+      </div>
+
+      <form onSubmit={handleSubmit} className="auth-form">
         <div className="form-group">
-          <label htmlFor="login-email">Email</label>
           <input
             id="login-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder="Enter your email"
+            placeholder="Email Address"
+            aria-label="Email Address"
             autoComplete="email"
           />
         </div>
         <div className="form-group">
-          <label htmlFor="login-password">Password</label>
           <PasswordInput
             id="login-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            placeholder="Enter your password"
+            placeholder="Password"
+            aria-label="Password"
             autoComplete="current-password"
           />
         </div>
 
         <div className="auth-options">
           <label className="remember">
-            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-            Keep me logged in
+            <input
+              type="checkbox"
+              checked={remember}
+              onChange={(e) => setRemember(e.target.checked)}
+            />
+            <span className="remember-circle" />
+            <span>Remember Me</span>
           </label>
           <button type="button" className="link-btn" onClick={handleForgot}>
-            Forgot Password
+            Forgot Password?
           </button>
         </div>
 
         <button type="submit" disabled={loading} className="auth-button">
-          {loading ? 'Logging in...' : 'Sign in'}
+          {loading ? 'Logging in...' : 'Login to Your Account'}
         </button>
       </form>
 
-      <SocialButtons onSuccess={goAfterLogin} onError={setError} disabled={loading} />
-
       <p className="auth-link">
-        You don't have an account? <Link to="/register">Register!</Link>
+        Not a member yet? <Link to="/register">Register Now</Link>
       </p>
     </AuthLayout>
   );

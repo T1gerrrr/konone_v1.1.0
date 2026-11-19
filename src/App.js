@@ -7,6 +7,8 @@ import Home from './components/Home';
 import Login from './components/Login';
 import Register from './components/Register';
 import VerifyEmail from './components/VerifyEmail';
+import LegalPage from './components/LegalPage';
+import ChatWidget from './components/ChatWidget';
 import Dashboard from './components/Dashboard';
 import ProfileEditor from './components/ProfileEditor';
 import PublicProfile from './components/PublicProfile';
@@ -28,6 +30,9 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/community" element={<Community />} />
+              <Route path="/terms" element={<LegalPage doc="terms" />} />
+              <Route path="/privacy" element={<LegalPage doc="privacy" />} />
+              <Route path="/copyright" element={<LegalPage doc="copyright" />} />
               <Route
                 path="/dashboard"
                 element={
@@ -70,6 +75,7 @@ function App() {
               />
               <Route path="/:username" element={<PublicProfile />} />
             </Routes>
+            <ChatWidget />
           </div>
         </LanguageProvider>
       </AuthProvider>

@@ -447,7 +447,7 @@ export default function PublicProfile() {
       {/* Website Logo */}
       <Link to="/" className="profile-logo">
         <img
-          src="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png"
+          src="/logo-konone-v1.png"
           alt="KonOne Logo"
           className="logo-icon"
         />

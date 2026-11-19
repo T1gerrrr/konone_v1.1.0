@@ -3,12 +3,12 @@
   "name": "KonOne.fun",
   "icons": [
     {
-      "src": "https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png",
+      "src": "/logo-konone-v1.png",
       "type": "image/png",
       "sizes": "192x192"
     },
     {
-      "src": "https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/logo.png",
+      "src": "/logo-konone-v1.png",
       "type": "image/png",
       "sizes": "512x512"
     }

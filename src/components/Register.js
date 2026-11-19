@@ -48,57 +48,68 @@ export default function Register() {
 
   return (
     <AuthLayout>
-      <h1 className="auth-title">Create account</h1>
-      <p className="auth-subtitle">Start building your KonOne profile</p>
+      <div className="auth-header-block">
+        <h1 className="auth-title">Create Your Account</h1>
+        <p className="auth-subtitle">Start Building Your Digital Profile</p>
+      </div>
 
       {error && <div className="error-message">{error}</div>}
 
-      <form onSubmit={handleSubmit}>
+      <SocialButtons
+        mode="register"
+        onSuccess={handleSocial}
+        onError={setError}
+        disabled={loading}
+      />
+
+      <div className="auth-divider">
+        <span>OR</span>
+      </div>
+
+      <form onSubmit={handleSubmit} className="auth-form">
         <div className="form-group">
-          <label htmlFor="reg-email">Email</label>
           <input
             id="reg-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder="Enter your email"
+            placeholder="Email Address"
+            aria-label="Email Address"
             autoComplete="email"
           />
         </div>
         <div className="form-group">
-          <label htmlFor="reg-password">Password</label>
           <PasswordInput
             id="reg-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={6}
-            placeholder="Minimum 6 characters"
+            placeholder="Password (min 6 characters)"
+            aria-label="Password"
             autoComplete="new-password"
           />
         </div>
         <div className="form-group">
-          <label htmlFor="reg-confirm">Confirm Password</label>
           <PasswordInput
             id="reg-confirm"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            placeholder="Enter your password again"
+            placeholder="Confirm Password"
+            aria-label="Confirm Password"
             autoComplete="new-password"
           />
         </div>
 
-        <button type="submit" disabled={loading} className="auth-button" style={{ marginTop: 10 }}>
-          {loading ? 'Registering...' : 'Sign up'}
+        <button type="submit" disabled={loading} className="auth-button">
+          {loading ? 'Creating Account...' : 'Create Your Account'}
         </button>
       </form>
 
-      <SocialButtons onSuccess={handleSocial} onError={setError} disabled={loading} />
-
       <p className="auth-link">
-        Already have an account? <Link to="/login">Login</Link>
+        Already a member? <Link to="/login">Login Now</Link>
       </p>
     </AuthLayout>
   );
