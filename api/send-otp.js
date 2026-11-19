@@ -16,7 +16,11 @@ function getTransporter() {
   if (!transporter) {
     transporter = nodemailer.createTransport({
       service: 'gmail',
-      auth: { user: process.env.GMAIL_USER, pass: process.env.GMAIL_APP_PASSWORD },
+      auth: {
+        user: (process.env.GMAIL_USER || '').trim(),
+        // App Password hiển thị dạng 4 nhóm cách nhau bởi dấu cách -> bỏ hết khoảng trắng
+        pass: (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, ''),
+      },
     });
   }
   return transporter;
@@ -65,13 +69,19 @@ module.exports = async function handler(req, res) {
       lastSentAt: now,
     });
 
-    await getTransporter().sendMail({
-      from: `"KonOne" <${process.env.GMAIL_USER}>`,
+    try {
+      await getTransporter().sendMail({
+      from: `"KonOne" <${(process.env.GMAIL_USER || '').trim()}>`,
       to: email,
       subject: `${code} là mã xác thực KonOne của bạn`,
       text: `Mã xác thực KonOne của bạn là: ${code}. Mã có hiệu lực trong 10 phút.`,
       html: buildHtml(code),
-    });
+      });
+    } catch (mailErr) {
+      // Gửi mail lỗi -> xóa mã để người dùng không bị chặn gửi lại 60 giây
+      await ref.delete().catch(() => {});
+      throw mailErr;
+    }
 
     return res.status(200).json({ ok: true, cooldown: RESEND_COOLDOWN_MS / 1000 });
   } catch (err) {
