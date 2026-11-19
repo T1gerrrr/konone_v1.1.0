@@ -164,11 +164,26 @@ module.exports = async function handler(req, res) {
   try {
     switch (body.action) {
       case 'stats': {
-        const [users, profiles, redemptions] = await Promise.all([
+        const [users, profiles, redemptions, siteSnap] = await Promise.all([
           listAllUsers(),
           loadProfiles(db),
-          db.collection('inviteRedemptions').count().get()
+          db.collection('inviteRedemptions').count().get(),
+          db.collection('siteStats').limit(800).get()
         ]);
+        // Truy cập trang web (api/hit.js)
+        const visits = {};
+        const visitors = {};
+        const pages = {};
+        const todayKey = dayKey(new Date());
+        const since30 = dayKey(new Date(Date.now() - 29 * 86400000));
+        let visitsTotal = 0;
+        siteSnap.docs.forEach((d) => {
+          const v = d.data();
+          visits[d.id] = v.views || 0;
+          visitors[d.id] = v.visitors || 0;
+          visitsTotal += v.views || 0;
+          if (d.id >= since30) Object.entries(v.paths || {}).forEach(([k, n]) => { pages[k] = (pages[k] || 0) + (Number(n) || 0); });
+        });
         const signups = {};
         users.forEach((u) => {
           const d = toDate(u.metadata.creationTime);
@@ -197,9 +212,13 @@ module.exports = async function handler(req, res) {
             publicProfiles,
             premium,
             totalViews,
-            invitesRedeemed: redemptions.data().count
+            invitesRedeemed: redemptions.data().count,
+            visitsToday: visits[todayKey] || 0,
+            visitorsToday: visitors[todayKey] || 0,
+            visitsTotal
           },
-          series: { signups, profiles: created, views }
+          pages,
+          series: { signups, profiles: created, views, visits, visitors }
         });
       }
 
@@ -264,6 +283,38 @@ module.exports = async function handler(req, res) {
         const deleted = await wipeUserData(db, uid);
         if (target) await adminAuth().deleteUser(uid);
         return res.status(200).json({ ok: true, profilesDeleted: deleted });
+      }
+
+      case 'grantPremium': {
+        const profileId = String(body.profileId || '');
+        const days = Number(body.days);
+        if (!profileId) return fail(res, 400, 'Thiếu profileId.', 'admin/bad-request');
+        if (!Number.isInteger(days) || days < 1 || days > 36500) return fail(res, 400, 'Số ngày phải từ 1 đến 36500.', 'admin/bad-request');
+        const ref = db.collection('profiles').doc(profileId);
+        const out = await db.runTransaction(async (tx) => {
+          const snap = await tx.get(ref);
+          if (!snap.exists) return null;
+          const p = snap.data();
+          const cur = toDate(p.premiumExpiresAt);
+          const base = p.isPremium && cur && cur > new Date() ? cur : new Date();
+          const expiresAt = new Date(base.getTime() + days * 86400000);
+          tx.update(ref, {
+            isPremium: true, premiumExpiresAt: expiresAt, premiumActivatedAt: new Date(),
+            premiumCode: 'ADMIN', premiumGrantedBy: decoded.uid, updatedAt: new Date()
+          });
+          return expiresAt;
+        });
+        if (!out) return fail(res, 404, 'Không tìm thấy hồ sơ.', 'admin/not-found');
+        return res.status(200).json({ ok: true, premiumExpiresAt: out.toISOString() });
+      }
+
+      case 'revokePremium': {
+        const profileId = String(body.profileId || '');
+        if (!profileId) return fail(res, 400, 'Thiếu profileId.', 'admin/bad-request');
+        const ref = db.collection('profiles').doc(profileId);
+        if (!(await ref.get()).exists) return fail(res, 404, 'Không tìm thấy hồ sơ.', 'admin/not-found');
+        await ref.update({ isPremium: false, premiumExpiresAt: null, updatedAt: new Date() });
+        return res.status(200).json({ ok: true });
       }
 
       case 'resetLink': {

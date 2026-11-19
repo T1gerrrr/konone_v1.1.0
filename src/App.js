@@ -17,6 +17,7 @@ import PublicProfile from './components/PublicProfile';
 import Premium from './components/Premium';
 import Invite from './components/Invite';
 import Admin from './components/Admin';
+import RouteTracker from './components/RouteTracker';
 import Community from './components/Community';
 import ProfileTemplate from './components/ProfileTemplate';
 import LayoutEditor from './components/LayoutEditor';
@@ -30,6 +31,7 @@ function App() {
       <AuthProvider>
         <LanguageProvider>
           <div className="App">
+            <RouteTracker />
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/login" element={<Login />} />

@@ -14,6 +14,13 @@ const TABS = [
   { id: 'event', label: 'Sự kiện & quà' }
 ];
 
+const PAGE_NAMES = {
+  home: 'Trang chủ', profile: 'Trang hồ sơ công khai', login: 'Đăng nhập', register: 'Đăng ký', verify_email: 'Xác minh email',
+  dashboard: 'Dashboard', edit_profile: 'Chỉnh sửa hồ sơ', links: 'Links', premium: 'Premium', invite: 'Mã mời',
+  leaderboard: 'Xếp hạng', community: 'Cộng đồng', terms: 'Điều khoản', privacy: 'Riêng tư', copyright: 'Bản quyền',
+  profile_template: 'Mẫu', edit_layout: 'Bố cục'
+};
+
 const fmt = (iso) => (iso ? new Date(iso).toLocaleString('vi-VN', { hour12: false }) : '—');
 const toLocalInput = (iso) => {
   const d = new Date(iso);
@@ -126,7 +133,7 @@ function Status({ error, loading }) {
 /* ================= Tổng quan ================= */
 function Overview({ call }) {
   const { data, error } = useLoad(call, { action: 'stats' });
-  const [series, setSeries] = useState('views');
+  const [series, setSeries] = useState('visits');
   const [range, setRange] = useState(30);
 
   const chartData = useMemo(() => (data ? lastNDays(data.series[series], 60).slice(-range) : []), [data, series, range]);
@@ -140,10 +147,15 @@ function Overview({ call }) {
     ['Hồ sơ', t.profiles],
     ['Hồ sơ public', t.publicProfiles],
     ['Premium đang hoạt động', t.premium],
+    ['Truy cập hôm nay', t.visitsToday],
+    ['Khách hôm nay', t.visitorsToday],
+    ['Tổng lượt truy cập', t.visitsTotal],
     ['Tổng lượt xem hồ sơ', t.totalViews],
     ['Lượt nhập mã mời', t.invitesRedeemed]
   ];
   const SERIES = [
+    { id: 'visits', label: 'Lượt truy cập web' },
+    { id: 'visitors', label: 'Khách truy cập' },
     { id: 'views', label: 'Lượt xem hồ sơ' },
     { id: 'signups', label: 'Đăng ký mới' },
     { id: 'profiles', label: 'Hồ sơ được tạo' }
@@ -176,7 +188,22 @@ function Overview({ call }) {
         </div>
         <div className="adm-muted">Tổng {range} ngày: <b>{total.toLocaleString()}</b></div>
         <ViewsChart data={chartData} language="vi" />
-        <p className="adm-note">Chỉ có dữ liệu lượt xem hồ sơ, đăng ký và tạo hồ sơ. Lượt truy cập trang chủ chưa được ghi nhận.</p>
+        <p className="adm-note">Lượt truy cập web được ghi từ khi bật theo dõi (mỗi lần mở/đổi trang, bỏ qua bot và trang quản trị). "Khách truy cập" là số trình duyệt khác nhau trong ngày. Không lưu IP.</p>
+      </div>
+
+      <div className="adm-card">
+        <h2>Trang được xem nhiều (30 ngày)</h2>
+        <div className="adm-table-wrap">
+          <table className="adm-table static">
+            <thead><tr><th>Trang</th><th>Lượt xem</th></tr></thead>
+            <tbody>
+              {Object.entries(data.pages || {}).sort((a, b) => b[1] - a[1]).map(([k, n]) => (
+                <tr key={k}><td>{PAGE_NAMES[k] || k}</td><td>{Number(n).toLocaleString()}</td></tr>
+              ))}
+              {!Object.keys(data.pages || {}).length && <tr><td colSpan={2} className="adm-muted">Chưa có dữ liệu.</td></tr>}
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
   );
@@ -317,13 +344,14 @@ function UserModal({ uid, call, onClose, onChanged }) {
             )}
             {msg && <div className="adm-error">{msg}</div>}
 
-            <h3>Hồ sơ ({data.profiles.length})</h3>
+            <h3>Hồ sơ & Premium ({data.profiles.length})</h3>
             {data.profiles.map((p) => (
               <details key={p.id} className="adm-profile">
                 <summary>
                   <span>@{p.username || '(chưa đặt)'} · {p.displayName || '—'} · {(p.viewCount || 0).toLocaleString()} lượt xem</span>
                   <button type="button" className="adm-btn danger small" disabled={busy === 'profile'} onClick={(e) => { e.preventDefault(); deleteProfile(p); }}>Xóa hồ sơ</button>
                 </summary>
+                <PremiumBox profile={p} call={call} onDone={() => { reload(); onChanged(); }} />
                 <pre>{JSON.stringify(p, null, 2)}</pre>
               </details>
             ))}
@@ -336,6 +364,55 @@ function UserModal({ uid, call, onClose, onChanged }) {
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+function PremiumBox({ profile, call, onDone }) {
+  const [days, setDays] = useState(30);
+  const [busy, setBusy] = useState('');
+  const [msg, setMsg] = useState(null);
+  const until = profile.premiumExpiresAt ? new Date(profile.premiumExpiresAt) : null;
+  const active = Boolean(profile.isPremium && until && until > new Date());
+  const left = active ? Math.ceil((until - new Date()) / 86400000) : 0;
+
+  async function run(kind) {
+    setBusy(kind);
+    setMsg(null);
+    try {
+      if (kind === 'grant') {
+        const d = Number(days);
+        if (!Number.isInteger(d) || d < 1) throw new Error('Số ngày không hợp lệ.');
+        const r = await call({ action: 'grantPremium', profileId: profile.id, days: d });
+        setMsg({ ok: true, text: `Đã nâng cấp +${d} ngày, hết hạn ${fmt(r.premiumExpiresAt)}` });
+      } else {
+        if (!window.confirm('Thu hồi Premium của hồ sơ này?')) { setBusy(''); return; }
+        await call({ action: 'revokePremium', profileId: profile.id });
+        setMsg({ ok: true, text: 'Đã thu hồi Premium.' });
+      }
+      onDone();
+    } catch (e) {
+      setMsg({ ok: false, text: e.message });
+    } finally {
+      setBusy('');
+    }
+  }
+
+  return (
+    <div className="adm-premium">
+      <div>
+        <span className={`adm-tag ${active ? 'ok' : ''}`}>{active ? 'Premium đang bật' : 'Chưa có Premium'}</span>
+        {active && <span className="adm-muted"> · còn {left.toLocaleString()} ngày (hết hạn {fmt(profile.premiumExpiresAt)})</span>}
+      </div>
+      <div className="adm-premium-row">
+        <input className="adm-input" type="number" min="1" max="36500" value={days} onChange={(e) => setDays(e.target.value)} aria-label="Số ngày" />
+        <span className="adm-muted">ngày</span>
+        <button type="button" className="adm-btn" disabled={busy === 'grant'} onClick={() => run('grant')}>
+          Nâng cấp Premium +{Number(days) || 0} ngày
+        </button>
+        {active && <button type="button" className="adm-btn danger" disabled={busy === 'revoke'} onClick={() => run('revoke')}>Thu hồi</button>}
+      </div>
+      {msg && <div className={msg.ok ? 'adm-ok' : 'adm-error'}>{msg.text}</div>}
     </div>
   );
 }
