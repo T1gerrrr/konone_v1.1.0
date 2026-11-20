@@ -1,374 +1,361 @@
-import React, { useState, useRef } from 'react';
-import { useAuth } from '../contexts/AuthContext';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { notifyError, notifySuccess } from '../notify/notify';
-import { uploadToCloudinary } from '../config/cloudinary';
+import { isPremiumActive } from '../constants/premium';
+import { TEMPLATE_FIELDS } from '../constants/templates';
+import AppSidebar from './AppSidebar';
+import DiamondIcon from './DiamondIcon';
 import './ProfileTemplate.css';
+
+const TABS = ['library', 'favorites', 'recent', 'mine'];
+
+function readList(key) {
+  try {
+    const v = JSON.parse(localStorage.getItem(key) || '[]');
+    return Array.isArray(v) ? v : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function writeList(key, value) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    /* bỏ qua nếu trình duyệt chặn lưu trữ */
+  }
+}
+
+// Bản xem trước thu nhỏ của mẫu
+function MiniPreview({ tpl }) {
+  const { bg, card, accent, text } = tpl.preview || {};
+  return (
+    <div className="tp-preview" style={{ background: bg }}>
+      <div className="tp-mini-card" style={{ background: card, borderColor: `${accent}55` }}>
+        <span className="tp-mini-avatar" style={{ borderColor: accent }} />
+        <span className="tp-mini-name" style={{ background: text }} />
+        <span className="tp-mini-line" style={{ background: `${text}66` }} />
+        <span className="tp-mini-dots">
+          {[0, 1, 2].map((i) => (
+            <i key={i} style={{ background: accent }} />
+          ))}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function ProfileTemplate() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
   const L = (vi, en) => (language === 'vi' ? vi : en);
   const navigate = useNavigate();
-  const [uploadingSection, setUploadingSection] = useState(null);
+  const uid = currentUser?.uid || 'guest';
 
-  // Template data
-  const [templateData, setTemplateData] = useState({
-    background: '',
-    avatar: '',
-    section1: '',
-    section2: '',
-    section3: '',
-    section4: ''
-  });
+  const favKey = `konone.tpl.fav.${uid}`;
+  const recentKey = `konone.tpl.recent.${uid}`;
+  const mineKey = `konone.tpl.mine.${uid}`;
 
-  const fileInputRefs = {
-    background: useRef(null),
-    avatar: useRef(null),
-    section1: useRef(null),
-    section2: useRef(null),
-    section3: useRef(null),
-    section4: useRef(null)
+  const [tab, setTab] = useState('library');
+  const [search, setSearch] = useState('');
+  const [sort, setSort] = useState('default');
+  const [favorites, setFavorites] = useState(() => readList(favKey));
+  const [recent, setRecent] = useState(() => readList(recentKey));
+  const [mine, setMine] = useState(() => readList(mineKey));
+  const [library, setLibrary] = useState([]); // mẫu do quản trị viên thêm (Firestore `templates`)
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+  const [profileDocId, setProfileDocId] = useState('');
+  const [applyingId, setApplyingId] = useState('');
+  const [showCreate, setShowCreate] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newTags, setNewTags] = useState('');
+
+  useEffect(() => {
+    if (!currentUser) return undefined;
+    let cancelled = false;
+    getDocs(query(collection(db, 'profiles'), where('userId', '==', currentUser.uid)))
+      .then((snap) => {
+        if (cancelled || snap.empty) return;
+        const real = snap.docs.find((d) => !d.data().isStub) || snap.docs[0];
+        setProfileDocId(real.id);
+        setProfile({ id: real.id, ...real.data() });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDocs(collection(db, 'templates'))
+      .then((snap) => {
+        if (cancelled) return;
+        const rows = snap.docs.map((d) => {
+          const data = d.data();
+          const created = data.createdAt && typeof data.createdAt.toMillis === 'function' ? data.createdAt.toMillis() : 0;
+          return { id: d.id, ...data, _created: created };
+        });
+        rows.sort((a, b) => b._created - a._created);
+        setLibrary(rows);
+      })
+      .catch((err) => console.error('Load templates error:', err))
+      .finally(() => {
+        if (!cancelled) setLibraryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const premium = isPremiumActive(profile);
+
+  const allTemplates = useMemo(() => [...mine, ...library], [mine, library]);
+
+  const visible = useMemo(() => {
+    let list;
+    if (tab === 'favorites') list = allTemplates.filter((t) => favorites.includes(t.id));
+    else if (tab === 'recent') list = recent.map((id) => allTemplates.find((t) => t.id === id)).filter(Boolean);
+    else if (tab === 'mine') list = mine;
+    else list = library;
+
+    const q = search.trim().toLowerCase();
+    if (q) {
+      list = list.filter((t) => {
+        const name = `${(t.name && t.name.vi) || ''} ${(t.name && t.name.en) || ''}`.toLowerCase();
+        return name.includes(q) || (t.tags || []).some((g) => g.toLowerCase().includes(q));
+      });
+    }
+    const sorted = [...list];
+    const nm = (t) => (t.name && (t.name[language === 'vi' ? 'vi' : 'en'] || t.name.vi || t.name.en)) || '';
+    if (sort === 'name') sorted.sort((a, b) => nm(a).localeCompare(nm(b)));
+    if (sort === 'free') sorted.sort((a, b) => Number(a.premium) - Number(b.premium));
+    return sorted;
+  }, [tab, search, sort, allTemplates, favorites, recent, mine, library, language]);
+
+  function toggleFavorite(id) {
+    setFavorites((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [id, ...prev];
+      writeList(favKey, next);
+      return next;
+    });
+  }
+
+  async function applyTemplate(tpl) {
+    if (!profileDocId || profile?.isStub) {
+      notifyError(L('Hãy tạo hồ sơ trước khi dùng mẫu.', 'Please create your profile before using a template.'));
+      navigate('/edit-profile');
+      return;
+    }
+    if (tpl.premium && !premium) {
+      notifyError(L('Mẫu này cần gói Premium.', 'This template requires Premium.'));
+      navigate('/premium');
+      return;
+    }
+    setApplyingId(tpl.id);
+    try {
+      await updateDoc(doc(db, 'profiles', profileDocId), { ...(tpl.preset || {}), updatedAt: new Date() });
+      setRecent((prev) => {
+        const next = [tpl.id, ...prev.filter((x) => x !== tpl.id)].slice(0, 12);
+        writeList(recentKey, next);
+        return next;
+      });
+      notifySuccess(L('Đã áp dụng mẫu cho hồ sơ của bạn!', 'Template applied to your profile!'));
+    } catch (err) {
+      console.error('Apply template error:', err);
+      notifyError(L('Không thể áp dụng mẫu: ', 'Could not apply template: ') + err.message);
+    } finally {
+      setApplyingId('');
+    }
+  }
+
+  // Tạo mẫu từ thiết kế hiện tại của hồ sơ (lưu trên trình duyệt này)
+  function createTemplate(e) {
+    e.preventDefault();
+    const name = newName.trim();
+    if (!name) return;
+    if (!profile) {
+      notifyError(L('Hãy tạo hồ sơ trước khi tạo mẫu.', 'Please create your profile before creating a template.'));
+      return;
+    }
+    const preset = {};
+    TEMPLATE_FIELDS.forEach((k) => {
+      if (profile[k] !== undefined) preset[k] = profile[k];
+    });
+    const tpl = {
+      id: `mine-${Date.now()}`,
+      name: { vi: name, en: name },
+      author: profile.username ? `@${profile.username}` : L('Bạn', 'You'),
+      tags: newTags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 4),
+      premium: ['lanyard', 'web'].includes(preset.layout),
+      preview: {
+        bg: preset.bgColor || '#0a0a0c',
+        card: preset.cardColor || '#18161c',
+        accent: preset.lanyardStrapColor || '#ff5757',
+        text: preset.textColor || '#ffffff'
+      },
+      preset
+    };
+    setMine((prev) => {
+      const next = [tpl, ...prev];
+      writeList(mineKey, next);
+      return next;
+    });
+    setShowCreate(false);
+    setNewName('');
+    setNewTags('');
+    setTab('mine');
+    notifySuccess(L('Đã tạo mẫu từ thiết kế hiện tại!', 'Template created from your current design!'));
+  }
+
+  function deleteMine(id) {
+    setMine((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      writeList(mineKey, next);
+      return next;
+    });
+  }
+
+  const tabLabels = {
+    library: L('Thư viện mẫu', 'Template Library'),
+    favorites: L('Mẫu yêu thích', 'Favorite Templates'),
+    recent: L('Mẫu dùng gần đây', 'Last Used Templates'),
+    mine: L('Mẫu của tôi', 'My Templates')
   };
 
-  async function handleImageUpload(file, section) {
-    if (!file) return;
-
-    if (!file.type.startsWith('image/')) {
-      notifyError(L("Vui lòng chọn file ảnh", "Please choose an image file"));
-      return;
-    }
-
-    if (file.size > 10 * 1024 * 1024) {
-      notifyError(L("Kích thước ảnh không được vượt quá 10MB", "Image size must not exceed 10MB"));
-      return;
-    }
-
-    setUploadingSection(section);
-    try {
-      const folder = `profiles/${currentUser.uid}/template/${section}`;
-      const url = await uploadToCloudinary(file, folder);
-      setTemplateData(prev => ({
-        ...prev,
-        [section]: url
-      }));
-    } catch (error) {
-      console.error('Upload error:', error);
-      notifyError(L('Lỗi khi tải ảnh lên: ', 'Image upload failed: ') + error.message);
-    } finally {
-      setUploadingSection(null);
-    }
-  }
-
-  function handleSectionClick(section) {
-    fileInputRefs[section]?.current?.click();
-  }
-
-  function handleFileChange(e, section) {
-    const file = e.target.files[0];
-    if (file) {
-      handleImageUpload(file, section);
-    }
-    // Reset input để có thể chọn lại file cùng tên
-    e.target.value = '';
-  }
-
-  function handleRemoveImage(section) {
-    setTemplateData(prev => ({
-      ...prev,
-      [section]: ''
-    }));
-  }
-
-  function handleSaveTemplate() {
-    // Lưu template vào localStorage hoặc Firestore
-    localStorage.setItem('profileTemplate', JSON.stringify(templateData));
-    notifySuccess(L("Template đã được lưu thành công!", "Template saved successfully!"));
-  }
-
-  function handleApplyToProfile() {
-    // Áp dụng template vào profile
-    navigate('/edit-profile', { state: { templateData } });
-  }
+  const emptyText = {
+    library: libraryLoading
+      ? L('Đang tải mẫu...', 'Loading templates...')
+      : search.trim()
+        ? L('Không tìm thấy mẫu phù hợp.', 'No templates found.')
+        : L('Chưa có mẫu nào trong thư viện.', 'There are no templates in the library yet.'),
+    favorites: L('Bạn chưa đánh dấu mẫu yêu thích nào.', 'You have no favorite templates yet.'),
+    recent: L('Bạn chưa dùng mẫu nào.', 'You have not used any template yet.'),
+    mine: L('Bạn chưa tạo mẫu nào. Bấm "Tạo mẫu" để lưu thiết kế hiện tại.', 'You have no templates yet. Click "Create Template" to save your current design.')
+  }[tab];
 
   return (
-    <div className="profile-template-page">
-      {/* Header */}
-      <header className="template-header">
-        <div className="template-header-content">
-          <button onClick={() => navigate('/dashboard')} className="back-btn">
-            {L("← Quay lại", "← Back")}
-          </button>
-          <h1 className="template-title">{L("Mẫu hồ sơ", "Profile Template")}</h1>
-          <div className="template-actions">
-            <button onClick={handleSaveTemplate} className="save-btn">
-              {L("💾 Lưu mẫu", "💾 Save Template")}
-            </button>
-            <button onClick={handleApplyToProfile} className="apply-btn">
-              {L("✨ Áp dụng vào hồ sơ", "✨ Apply to Profile")}
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="template-main">
-        <div className="template-container">
-          {/* Instructions */}
-          <div className="template-instructions">
-            <p>{L("📌 Nhấn vào các vùng để tải ảnh tương ứng", "📌 Click each area to upload its image")}</p>
-            <p>{L("🖼️ Nền: nhấn vào nền để tải ảnh nền", "🖼️ Background: click the background to upload")}</p>
-            <p>{L("👤 Ảnh đại diện: nhấn vào avatar để tải ảnh", "👤 Avatar: click the avatar to upload")}</p>
-            <p>{L("📸 Các phần: nhấn vào từng phần để tải ảnh", "📸 Sections: click a section to upload")}</p>
-          </div>
-
-          {/* Template Preview */}
-          <div className="template-preview-container">
-            <div className="template-preview">
-              {/* Background - Clickable */}
-              <div
-                className={`template-background ${templateData.background ? 'has-image' : ''}`}
-                onClick={() => handleSectionClick('background')}
-                style={{
-                  backgroundImage: templateData.background ? `url(${templateData.background})` : 'none',
-                  backgroundSize: 'cover',
-                  backgroundPosition: 'center'
-                }}
-              >
-                {uploadingSection === 'background' && (
-                  <div className="uploading-overlay">
-                    <div className="upload-spinner"></div>
-                    <p>{L("Đang tải lên...", "Uploading...")}</p>
-                  </div>
-                )}
-                {!templateData.background && !uploadingSection && (
-                  <div className="upload-hint">
-                    <span className="hint-icon">🖼️</span>
-                    <span className="hint-text">{L("Nhấn để tải ảnh nền", "Click to upload background")}</span>
-                  </div>
-                )}
-                {templateData.background && (
-                  <button
-                    className="remove-image-btn"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveImage('background');
-                    }}
-                  >
-                    ✕
-                  </button>
-                )}
-                <input
-                  ref={fileInputRefs.background}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleFileChange(e, 'background')}
-                  style={{ display: 'none' }}
-                />
-              </div>
-
-              {/* Content Area */}
-              <div className="template-content">
-                {/* Avatar Section - Clickable */}
-                <div
-                  className={`template-avatar-section ${templateData.avatar ? 'has-image' : ''}`}
-                  onClick={() => handleSectionClick('avatar')}
-                >
-                  {uploadingSection === 'avatar' ? (
-                    <div className="uploading-overlay">
-                      <div className="upload-spinner"></div>
-                    </div>
-                  ) : templateData.avatar ? (
-                    <>
-                      <img src={templateData.avatar} alt={L("Ảnh đại diện", "Avatar")} />
-                      <button
-                        className="remove-image-btn small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveImage('avatar');
-                        }}
-                      >
-                        ✕
-                      </button>
-                    </>
-                  ) : (
-                    <div className="upload-hint">
-                      <span className="hint-icon">👤</span>
-                      <span className="hint-text">{L("Ảnh đại diện", "Avatar")}</span>
-                    </div>
-                  )}
-                  <input
-                    ref={fileInputRefs.avatar}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileChange(e, 'avatar')}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-
-                {/* Name Section */}
-                <div className="template-name-section">
-                  <h2 className="template-name">{L("Tên của bạn", "Your Name")}</h2>
-                  <p className="template-username">@username</p>
-                </div>
-
-                {/* Sections Grid */}
-                <div className="template-sections-grid">
-                  {/* Section 1 */}
-                  <div
-                    className={`template-section ${templateData.section1 ? 'has-image' : ''}`}
-                    onClick={() => handleSectionClick('section1')}
-                  >
-                    {uploadingSection === 'section1' ? (
-                      <div className="uploading-overlay">
-                        <div className="upload-spinner"></div>
-                      </div>
-                    ) : templateData.section1 ? (
-                      <>
-                        <img src={templateData.section1} alt={L("Phần 1", "Section 1")} />
-                        <button
-                          className="remove-image-btn small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage('section1');
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <div className="upload-hint">
-                        <span className="hint-icon">📸</span>
-                        <span className="hint-text">{L("Phần 1", "Section 1")}</span>
-                      </div>
-                    )}
-                    <input
-                      ref={fileInputRefs.section1}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, 'section1')}
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-
-                  {/* Section 2 */}
-                  <div
-                    className={`template-section ${templateData.section2 ? 'has-image' : ''}`}
-                    onClick={() => handleSectionClick('section2')}
-                  >
-                    {uploadingSection === 'section2' ? (
-                      <div className="uploading-overlay">
-                        <div className="upload-spinner"></div>
-                      </div>
-                    ) : templateData.section2 ? (
-                      <>
-                        <img src={templateData.section2} alt={L("Phần 2", "Section 2")} />
-                        <button
-                          className="remove-image-btn small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage('section2');
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <div className="upload-hint">
-                        <span className="hint-icon">📸</span>
-                        <span className="hint-text">{L("Phần 2", "Section 2")}</span>
-                      </div>
-                    )}
-                    <input
-                      ref={fileInputRefs.section2}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, 'section2')}
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-
-                  {/* Section 3 */}
-                  <div
-                    className={`template-section ${templateData.section3 ? 'has-image' : ''}`}
-                    onClick={() => handleSectionClick('section3')}
-                  >
-                    {uploadingSection === 'section3' ? (
-                      <div className="uploading-overlay">
-                        <div className="upload-spinner"></div>
-                      </div>
-                    ) : templateData.section3 ? (
-                      <>
-                        <img src={templateData.section3} alt={L("Phần 3", "Section 3")} />
-                        <button
-                          className="remove-image-btn small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage('section3');
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <div className="upload-hint">
-                        <span className="hint-icon">📸</span>
-                        <span className="hint-text">{L("Phần 3", "Section 3")}</span>
-                      </div>
-                    )}
-                    <input
-                      ref={fileInputRefs.section3}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, 'section3')}
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-
-                  {/* Section 4 */}
-                  <div
-                    className={`template-section ${templateData.section4 ? 'has-image' : ''}`}
-                    onClick={() => handleSectionClick('section4')}
-                  >
-                    {uploadingSection === 'section4' ? (
-                      <div className="uploading-overlay">
-                        <div className="upload-spinner"></div>
-                      </div>
-                    ) : templateData.section4 ? (
-                      <>
-                        <img src={templateData.section4} alt={L("Phần 4", "Section 4")} />
-                        <button
-                          className="remove-image-btn small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage('section4');
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <div className="upload-hint">
-                        <span className="hint-icon">📸</span>
-                        <span className="hint-text">{L("Phần 4", "Section 4")}</span>
-                      </div>
-                    )}
-                    <input
-                      ref={fileInputRefs.section4}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleFileChange(e, 'section4')}
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-                </div>
-              </div>
+    <div className="profile-editor-layout">
+      <AppSidebar active="templates" profile={profile || {}} />
+      <main className="editor-main">
+        <div className="tp-page">
+          <nav className="tp-tabs" aria-label={L('Mẫu', 'Templates')}>
+            <div className="tp-tabs-left">
+              {TABS.map((k) => (
+                <button type="button" key={k} className={`tp-tab${tab === k ? ' active' : ''}`} onClick={() => setTab(k)}>
+                  {tabLabels[k]}
+                </button>
+              ))}
             </div>
+            <button type="button" className="tp-create" onClick={() => setShowCreate(true)}>
+              <span aria-hidden="true">+</span> {L('Tạo mẫu', 'Create Template')}
+            </button>
+          </nav>
+
+          <div className="tp-toolbar">
+            <label className="tp-search">
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={L('Tìm mẫu theo tên hoặc thẻ...', 'Search templates by name or tag...')}
+              />
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </label>
+            <select className="tp-sort" value={sort} onChange={(e) => setSort(e.target.value)} aria-label={L('Sắp xếp', 'Sort')}>
+              <option value="default">{L('Mặc định', 'Default')}</option>
+              <option value="name">{L('Tên A–Z', 'Name A–Z')}</option>
+              <option value="free">{L('Miễn phí trước', 'Free first')}</option>
+            </select>
           </div>
+
+          {visible.length === 0 ? (
+            <p className="tp-empty">{emptyText}</p>
+          ) : (
+            <div className="tp-grid">
+              {visible.map((tpl) => {
+                const fav = favorites.includes(tpl.id);
+                const isMine = tpl.id.startsWith('mine-');
+                return (
+                  <article className="tp-card" key={tpl.id}>
+                    <button
+                      type="button"
+                      className={`tp-star${fav ? ' on' : ''}`}
+                      aria-pressed={fav}
+                      aria-label={L('Yêu thích', 'Favorite')}
+                      onClick={() => toggleFavorite(tpl.id)}
+                    >
+                      <svg viewBox="0 0 24 24" width="22" height="22" fill={fav ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+                      </svg>
+                    </button>
+
+                    <MiniPreview tpl={tpl} />
+
+                    <div className="tp-body">
+                      <h3 className="tp-name">
+                        {(tpl.name && (tpl.name[language === 'vi' ? 'vi' : 'en'] || tpl.name.vi || tpl.name.en)) || tpl.id}
+                        {tpl.premium && <DiamondIcon className="pro-diamond" size={15} />}
+                      </h3>
+                      <p className="tp-author">{tpl.author}</p>
+                      <div className="tp-tags">
+                        {(tpl.tags || []).map((g) => (
+                          <span key={g}>{g}</span>
+                        ))}
+                      </div>
+                      <div className="tp-actions">
+                        <button type="button" className="tp-use" disabled={applyingId === tpl.id} onClick={() => applyTemplate(tpl)}>
+                          {applyingId === tpl.id ? L('Đang áp dụng...', 'Applying...') : L('Dùng mẫu', 'Use Template')}
+                        </button>
+                        {isMine && (
+                          <button type="button" className="tp-del" onClick={() => deleteMine(tpl.id)} aria-label={L('Xóa mẫu', 'Delete template')}>
+                            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" />
+                              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                              <path d="M10 11v6M14 11v6" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        {showCreate && (
+          <div className="tp-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}>
+            <form className="tp-modal" onSubmit={createTemplate}>
+              <h3>{L('Tạo mẫu từ thiết kế hiện tại', 'Create a template from your current design')}</h3>
+              <label>
+                <span>{L('Tên mẫu', 'Template name')}</span>
+                <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={40} autoFocus />
+              </label>
+              <label>
+                <span>{L('Thẻ (cách nhau bằng dấu phẩy)', 'Tags (comma separated)')}</span>
+                <input type="text" value={newTags} onChange={(e) => setNewTags(e.target.value)} placeholder="dark, bio" />
+              </label>
+              <p className="tp-modal-note">
+                {L('Mẫu được lưu trên trình duyệt này.', 'The template is saved in this browser.')}
+              </p>
+              <div className="tp-modal-foot">
+                <button type="button" className="tp-btn" onClick={() => setShowCreate(false)}>{L('Hủy', 'Cancel')}</button>
+                <button type="submit" className="tp-btn primary" disabled={!newName.trim()}>{L('Tạo mẫu', 'Create')}</button>
+              </div>
+            </form>
+          </div>
+        )}
       </main>
     </div>
   );
 }
-

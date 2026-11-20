@@ -18,6 +18,12 @@ service cloud.firestore {
       allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
     }
     
+    // Mẫu hồ sơ: ai cũng đọc được, chỉ quản trị viên ghi qua api/admin.js (server)
+    match /templates/{templateId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
     // Code Premium chỉ do server (api/premium-code.js, api/admin.js) đọc/ghi — client bị chặn hoàn toàn
     match /premiumCodes/{codeId} {
       allow read, write: if false;

@@ -8,7 +8,7 @@ import './ChatWidget.css';
 const SHOW_ON = [
   '/', '/login', '/register', '/verify-email', '/community',
   '/terms', '/privacy', '/copyright',
-  '/dashboard', '/edit-profile', '/premium', '/profile-template', '/edit-layout',
+  '/dashboard', '/edit-profile', '/premium', '/profile-template',
 ];
 
 let nextId = 1;

@@ -1,0 +1,122 @@
+/* Bảng Hiệu ứng nền / Hiệu ứng tên: trái là lựa chọn, phải là demo */
+.ee-modal {
+  max-width: 780px;
+}
+
+.ee-layout {
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.ee-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 340px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.ee-options--form {
+  gap: 0;
+  overflow-x: hidden;
+}
+
+.ee-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font: inherit;
+  font-size: 13.5px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+}
+
+.ee-option:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.ee-option.active {
+  color: #fff;
+  background: rgba(255, 87, 87, 0.2);
+  border-color: rgba(255, 120, 120, 0.45);
+}
+
+.ee-preview {
+  min-width: 0;
+}
+
+.ee-demo {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #07070a;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Khung chứa canvas hiệu ứng (có transform nên position: fixed bên trong bám theo khung này) */
+.ee-demo-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.ee-demo-empty {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.ee-demo--text {
+  flex-direction: column;
+  gap: 8px;
+  min-height: 190px;
+  padding: 24px 16px;
+  text-align: center;
+  background: radial-gradient(80% 70% at 50% 0%, rgba(255, 87, 87, 0.12) 0%, #07070a 70%);
+}
+
+.ee-demo-name {
+  margin: 0;
+  font-weight: 700;
+  line-height: 1.15;
+  word-break: break-word;
+}
+
+.ee-demo-bio {
+  margin: 0;
+  line-height: 1.4;
+}
+
+.ee-slider {
+  margin-top: 18px;
+}
+
+.ee-slider .guns-range-slider {
+  width: 100%;
+  margin-top: 8px;
+}
+
+@media (max-width: 640px) {
+  .ee-layout {
+    grid-template-columns: 1fr;
+  }
+  .ee-options {
+    max-height: 190px;
+  }
+}

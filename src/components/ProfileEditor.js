@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom';
 import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -26,6 +27,7 @@ import {
   NebulaEffect
 } from './Effects';
 import DiamondIcon from './DiamondIcon';
+import { BackgroundEffectModal, UsernameEffectModal, BACKGROUND_EFFECTS } from './EditorEffectModals';
 import SlideCommit from './SlideCommit';
 import { musicBoxBg } from '../utils/color';
 import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
@@ -44,22 +46,6 @@ const AVATAR_FRAMES = [
   { label: 'Frame 9', value: 'https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png' }
 ];
 
-const SOCIAL_FIELDS = [
-  { key: 'facebook', label: 'Facebook', placeholder: 'https://facebook.com/...' },
-  { key: 'instagram', label: 'Instagram', placeholder: 'https://instagram.com/...' },
-  { key: 'twitter', label: 'X / Twitter', placeholder: 'https://twitter.com/...' },
-  { key: 'tiktok', label: 'TikTok', placeholder: 'https://tiktok.com/@...' },
-  { key: 'linkedin', label: 'LinkedIn', placeholder: 'https://linkedin.com/in/...' }
-];
-
-const SPLASH_COLOR_PRESETS = [
-  { name: 'KonOne Crimson', colors: ['#f65c5c', '#dc2626', '#a21caf'], rainbow: false },
-  { name: 'Cyber Neon', colors: ['#4f8cff', '#2dd4bf', '#ffd166'], rainbow: false },
-  { name: 'Violet Gold', colors: ['#c084fc', '#ec4899', '#f59e0b'], rainbow: false },
-  { name: 'Emerald Ice', colors: ['#10b981', '#06b6d4', '#3b82f6'], rainbow: false },
-  { name: 'Rainbow Spectrum', colors: ['#4f8cff', '#2dd4bf', '#ffd166'], rainbow: true }
-];
-
 function hexToRgba(hex, alpha = 0.8) {
   if (!hex || typeof hex !== 'string') return `rgba(18, 17, 23, ${alpha})`;
   if (hex.startsWith('rgba') || hex.startsWith('rgb')) return hex;
@@ -73,17 +59,24 @@ function hexToRgba(hex, alpha = 0.8) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+const SHOW_DEMO_PROFILE = false;
+
 export default function ProfileEditor() {
   const { currentUser } = useAuth();
   const { language, changeLanguage } = useLanguage();
   const L = (vi, en) => (language === 'vi' ? vi : en);
   const navigate = useNavigate();
 
-  const [, setLoading] = useState(false); // trạng thái lưu (thanh trượt Lưu tự hiển thị đang xử lý)
+  const [loading, setLoading] = useState(false); // trạng thái lưu (thanh trượt Lưu tự hiển thị đang xử lý)
+  const [profileLoaded, setProfileLoaded] = useState(false);
+  const [isStubProfile, setIsStubProfile] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [bgModalOpen, setBgModalOpen] = useState(false);
+  const [audioModalOpen, setAudioModalOpen] = useState(false);
+  const [bgMode, setBgMode] = useState('image'); // 'image' | 'video'
   const [uploadingCursor, setUploadingCursor] = useState(false);
   const [uploadingPoster, setUploadingPoster] = useState(false);
   const [profileId, setProfileId] = useState(null);
@@ -124,10 +117,11 @@ export default function ProfileEditor() {
   const [viewCount, setViewCount] = useState(0);
 
   // Modals / Popovers cho các ô trong giao diện Custom kiểu guns.lol
-  const [showCursorManager, setShowCursorManager] = useState(false);
+  const [showCursorManager, setShowCursorManager] = useState(false); // bảng Con trỏ tùy chỉnh
+  const [cursorModalTab, setCursorModalTab] = useState('cursor'); // 'cursor' | 'frame'
   const [showWidgetManager, setShowWidgetManager] = useState(false);
   const [showUsernameEffects, setShowUsernameEffects] = useState(false);
-  const [showSocialsModal, setShowSocialsModal] = useState(false);
+  const [showBgEffects, setShowBgEffects] = useState(false);
 
   // Glow & Color & Toggle states
   const [glowSettings, setGlowSettings] = useState({
@@ -150,7 +144,8 @@ export default function ProfileEditor() {
     volumeControl: true,
     useDiscordAvatar: false,
     discordAvatarDecoration: true,
-    avatarBorder: false // Viền avatar — mặc định tắt
+    avatarBorder: false, // Viền avatar — mặc định tắt
+    showLinks: true // Hiển thị liên kết (mạng xã hội & link riêng) trên hồ sơ
   });
 
   // ReactBits SplashCursor customization state
@@ -231,6 +226,8 @@ export default function ProfileEditor() {
     lanyardBadgeLabel: 'KONONE PASS',
     musicBoxColor: '',
     musicAccentColor: '',
+    gradientFrom: '',
+    gradientTo: '',
     nameScale: 100, // cỡ chữ tiêu đề (%)
     bioScale: 100, // cỡ chữ mô tả (%)
     socialLinks: {
@@ -267,6 +264,7 @@ export default function ProfileEditor() {
           setProfileId(querySnapshot.docs[0].id);
           setIsHidden(Boolean(profileData.isHidden));
           setSavedUsername(profileData.username || '');
+          setIsStubProfile(Boolean(profileData.isStub) || !profileData.username);
 
           const premiumExpiresAt = profileData.premiumExpiresAt?.toDate
             ? profileData.premiumExpiresAt.toDate()
@@ -297,6 +295,8 @@ export default function ProfileEditor() {
             lanyardBadgeLabel: profileData.lanyardBadgeLabel || 'KONONE PASS',
             musicBoxColor: profileData.musicBoxColor || '',
             musicAccentColor: profileData.musicAccentColor || '',
+            gradientFrom: profileData.gradientFrom || '',
+            gradientTo: profileData.gradientTo || '',
             nameScale: Number(profileData.nameScale) || 100,
             bioScale: Number(profileData.bioScale) || 100,
             socialLinks: profileData.socialLinks || {
@@ -380,9 +380,13 @@ export default function ProfileEditor() {
               setCursorTab('blob');
             }
           }
+        } else {
+          setIsStubProfile(true);
         }
       } catch (error) {
         console.error('Error loading profile:', error);
+      } finally {
+        setProfileLoaded(true);
       }
     }
 
@@ -437,17 +441,6 @@ export default function ProfileEditor() {
         await updateDoc(doc(db, 'profiles', profileId), { layout: nextLayout });
       } catch (err) {
         console.error('Error auto-saving layout:', err);
-      }
-    }
-  }
-
-  async function handleSocialPositionSwitch(nextPos) {
-    setSocialPosition(nextPos);
-    if (profileId) {
-      try {
-        await updateDoc(doc(db, 'profiles', profileId), { socialPosition: nextPos });
-      } catch (err) {
-        console.error('Error auto-saving social position:', err);
       }
     }
   }
@@ -527,6 +520,8 @@ export default function ProfileEditor() {
         lanyardBadgeLabel: String(formData.lanyardBadgeLabel || 'KONONE PASS'),
         musicBoxColor: String(formData.musicBoxColor || ''),
         musicAccentColor: String(formData.musicAccentColor || ''),
+        gradientFrom: String(formData.gradientFrom || ''),
+        gradientTo: String(formData.gradientTo || ''),
         nameScale: Number(formData.nameScale) || 100,
         bioScale: Number(formData.bioScale) || 100,
         socialLinks: cleanSocialLinks,
@@ -607,6 +602,7 @@ export default function ProfileEditor() {
 
       if (profileId) {
         await updateDoc(doc(db, 'profiles', profileId), profileData);
+        setIsStubProfile(false);
         setSavedUsername(normalizedUsername);
         showSaveToast(true, L('Cập nhật hồ sơ thành công!', 'Profile updated successfully!'));
       } else {
@@ -622,6 +618,7 @@ export default function ProfileEditor() {
         profileData.createdAt = new Date();
         const ref = await addDoc(collection(db, 'profiles'), profileData);
         setProfileId(ref.id);
+        setIsStubProfile(false);
         setSavedUsername(normalizedUsername);
         showSaveToast(true, L('Tạo hồ sơ thành công!', 'Profile created successfully!'));
       }
@@ -712,7 +709,7 @@ export default function ProfileEditor() {
   }, [demoYoutubeId]);
 
   const renderDemoSocialsRow = (extraClass = '') => {
-    if (activeSocialCount === 0) return null;
+    if (activeSocialCount === 0 || otherSettings.showLinks === false) return null;
     return (
       <div className={`demo-basic-socials ${extraClass}`.trim()}>
         {linkedSocialEntries.map(([key, url]) => {
@@ -771,6 +768,463 @@ export default function ProfileEditor() {
     }
   };
 
+  const isNewAccount = profileLoaded && (!profileId || isStubProfile || !savedUsername);
+
+  const renderAssetsUploaderSection = () => (
+    <section className="guns-section">
+      <div className="section-head-2d">
+        <h2 className="guns-section-title">{L('Assets Uploader · Hình ảnh & Media', 'Assets Uploader')}</h2>
+      </div>
+      <div className="guns-panel">
+        <div className="assets-uploader-grid">
+          {/* 1. Background */}
+          <div className="asset-col">
+            <div className="asset-col-head">
+              <span className="asset-label">{L('Hình nền', 'Background')}</span>
+              {(formData.backgroundImage || formData.backgroundVideo) && (
+                <button
+                  type="button"
+                  className="asset-clear-x"
+                  aria-label={L('Xóa hình nền', 'Remove background')}
+                  onClick={() => {
+                    handleRemoveImage('backgroundImage');
+                    setFormData((prev) => ({ ...prev, backgroundVideo: '' }));
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <div
+              className="asset-drop-box"
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setBgMode(formData.backgroundVideo && !formData.backgroundImage ? 'video' : 'image');
+                setBgModalOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setBgModalOpen(true);
+                }
+              }}
+            >
+              {uploadingBackground && (
+                <div className="uploading-overlay"><div className="spinner" /></div>
+              )}
+              {formData.backgroundImage ? (
+                <img src={formData.backgroundImage} alt={L('Hình nền', 'Background')} className="asset-filled-img" />
+              ) : formData.backgroundVideo ? (
+                <>
+                  <svg className="asset-svg-ico asset-svg-2d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="2" y="5" width="14" height="14" rx="2.5" />
+                    <polygon points="22 8 16 12 22 16 22 8" />
+                  </svg>
+                  <span className="asset-hint">{L('Video nền đã được thiết lập', 'Background video is set')}</span>
+                </>
+              ) : (
+                <>
+                  <svg className="asset-svg-ico asset-svg-2d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="3" width="18" height="18" rx="2.5" />
+                    <circle cx="8.5" cy="8.5" r="1.5" />
+                    <polyline points="21 15 16 10 5 21" />
+                  </svg>
+                  <span className="asset-hint">{L('Bấm để chọn hình nền', 'Click to choose a background')}</span>
+                </>
+              )}
+            </div>
+            {bgModalOpen && createPortal(
+              <div className="bg-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setBgModalOpen(false); }}>
+                <div className="bg-modal" role="dialog" aria-modal="true" aria-label={L('Hình nền', 'Background')}>
+                  <div className="bg-modal-head">
+                    <strong>{L('Hình nền', 'Background')}</strong>
+                    <button type="button" className="bg-modal-x" aria-label={L('Đóng', 'Close')} onClick={() => setBgModalOpen(false)}>
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="bg-modal-tabs" role="tablist">
+                    <button type="button" role="tab" aria-selected={bgMode === 'image'} className={bgMode === 'image' ? 'active' : ''} onClick={() => setBgMode('image')}>
+                      {L('Hình ảnh', 'Image')}
+                    </button>
+                    <button type="button" role="tab" aria-selected={bgMode === 'video'} className={bgMode === 'video' ? 'active' : ''} onClick={() => setBgMode('video')}>
+                      {L('Link Video', 'Video link')}
+                    </button>
+                  </div>
+
+                  {bgMode === 'image' ? (
+                    <div className="bg-modal-body">
+                      <div className="bg-modal-drop">
+                        {uploadingBackground && (
+                          <div className="uploading-overlay"><div className="spinner" /></div>
+                        )}
+                        {formData.backgroundImage ? (
+                          <img src={formData.backgroundImage} alt="" className="asset-filled-img" />
+                        ) : (
+                          <>
+                            <svg className="asset-svg-ico asset-svg-2d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                              <polyline points="17 8 12 3 7 8" />
+                              <line x1="12" y1="3" x2="12" y2="15" />
+                            </svg>
+                            <span className="asset-hint">{L('Bấm để tải ảnh lên (tối đa 10MB)', 'Click to upload an image (max 10MB)')}</span>
+                          </>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="asset-file-input"
+                          disabled={uploadingBackground}
+                          onChange={async (e) => {
+                            const input = e.target;
+                            await handleImageChange(e, 'backgroundImage');
+                            input.value = '';
+                          }}
+                        />
+                      </div>
+                      {formData.backgroundImage && (
+                        <p className="bg-modal-note">{L('Bấm vào ảnh để thay ảnh khác.', 'Click the image to replace it.')}</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="bg-modal-body">
+                      <label className="bg-modal-label">
+                        {L('Video nền YouTube', 'YouTube background video')}{' '}<DiamondIcon className="pro-diamond" />
+                      </label>
+                      <div className="dark-input-box">
+                        <input
+                          type="url"
+                          name="backgroundVideo"
+                          value={formData.backgroundVideo}
+                          onChange={handleChange}
+                          placeholder={isPremium ? 'https://www.youtube.com/watch?v=...' : 'https://www.youtube.com/watch?v=... (Premium để lưu)'}
+                          autoFocus
+                        />
+                      </div>
+                      {!isPremium && (
+                        <p className="bg-modal-note">{L('Video nền chỉ lưu được với gói Premium.', 'Background video can only be saved with Premium.')}</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="bg-modal-foot">
+                    {(formData.backgroundImage || formData.backgroundVideo) && (
+                      <button
+                        type="button"
+                        className="bg-modal-btn danger"
+                        onClick={() => {
+                          handleRemoveImage('backgroundImage');
+                          setFormData((prev) => ({ ...prev, backgroundVideo: '' }));
+                        }}
+                      >
+                        {L('Xóa hình nền', 'Remove')}
+                      </button>
+                    )}
+                    <button type="button" className="bg-modal-btn primary" onClick={() => setBgModalOpen(false)}>
+                      {L('Xong', 'Done')}
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+
+          {/* 2. Audio */}
+          <div className="asset-col">
+            <div className="asset-col-head">
+              <span className="asset-label">{L('Âm thanh', 'Audio')}</span>
+              {formData.musicUrl && <span className="asset-active-dot" title={L('Đã liên kết âm thanh', 'Audio linked')} />}
+            </div>
+            <div
+              className={`asset-drop-box ${formData.musicUrl ? 'active-box' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setAudioModalOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setAudioModalOpen(true);
+                }
+              }}
+            >
+              <svg className="asset-svg-ico asset-svg-2d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 18V5l12-2v13" />
+                <circle cx="6" cy="18" r="3" />
+                <circle cx="18" cy="16" r="3" />
+              </svg>
+              <span className="asset-hint">
+                {formData.musicUrl
+                  ? L('Đã liên kết nhạc (bấm để sửa)', 'Audio linked (click to edit)')
+                  : L('Bấm để thêm nhạc', 'Click to add audio')}
+              </span>
+            </div>
+            {audioModalOpen && createPortal(
+              <div className="bg-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setAudioModalOpen(false); }}>
+                <div className="bg-modal" role="dialog" aria-modal="true" aria-label={L('Âm thanh', 'Audio')}>
+                  <div className="bg-modal-head">
+                    <strong>{L('Âm thanh', 'Audio')}</strong>
+                    <button type="button" className="bg-modal-x" aria-label={L('Đóng', 'Close')} onClick={() => setAudioModalOpen(false)}>
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="bg-modal-body">
+                    <label className="bg-modal-label">{L('Link nhạc YouTube', 'YouTube audio link')}</label>
+                    <div className="dark-input-box">
+                      <input
+                        id="music-url-input"
+                        type="url"
+                        name="musicUrl"
+                        value={formData.musicUrl}
+                        onChange={handleChange}
+                        placeholder="https://www.youtube.com/watch?v=..."
+                        autoFocus
+                      />
+                    </div>
+                    <p className="bg-modal-note">{L('Dán link video YouTube để làm nhạc nền cho hồ sơ.', 'Paste a YouTube link to use as your profile music.')}</p>
+                  </div>
+
+                  <div className="bg-modal-foot">
+                    {formData.musicUrl && (
+                      <button
+                        type="button"
+                        className="bg-modal-btn danger"
+                        onClick={() => setFormData((prev) => ({ ...prev, musicUrl: '' }))}
+                      >
+                        {L('Xóa âm thanh', 'Remove')}
+                      </button>
+                    )}
+                    <button type="button" className="bg-modal-btn primary" onClick={() => setAudioModalOpen(false)}>
+                      {L('Xong', 'Done')}
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+
+          {/* 3. Profile Avatar */}
+          <div className="asset-col">
+            <div className="asset-col-head">
+              <span className="asset-label">{L('Ảnh đại diện', 'Profile Avatar')}</span>
+              {formData.avatar && (
+                <button
+                  type="button"
+                  className="asset-clear-x"
+                  aria-label={L('Xóa ảnh đại diện', 'Remove avatar')}
+                  onClick={() => handleRemoveImage('avatar')}
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <div className="asset-drop-box">
+              {uploadingAvatar && (
+                <div className="uploading-overlay"><div className="spinner" /></div>
+              )}
+              {formData.avatar ? (
+                <img src={formData.avatar} alt={L('Ảnh đại diện', 'Avatar')} className="asset-filled-img" />
+              ) : (
+                <>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageChange(e, 'avatar')}
+                    disabled={uploadingAvatar}
+                    className="asset-file-input"
+                  />
+                  <svg className="asset-svg-ico asset-svg-2d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  <span className="asset-hint">{L('Bấm để tải tệp lên', 'Click to upload a file')}</span>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* 4. Custom Cursor */}
+          <div className="asset-col">
+            <div className="asset-col-head">
+              <span className="asset-label">{L('Con trỏ tùy chỉnh', 'Custom Cursor')}</span>
+              {splashCursor.enabled && <span className="asset-active-dot" title={L('Đang bật Splash Cursor', 'Splash Cursor Enabled')} />}
+              {formData.cursorIcon && (
+                <button
+                  type="button"
+                  className="asset-clear-x"
+                  aria-label={L('Xóa con trỏ', 'Remove cursor')}
+                  onClick={() => handleRemoveImage('cursorIcon')}
+                >
+                  <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              )}
+            </div>
+            <div
+              className={`asset-drop-box ${showCursorManager || splashCursor.enabled ? 'active-box' : ''}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => setShowCursorManager(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setShowCursorManager(true);
+                }
+              }}
+            >
+              {uploadingCursor && (
+                <div className="uploading-overlay"><div className="spinner" /></div>
+              )}
+              {formData.cursorIcon ? (
+                <img src={formData.cursorIcon} alt={L('Con trỏ', 'Cursor')} className="asset-filled-img contain" />
+              ) : (
+                <>
+                  <svg className="asset-svg-ico asset-svg-2d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4l7.07 17 2.51-7.39L21 11.07 4 4z" />
+                    <path d="M13 13l6 6" />
+                  </svg>
+                  <span className="asset-hint">
+                    {splashCursor.enabled
+                      ? L('Đang bật Splash Cursor (bấm để sửa)', 'Splash Cursor active (click to edit)')
+                      : L('Bấm để tùy chỉnh con trỏ', 'Click to customize cursor')}
+                  </span>
+                </>
+              )}
+            </div>
+            {showCursorManager && createPortal(
+              <div className="bg-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowCursorManager(false); }}>
+                <div className="bg-modal" role="dialog" aria-modal="true" aria-label={L('Con trỏ tùy chỉnh', 'Custom Cursor')}>
+                  <div className="bg-modal-head">
+                    <strong>{L('Con trỏ tùy chỉnh', 'Custom Cursor')}</strong>
+                    <button type="button" className="bg-modal-x" aria-label={L('Đóng', 'Close')} onClick={() => setShowCursorManager(false)}>
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  <div className="bg-modal-tabs" role="tablist">
+                    <button type="button" role="tab" aria-selected={cursorModalTab === 'cursor'} className={cursorModalTab === 'cursor' ? 'active' : ''} onClick={() => setCursorModalTab('cursor')}>
+                      {L('Con trỏ', 'Cursor')}
+                    </button>
+                    <button type="button" role="tab" aria-selected={cursorModalTab === 'frame'} className={cursorModalTab === 'frame' ? 'active' : ''} onClick={() => setCursorModalTab('frame')}>
+                      {L('Khung & ảnh bìa', 'Frame & cover')}
+                    </button>
+                  </div>
+
+                  {cursorModalTab === 'cursor' ? (
+                    <div className="bg-modal-body">
+                      <label className="bg-modal-label">{L('Chọn mẫu có sẵn', 'Choose a preset')}</label>
+                      <div className="dark-input-box">
+                        <select
+                          value={formData.cursorIcon}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, cursorIcon: e.target.value }))}
+                        >
+                          <option value="">{L('Con trỏ mặc định', 'Default Cursor')}</option>
+                          <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">KonOne Cursor 1</option>
+                        </select>
+                      </div>
+
+                      <label className="bg-modal-label bg-modal-label--gap">{L('Hoặc tải ảnh con trỏ riêng', 'Or upload your own cursor')}</label>
+                      <div className="bg-modal-drop bg-modal-drop--short">
+                        {uploadingCursor && (
+                          <div className="uploading-overlay"><div className="spinner" /></div>
+                        )}
+                        {formData.cursorIcon ? (
+                          <img src={formData.cursorIcon} alt="" className="asset-filled-img contain" />
+                        ) : (
+                          <span className="asset-hint">{L('Bấm để tải ảnh lên (tối đa 10MB)', 'Click to upload an image (max 10MB)')}</span>
+                        )}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="asset-file-input"
+                          disabled={uploadingCursor}
+                          onChange={async (e) => {
+                            const input = e.target;
+                            await handleImageChange(e, 'cursorIcon');
+                            input.value = '';
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-modal-body">
+                      <label className="bg-modal-label">{L('Khung trang trí avatar', 'Avatar Frame Decoration')}</label>
+                      <div className="dark-input-box">
+                        <select
+                          value={formData.avatarFrame}
+                          onChange={(e) => setFormData((prev) => ({ ...prev, avatarFrame: e.target.value }))}
+                        >
+                          {AVATAR_FRAMES.map((f) => (
+                            <option key={f.label} value={f.value}>{f.label}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <label className="bg-modal-label bg-modal-label--gap">{L('Ảnh bìa thẻ', 'Card Cover Banner')}</label>
+                      <div className="dark-upload-inline">
+                        <label className="inline-upload-trigger">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => handleImageChange(e, 'coverImage')}
+                            disabled={uploadingCover}
+                          />
+                          {uploadingCover
+                            ? L('Đang tải lên...', 'Uploading...')
+                            : formData.coverImage
+                              ? L('Đổi ảnh bìa', 'Change Cover')
+                              : L('Tải ảnh bìa', 'Upload Cover')}
+                        </label>
+                        {formData.coverImage && (
+                          <button type="button" className="inline-clear-btn" onClick={() => handleRemoveImage('coverImage')}>
+                            {L('Xóa', 'Remove')}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="bg-modal-foot">
+                    {cursorModalTab === 'cursor' && formData.cursorIcon && (
+                      <button type="button" className="bg-modal-btn danger" onClick={() => handleRemoveImage('cursorIcon')}>
+                        {L('Xóa con trỏ', 'Remove')}
+                      </button>
+                    )}
+                    <button type="button" className="bg-modal-btn primary" onClick={() => setShowCursorManager(false)}>
+                      {L('Xong', 'Done')}
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+        </div>
+
+      </div>
+    </section>
+  );
+
   return (
     <div className="profile-editor-layout">
       {/* MENU BÊN TRÁI: Thu gọn thành 1 thanh mảnh, khi để chuột vào mới trượt mở ra */}
@@ -820,13 +1274,14 @@ export default function ProfileEditor() {
             <span className="sidebar-reveal">{L("Liên kết", "Links")}</span>
           </div>
 
-          <div className="nav-item" onClick={() => navigate('/edit-layout')} title={language === 'vi' ? 'Bố cục' : 'Layout'}>
+          <div className="nav-item" onClick={() => navigate('/profile-template')} title={language === 'vi' ? 'Mẫu' : 'Templates'}>
             <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2">
-              <rect x="3" y="3" width="18" height="18" rx="2" />
-              <line x1="3" y1="9" x2="21" y2="9" />
-              <line x1="9" y1="21" x2="9" y2="9" />
+              <rect x="3" y="3" width="7" height="9" rx="1" />
+              <rect x="14" y="3" width="7" height="5" rx="1" />
+              <rect x="14" y="12" width="7" height="9" rx="1" />
+              <rect x="3" y="16" width="7" height="5" rx="1" />
             </svg>
-            <span className="sidebar-reveal">{language === 'vi' ? 'Bố cục' : 'Layout'}</span>
+            <span className="sidebar-reveal">{language === 'vi' ? 'Mẫu' : 'Templates'}</span>
           </div>
 
           <div className="nav-item" onClick={() => navigate('/premium')} title="Premium">
@@ -879,8 +1334,9 @@ export default function ProfileEditor() {
             <div className="user-name">{formData.username ? `@${formData.username}` : L('Chưa có tên người dùng', 'No username')}</div>
             <div className="user-uid">UID {currentUser?.uid?.slice(0, 8) || 'N/A'}</div>
             <div className="user-views">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" />
+                <circle cx="12" cy="12" r="3" />
               </svg>
               <span>{viewCount.toLocaleString()}{' '}{L("lượt xem", "views")}</span>
             </div>
@@ -890,429 +1346,192 @@ export default function ProfileEditor() {
 
       {/* MAIN CONTENT */}
       <main className="editor-main">
-        <form onSubmit={handleSubmit} className="editor-form">
-          {/* Thanh Topbar kèm Username, Display Name & Nút Lưu */}
-          <div className="editor-topbar">
-            <div className="topbar-identity-inputs">
-              <div className="topbar-input-chip">
-                <span className="chip-prefix">@</span>
-                <input
-                  type="text"
-                  name="username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  required
-                  placeholder={L("tên người dùng", "username")}
-                  pattern="[a-z0-9]+"
-                  title={L("Tên", "Username")}
-                />
-              </div>
-              <div className="topbar-input-chip">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
-                </svg>
-                <input
-                  type="text"
-                  name="displayName"
-                  value={formData.displayName}
-                  onChange={handleChange}
-                  required
-                  placeholder={L("Tên hiển thị", "Display Name")}
-                  title={L("Tên hiển thị", "Display Name")}
-                />
-              </div>
-              <button
-                type="button"
-                className="topbar-socials-btn"
-                onClick={() => setShowSocialsModal((v) => !v)}
-              >
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                </svg>
-                <span>{L("Mạng xã hội (", "Social Links (")}{activeSocialCount})</span>
-              </button>
+        <form onSubmit={handleSubmit} className={`editor-form ${isNewAccount ? 'is-onboarding' : ''}`}>
+          {!profileLoaded ? (
+            <div className="editor-loading-state">
+              <div className="spinner" />
+              <span>{L('Đang tải không gian hồ sơ...', 'Loading profile studio...')}</span>
             </div>
+          ) : isNewAccount ? (
+            <div className="onboarding-studio">
+              <div className="onboarding-head">
+                <div className="onboarding-badge-2d">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                    <circle cx="12" cy="7" r="4" />
+                  </svg>
+                  <span>{L('Khởi tạo hồ sơ mới', 'New Profile Setup')}</span>
+                </div>
+                <h1>{L('Tạo hồ sơ KonOne của bạn', 'Create your KonOne profile')}</h1>
+                <p>
+                  {L(
+                    'Nhập tên người dùng, tên hiển thị và tải lên hình ảnh cơ bản. Sau khi lưu, toàn bộ công cụ tùy chỉnh nâng cao sẽ được mở khóa.',
+                    'Enter your username, display name, and upload your basic assets. Once saved, all advanced customization tools will unlock.'
+                  )}
+                </p>
+              </div>
 
-            <div className="editor-topbar-actions">
-              {!isPremium && (
+              {/* Card 1: Username & Display Name */}
+              <section className="guns-section">
+                <div className="section-head-2d">
+                  <h2 className="guns-section-title">{L('Định danh hồ sơ', 'Profile Identity')}</h2>
+                </div>
+                <div className="guns-panel">
+                  <div className="onboarding-identity-grid">
+                    <div className="custom-dark-field">
+                      <label htmlFor="onboard-username">
+                        {L('Tên người dùng (Username)', 'Username')} <span className="req-dot">*</span>
+                      </label>
+                      <div className="dark-input-box onboarding-url-input">
+                        <span className="url-prefix-2d">konone.fun/</span>
+                        <input
+                          id="onboard-username"
+                          type="text"
+                          name="username"
+                          value={formData.username}
+                          onChange={handleChange}
+                          required
+                          placeholder="yourname"
+                          pattern="[a-z0-9]+"
+                          autoComplete="off"
+                        />
+                      </div>
+                      <span className="field-helper-2d">
+                        {L('Chỉ dùng chữ thường (a-z) và số (0-9), không dấu cách.', 'Lowercase letters (a-z) and numbers (0-9) only.')}
+                      </span>
+                    </div>
+
+                    <div className="custom-dark-field">
+                      <label htmlFor="onboard-displayname">
+                        {L('Tên hiển thị (Display Name)', 'Display Name')} <span className="req-dot">*</span>
+                      </label>
+                      <div className="dark-input-box">
+                        <span className="input-lead-icon">
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                        </span>
+                        <input
+                          id="onboard-displayname"
+                          type="text"
+                          name="displayName"
+                          value={formData.displayName}
+                          onChange={handleChange}
+                          required
+                          placeholder={L('VD: Minh Khôi', 'e.g. Alex Rivera')}
+                        />
+                      </div>
+                      <span className="field-helper-2d">
+                        {L('Tên nổi bật hiển thị trên trang cá nhân của bạn.', 'The main name displayed on your public profile.')}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Card 2: Assets Uploader */}
+              {renderAssetsUploaderSection()}
+
+              {/* Thanh hành động khởi tạo hồ sơ */}
+              <div className="onboarding-footer-bar">
                 <button
                   type="button"
-                  className="topbar-btn topbar-btn-pro"
-                  onClick={() => navigate('/premium')}
+                  className="topbar-btn"
+                  onClick={() => navigate('/dashboard')}
                 >
-                  <DiamondIcon size={13} />
-                  <span>{L('Premium', 'Premium')}</span>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="19" y1="12" x2="5" y2="12" />
+                    <polyline points="12 19 5 12 12 5" />
+                  </svg>
+                  <span>{L('Quay lại Dashboard', 'Back to Dashboard')}</span>
+                </button>
+
+                <div className="onboarding-footer-right">
+                  <SlideCommit
+                    label={uploading ? L('Đang tải lên...', 'Uploading...') : L('Trượt để tạo hồ sơ', 'Slide to create')}
+                    doneLabel={L('Đã tạo hồ sơ', 'Created')}
+                    errorLabel={L('Thiếu thông tin', 'Incomplete')}
+                    onConfirm={async () => {
+                      const ok = await handleSubmit();
+                      if (!ok) throw new Error('not-saved');
+                    }}
+                    trackColor="#0d0d10"
+                    handleColor="#f65c5c"
+                    successColor="#22c55e"
+                    dangerColor="#e5484d"
+                    width={210}
+                    height={42}
+                    radius={11}
+                    holdMs={1200}
+                    disabled={uploading}
+                    className="topbar-slide"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+          {/* Menu header: Hủy, Premium, Ẩn hồ sơ, Lưu */}
+          <div className="editor-topbar">
+            <nav className="editor-menu" aria-label={L('Menu chỉnh sửa', 'Editor menu')}>
+              <button type="button" className="editor-menu-item" onClick={() => navigate('/dashboard')}>
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
+                <span>{t(language, 'profileEditor.cancel')}</span>
+              </button>
+              {!isPremium && (
+                <button type="button" className="editor-menu-item" onClick={() => navigate('/premium')}>
+                  <DiamondIcon size={14} />
+                  <span>Premium</span>
                 </button>
               )}
               <button
                 type="button"
-                className={`topbar-btn ${isHidden ? 'is-on' : ''}`}
+                className={`editor-menu-item${isHidden ? ' is-on' : ''}`}
                 onClick={toggleHidden}
                 title={isHidden
                   ? L('Hồ sơ đang ẩn — bấm để hiện lại', 'Profile is hidden — click to show')
                   : L('Ẩn hồ sơ với người khác', 'Hide profile from others')}
               >
                 {isHidden ? (
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" />
-                    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94" /><path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19" /><line x1="1" y1="1" x2="23" y2="23" /></svg>
                 ) : (
-                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" /><circle cx="12" cy="12" r="3" /></svg>
                 )}
                 <span>{isHidden ? L('Đang ẩn', 'Hidden') : L('Ẩn hồ sơ', 'Hide')}</span>
               </button>
+              <span className="editor-menu-sep" aria-hidden="true" />
               <button
                 type="button"
-                onClick={() => navigate('/dashboard')}
-                className="topbar-btn"
+                className="editor-menu-item editor-menu-save"
+                onClick={handleSubmit}
+                disabled={uploading || loading}
               >
-                {t(language, 'profileEditor.cancel')}
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" /><polyline points="17 21 17 13 7 13 7 21" /><polyline points="7 3 7 8 15 8" /></svg>
+                <span>
+                  {uploading
+                    ? L('Đang tải lên...', 'Uploading...')
+                    : loading
+                      ? L('Đang lưu...', 'Saving...')
+                      : L('Lưu', 'Save')}
+                </span>
               </button>
-              {/* Trượt để lưu (ReactBits SlideCommit) */}
-              <SlideCommit
-                label={uploading ? L('Đang tải lên...', 'Uploading...') : L('Trượt để lưu', 'Slide to save')}
-                doneLabel={L('Đã lưu', 'Saved')}
-                errorLabel={L('Chưa lưu được', 'Not saved')}
-                onConfirm={async () => {
-                  const ok = await handleSubmit();
-                  if (!ok) throw new Error('not-saved');
-                }}
-                trackColor="#0d0d0f"
-                handleColor="#f65c5c"
-                successColor="#22c55e"
-                dangerColor="#e5484d"
-                width={176}
-                height={38}
-                radius={10}
-                holdMs={1400}
-                disabled={uploading}
-                className="topbar-slide"
-              />
-            </div>
+            </nav>
           </div>
 
-          {/* Thanh báo sau khi lưu — ở dưới màn hình, có nút xem hồ sơ ngay */}
-          {saveToast && (
-            <div className={`save-toast ${saveToast.ok ? 'ok' : 'err'}`} role="status">
-              <span className="save-toast-ico">{saveToast.ok ? '✓' : '!'}</span>
-              <span className="save-toast-text">{saveToast.text}</span>
-              {saveToast.ok && (savedUsername || formData.username) && (
-                <a
-                  href={`/${savedUsername || formData.username}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="save-toast-btn"
-                >
-                  {L('Xem hồ sơ ngay', 'View profile')}
-                </a>
-              )}
-              <button type="button" className="save-toast-close" aria-label={L('Đóng', 'Close')} onClick={() => setSaveToast(null)}>
-                ✕
-              </button>
-            </div>
-          )}
-
-          {/* Bảng Social Links xổ xuống nhanh khi bấm nút trên Topbar */}
-          {showSocialsModal && (
-            <div className="custom-drawer-panel">
-              <div className="drawer-panel-head">
-                <h4>{L("Liên kết mạng xã hội", "Social Network Links")}</h4>
-                <button type="button" onClick={() => setShowSocialsModal(false)}>✕</button>
-              </div>
-              <div className="socials-drawer-grid">
-                {SOCIAL_FIELDS.map((s) => (
-                  <div key={s.key} className="custom-dark-field">
-                    <label>{s.label}</label>
-                    <div className="dark-input-box">
-                      <input
-                        type="url"
-                        name={`social.${s.key}`}
-                        value={formData.socialLinks[s.key] || ''}
-                        onChange={handleChange}
-                        placeholder={s.placeholder}
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* WORKSPACE: TRÁI (4 KHỐI CUSTOM GIỐNG HỆT 3 ẢNH MẪU) — PHẢI (LIVE DEMO PROFILE) */}
-          <div className="editor-workspace">
+          {/* WORKSPACE: Tạm ẩn Demo Profile để tập trung vào không gian chỉnh sửa đồng bộ */}
+          <div className={`editor-workspace ${SHOW_DEMO_PROFILE ? '' : 'demo-hidden'}`}>
             <div className="editor-left-pane">
               {/* ================= SECTION 1: ASSETS UPLOADER ================= */}
-              <section className="guns-section">
-                <h2 className="guns-section-title">{L("Hình ảnh & media", "Assets Uploader")}</h2>
-                <div className="guns-panel">
-                  <div className="assets-uploader-grid">
-                    {/* 1. Background (Image / Cover / Video) */}
-                    <div className="asset-col">
-                      <div className="asset-col-head">
-                        <span className="asset-label">{L("Hình nền", "Background")}</span>
-                        {(formData.backgroundImage || formData.backgroundVideo) && (
-                          <button
-                            type="button"
-                            className="asset-clear-x"
-                            onClick={() => {
-                              handleRemoveImage('backgroundImage');
-                              setFormData((prev) => ({ ...prev, backgroundVideo: '' }));
-                            }}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                      <div className="asset-drop-box">
-                        {uploadingBackground && (
-                          <div className="uploading-overlay"><div className="spinner" /></div>
-                        )}
-                        {formData.backgroundImage ? (
-                          <img src={formData.backgroundImage} alt={L("Hình nền", "Background")} className="asset-filled-img" />
-                        ) : (
-                          <>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleImageChange(e, 'backgroundImage')}
-                              disabled={uploadingBackground}
-                              className="asset-file-input"
-                            />
-                            <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
-                            </svg>
-                            <span className="asset-hint">{L("Bấm để tải tệp lên", "Click to upload a file")}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 2. Audio (Click to open audio manager -> YouTube Audio & Background Video) */}
-                    <div className="asset-col">
-                      <div className="asset-col-head">
-                        <span className="asset-label">{L("Âm thanh", "Audio")}</span>
-                        {formData.musicUrl && <span className="asset-active-dot" title={L("Đã liên kết âm thanh", "Audio linked")} />}
-                      </div>
-                      <div
-                        className={`asset-drop-box ${formData.musicUrl ? 'active-box' : ''}`}
-                        onClick={() => {
-                          // Khay âm thanh luôn hiện — bấm để nhảy tới ô nhập link nhạc
-                          const el = document.getElementById('music-url-input');
-                          if (el) {
-                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                            el.focus({ preventScroll: true });
-                          }
-                        }}
-                      >
-                        <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
-                          <path d="M20 6h-8l-2-2H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h10l6-6V8c0-1.1-.9-2-2-2zm-2.41 10.59L15 19.17V16h3.17l-.58.59z" />
-                        </svg>
-                        <span className="asset-hint">
-                          {formData.musicUrl
-                                ? L('Đã liên kết nhạc (bấm để sửa)', 'Audio linked (click to edit)')
-                                : L('Bấm để thêm nhạc', 'Click to open audio manager')}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* 3. Profile Avatar */}
-                    <div className="asset-col">
-                      <div className="asset-col-head">
-                        <span className="asset-label">{L("Ảnh đại diện", "Profile Avatar")}</span>
-                        {formData.avatar && (
-                          <button
-                            type="button"
-                            className="asset-clear-x"
-                            onClick={() => handleRemoveImage('avatar')}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                      <div className="asset-drop-box">
-                        {uploadingAvatar && (
-                          <div className="uploading-overlay"><div className="spinner" /></div>
-                        )}
-                        {formData.avatar ? (
-                          <img src={formData.avatar} alt={L("Ảnh đại diện", "Avatar")} className="asset-filled-img" />
-                        ) : (
-                          <>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={(e) => handleImageChange(e, 'avatar')}
-                              disabled={uploadingAvatar}
-                              className="asset-file-input"
-                            />
-                            <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
-                            </svg>
-                            <span className="asset-hint">{L("Bấm để tải tệp lên", "Click to upload a file")}</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* 4. Custom Cursor (hoặc Avatar Frame & Cover Banner) */}
-                    <div className="asset-col">
-                      <div className="asset-col-head">
-                        <span className="asset-label">{L("Con trỏ tùy chỉnh", "Custom Cursor")}</span>
-                        {splashCursor.enabled && <span className="asset-active-dot" title={L("Đang bật Splash Cursor", "Splash Cursor Enabled")} />}
-                        {formData.cursorIcon && (
-                          <button
-                            type="button"
-                            className="asset-clear-x"
-                            onClick={() => handleRemoveImage('cursorIcon')}
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </div>
-                      <div
-                        className={`asset-drop-box ${showCursorManager || splashCursor.enabled ? 'active-box' : ''}`}
-                        onClick={() => setShowCursorManager((v) => !v)}
-                      >
-                        {uploadingCursor && (
-                          <div className="uploading-overlay"><div className="spinner" /></div>
-                        )}
-                        {formData.cursorIcon ? (
-                          <img src={formData.cursorIcon} alt={L("Con trỏ", "Cursor")} className="asset-filled-img contain" />
-                        ) : (
-                          <>
-                            <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M13.64 21.97C13.14 22.21 12.54 22 12.31 21.5L10.13 16.76L7.62 18.78C7.45 18.92 7.24 19 7.02 19C6.46 19 6 18.54 6 18V3C6 2.46 6.46 2 7 2C7.23 2 7.46 2.08 7.64 2.23L19.65 11.96C20.08 12.31 20.14 12.94 19.79 13.37C19.6 13.61 19.31 13.75 19 13.75H14.18L16.33 18.42C16.56 18.92 16.34 19.51 15.84 19.74L13.64 21.97Z" />
-                            </svg>
-                            <span className="asset-hint">
-                              {splashCursor.enabled
-                                ? L('Đang bật Splash Cursor (bấm để sửa)', 'Splash Cursor active (click to edit)')
-                                : L('Bấm để tùy chỉnh con trỏ', 'Click to customize cursor')}
-                            </span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Quản lý âm thanh & video nền — luôn hiển thị */}
-                  {(
-                    <div className="guns-subdrawer">
-                      <div className="subdrawer-header">
-                        <strong>{L("Quản lý âm thanh & video nền", "Audio & Video Background Manager")}</strong>
-                      </div>
-                      <div className="subdrawer-grid">
-                        <div className="custom-dark-field">
-                          <label>{L("Link nhạc YouTube", "YouTube Audio URL")}</label>
-                          <div className="dark-input-box">
-                            <input
-                              id="music-url-input"
-                              type="url"
-                              name="musicUrl"
-                              value={formData.musicUrl}
-                              onChange={handleChange}
-                              placeholder="https://www.youtube.com/watch?v=..."
-                            />
-                          </div>
-                        </div>
-                        <div className="custom-dark-field">
-                          <label>
-                            {L("Video nền YouTube", "YouTube Background Video")}{' '}<DiamondIcon className="pro-diamond" />
-                          </label>
-                          <div className="dark-input-box">
-                            <input
-                              type="url"
-                              name="backgroundVideo"
-                              value={formData.backgroundVideo}
-                              onChange={handleChange}
-                              placeholder={isPremium ? 'https://www.youtube.com/watch?v=...' : 'https://www.youtube.com/watch?v=... (Premium để lưu)'}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Khay mở rộng Custom Cursor, Avatar Frame & Cover Banner */}
-                  {showCursorManager && (
-                    <div className="guns-subdrawer">
-                      <div className="subdrawer-header">
-                        <strong>{L("Con trỏ, khung avatar & ảnh bìa", "Cursor, Avatar Frame & Card Cover")}</strong>
-                        <button type="button" onClick={() => setShowCursorManager(false)}>✕</button>
-                      </div>
-                      <div className="subdrawer-grid three">
-                        <div className="custom-dark-field">
-                          <label>{L("Con trỏ tùy chỉnh — tải lên hoặc chọn mẫu", "Custom Cursor — upload or preset")}</label>
-                          <div className="dark-input-box">
-                            <select
-                              value={formData.cursorIcon}
-                              onChange={(e) => setFormData((prev) => ({ ...prev, cursorIcon: e.target.value }))}
-                            >
-                              <option value="">{L("Con trỏ mặc định", "Default Cursor")}</option>
-                              <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">KonOne Cursor 1</option>
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="custom-dark-field">
-                          <label>{L("Khung trang trí avatar", "Avatar Frame Decoration")}</label>
-                          <div className="dark-input-box">
-                            <select
-                              value={formData.avatarFrame}
-                              onChange={(e) => setFormData((prev) => ({ ...prev, avatarFrame: e.target.value }))}
-                            >
-                              {AVATAR_FRAMES.map((f) => (
-                                <option key={f.label} value={f.value}>{f.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div className="custom-dark-field">
-                          <label>{L("Ảnh bìa thẻ", "Card Cover Banner")}</label>
-                          <div className="dark-upload-inline">
-                            <label className="inline-upload-trigger">
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleImageChange(e, 'coverImage')}
-                                disabled={uploadingCover}
-                              />
-                              {uploadingCover
-                                ? L('Đang tải lên...', 'Uploading...')
-                                : formData.coverImage
-                                  ? L('Đổi ảnh bìa', 'Change Cover')
-                                  : L('Tải ảnh bìa', 'Upload Cover')}
-                            </label>
-                            {formData.coverImage && (
-                              <button
-                                type="button"
-                                className="inline-clear-btn"
-                                onClick={() => handleRemoveImage('coverImage')}
-                              >
-                                {L("Xóa", "Remove")}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </section>
+              {renderAssetsUploaderSection()}
 
               {/* ================= SECTION 2: GENERAL CUSTOMIZATION ================= */}
               <section className="guns-section">
                 <h2 className="guns-section-title">{L("Tùy chỉnh chung", "General Customization")}</h2>
                 <div className="guns-panel">
                   <div className="general-custom-grid">
-                    {/* Row 1, Col 1: Description */}
-                    <div className="custom-dark-field">
+                    {/* Mô tả: một thanh nhập dài ngang */}
+                    <div className="custom-dark-field general-span-all">
                       <label>{L("Mô tả", "Description")}</label>
                       <div className="dark-input-box">
                         <span className="input-lead-icon text-a">A</span>
@@ -1326,91 +1545,8 @@ export default function ProfileEditor() {
                       </div>
                     </div>
 
-                    {/* Row 1, Col 2: Social Icons & Vị trí (Thay cho Profile Widget) */}
-                    <div className="custom-dark-field">
-                      <label className="social-pos-field-label compact">
-                        <span>
-                          {L('Mạng xã hội', 'Socials')}
-                          <span className="field-count">{activeSocialCount}</span>
-                        </span>
-                        <button
-                          type="button"
-                          className="manage-links-mini-link"
-                          onClick={() => navigate('/links')}
-                        >
-                          {L('Sửa', 'Edit')}
-                        </button>
-                      </label>
-
-                      <div className="social-widget-replacement">
-                        <div className="social-pos-toggle-row">
-                          <button
-                            type="button"
-                            className={`social-pos-pill ${socialPosition === 'inside' ? 'active' : ''}`}
-                            onClick={() => handleSocialPositionSwitch('inside')}
-                          >
-                            {language === 'vi' ? 'Bên trong thẻ' : 'Inside Card'}
-                          </button>
-                          <button
-                            type="button"
-                            className={`social-pos-pill ${socialPosition === 'outside' ? 'active' : ''}`}
-                            onClick={() => handleSocialPositionSwitch('outside')}
-                          >
-                            {language === 'vi' ? 'Bên ngoài thẻ' : 'Outside Card'}
-                          </button>
-                        </div>
-
-                        <div className="entered-icons-strip">
-                          {activeSocialCount > 0 ? (
-                            <>
-                              {linkedSocialEntries.map(([key, val]) => {
-                                const p = PLATFORM_BY_KEY[key];
-                                return (
-                                  <button
-                                    key={key}
-                                    type="button"
-                                    className="entered-icon-chip"
-                                    style={{ color: p?.color || '#ffffff' }}
-                                    title={`${p ? p.name : key}: ${val}`}
-                                    onClick={() => navigate('/links')}
-                                  >
-                                    {p ? p.icon : key.slice(0, 2).toUpperCase()}
-                                  </button>
-                                );
-                              })}
-                              {customLinks.map((c) => (
-                                <button
-                                  key={c.id || c.url}
-                                  type="button"
-                                  className="entered-icon-chip"
-                                  style={{ color: '#e4e4e7' }}
-                                  title={`${c.label || 'Custom'}: ${c.url}`}
-                                  onClick={() => navigate('/links')}
-                                >
-                                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                    <circle cx="12" cy="12" r="9" />
-                                    <path d="M3 12h18" />
-                                    <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z" />
-                                  </svg>
-                                </button>
-                              ))}
-                            </>
-                          ) : (
-                            <span
-                              className="no-icons-yet-hint"
-                              onClick={() => navigate('/links')}
-                            >
-                              {language === 'vi'
-                                ? 'Chưa có icon — Bấm để chọn ở trang Links'
-                                : 'No icons linked — Click to pick in Links'}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Row 1, Col 3: Profile Opacity */}
-                    <div className="custom-dark-field">
+                    {/* Hai thanh kéo dưới Mô tả */}
+                    <div className="custom-dark-field general-span-half">
                       <label>
                         {L("Độ trong suốt thẻ", "Profile Opacity")}{' '}<span className="help-q-ico" title={L("Độ trong suốt nền thẻ", "Card background transparency")}>?</span>
                       </label>
@@ -1432,8 +1568,7 @@ export default function ProfileEditor() {
                       </div>
                     </div>
 
-                    {/* Row 1, Col 4: Profile Blur */}
-                    <div className="custom-dark-field">
+                    <div className="custom-dark-field general-span-half">
                       <label>
                         {L("Độ mờ thẻ", "Profile Blur")}{' '}<span className="help-q-ico" title={L("Mức làm mờ phía sau thẻ", "Card backdrop blur amount")}>?</span>
                       </label>
@@ -1455,31 +1590,28 @@ export default function ProfileEditor() {
                       </div>
                     </div>
 
-                    {/* Row 2, Col 1: Background Effects */}
+                    {/* Hiệu ứng nền: bấm để mở bảng (trái: lựa chọn, phải: demo) */}
                     <div className="custom-dark-field">
                       <label>
                         {L("Hiệu ứng nền", "Background Effects")}{' '}<DiamondIcon className="pro-diamond" />
                       </label>
-                      <div className="dark-input-box">
-                        <span className="input-lead-icon">✦</span>
-                        <select
-                          name="effect"
-                          value={formData.effect}
-                          onChange={handleChange}
-                        >
-                          <option value="none">{L("Chọn hiệu ứng", "Choose an option")}</option>
-                          <option value="snow">{L("Tuyết rơi", "Snow")}</option>
-                          <option value="particles">{L("Hạt sáng", "Particles")}</option>
-                          <option value="confetti">{L("Pháo giấy", "Confetti")}</option>
-                          <option value="fireworks">{L("Pháo hoa", "Fireworks")}</option>
-                          <option value="rain">{L("Mưa", "Rain")}</option>
-                          <option value="stars">{L("Bầu trời sao", "Stars")}</option>
-                          <option value="leaves">{L("Lá rơi", "Leaves")}</option>
-                          <option value="aurora">{L("Cực quang", "Aurora")}</option>
-                          <option value="matrix">Matrix</option>
-                          <option value="nebula">{L("Tinh vân", "Nebula")}</option>
-                        </select>
-                      </div>
+                      <button
+                        type="button"
+                        className={`dark-action-box centered ${showBgEffects ? 'active' : ''}`}
+                        onClick={() => setShowBgEffects(true)}
+                      >
+                        <span className="input-lead-icon">
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9L12 3z" />
+                          </svg>
+                        </span>
+                        <span className="action-box-text">
+                          {(() => {
+                            const cur = BACKGROUND_EFFECTS.find((e) => e[0] === (formData.effect || 'none'));
+                            return cur && cur[0] !== 'none' ? L(cur[1], cur[2]) : L('Chọn hiệu ứng', 'Choose an option');
+                          })()}
+                        </span>
+                      </button>
                     </div>
 
                     {/* Row 2, Col 2: Username Effects */}
@@ -1488,9 +1620,15 @@ export default function ProfileEditor() {
                       <button
                         type="button"
                         className={`dark-action-box centered ${showUsernameEffects ? 'active' : ''}`}
-                        onClick={() => setShowUsernameEffects((v) => !v)}
+                        onClick={() => setShowUsernameEffects(true)}
                       >
-                        <span className="input-lead-icon">✦</span>
+                        <span className="input-lead-icon">
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="4 7 4 4 20 4 20 7" />
+                            <line x1="9" y1="20" x2="15" y2="20" />
+                            <line x1="12" y1="4" x2="12" y2="20" />
+                          </svg>
+                        </span>
                         <span className="action-box-text">{L("Hiệu ứng tên", "Username Effects")}</span>
                       </button>
                     </div>
@@ -1500,8 +1638,9 @@ export default function ProfileEditor() {
                       <label>{L("Vị trí", "Location")}</label>
                       <div className="dark-input-box">
                         <span className="input-lead-icon">
-                          <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor">
-                            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z" />
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+                            <circle cx="12" cy="10" r="3" />
                           </svg>
                         </span>
                         <input
@@ -1609,88 +1748,31 @@ export default function ProfileEditor() {
                     </div>
                   )}
 
-                  {/* Khay mở rộng Username Effects (Font & 3D Text) */}
-                  {showUsernameEffects && (
-                    <div className="guns-subdrawer">
-                      <div className="subdrawer-header">
-                        <strong>{L("Hiệu ứng tên & phông chữ", "Username Effects & Typography")}</strong>
-                        <button type="button" onClick={() => setShowUsernameEffects(false)}>✕</button>
-                      </div>
-                      <div className="subdrawer-grid">
-                        <div className="custom-dark-field">
-                          <label>{L("Phông chữ", "Font Family")}</label>
-                          <div className="dark-input-box">
-                            <select
-                              value={textFontFamily}
-                              onChange={(e) => setTextFontFamily(e.target.value)}
-                            >
-                              <option value="Arial">Arial</option>
-                              <option value="Georgia">Georgia</option>
-                              <option value="Times New Roman">Times New Roman</option>
-                              <option value="Courier New">Courier New</option>
-                              <option value="Verdana">Verdana</option>
-                              <option value="Impact">Impact</option>
-                              <option value="Trebuchet MS">Trebuchet MS</option>
-                              <option value="Monaco">Monaco</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div className="custom-dark-field">
-                          <label>{L("Hiệu ứng chữ nổi 3D", "3D Depth Effect")}</label>
-                          <button
-                            type="button"
-                            className={`glow-toggle-btn full ${text3DEffect ? 'on' : ''}`}
-                            onClick={() => setText3DEffect((v) => !v)}
-                            style={{ height: 42 }}
-                          >
-                            <span>✦</span> {text3DEffect
-                          ? L('Đang bật chữ nổi 3D', '3D Text Effect Enabled')
-                          : L('Bật chữ nổi 3D', 'Enable 3D Text Effect')}
-                          </button>
-                        </div>
-
-                        {/* Cỡ chữ tiêu đề & mô tả (theo %, áp dụng cho mọi bố cục) */}
-                        {[
-                          ['nameScale', L('Cỡ chữ tiêu đề', 'Title Size')],
-                          ['bioScale', L('Cỡ chữ mô tả', 'Description Size')]
-                        ].map(([key, text]) => (
-                          <div className="custom-dark-field" key={key}>
-                            <label className="size-field-label">
-                              <span>
-                                {text}: <strong>{formData[key]}%</strong>
-                              </span>
-                              {Number(formData[key]) !== 100 && (
-                                <button
-                                  type="button"
-                                  className="color-reset-link"
-                                  onClick={() => setFormData((prev) => ({ ...prev, [key]: 100 }))}
-                                >
-                                  {L('Mặc định', 'Reset')}
-                                </button>
-                              )}
-                            </label>
-                            <div className="guns-slider-wrap">
-                              <input
-                                type="range"
-                                min="60"
-                                max="160"
-                                step="5"
-                                value={formData[key]}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
-                                className="guns-range-slider"
-                                style={{ '--val': `${((formData[key] - 60) / 100) * 100}%` }}
-                              />
-                              <div className="guns-slider-marks">
-                                <span>60%</span>
-                                <span>100%</span>
-                                <span>160%</span>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Bảng Hiệu ứng nền & Hiệu ứng tên (trái: lựa chọn, phải: demo) */}
+                  <BackgroundEffectModal
+                    open={showBgEffects}
+                    onClose={() => setShowBgEffects(false)}
+                    value={formData.effect}
+                    onChange={(key) => setFormData((prev) => ({ ...prev, effect: key }))}
+                    isPremium={isPremium}
+                    L={L}
+                  />
+                  <UsernameEffectModal
+                    open={showUsernameEffects}
+                    onClose={() => setShowUsernameEffects(false)}
+                    L={L}
+                    name={formData.displayName || formData.username || 'KonOne'}
+                    bio={formData.bio || L('đây là mô tả của tôi', 'this is my description')}
+                    textColor={textColor}
+                    glowOn={Boolean(glowSettings.username)}
+                    font={textFontFamily}
+                    onFont={setTextFontFamily}
+                    text3D={text3DEffect}
+                    onText3D={setText3DEffect}
+                    nameScale={formData.nameScale}
+                    bioScale={formData.bioScale}
+                    onScale={(key, val) => setFormData((prev) => ({ ...prev, [key]: val }))}
+                  />
                 </div>
               </section>
 
@@ -1795,87 +1877,6 @@ export default function ProfileEditor() {
                           <span className="color-pencil-ico">✎</span>
                         </label>
                       </div>
-
-                      {/* 5. Icon Color */}
-                      <div className="custom-dark-field">
-                        <label>{L("Màu icon", "Icon Color")}</label>
-                        <label className="dark-color-pill">
-                          <span className="color-dot-preview" style={{ background: iconColor }} />
-                          <input
-                            type="text"
-                            value={iconColor}
-                            onChange={(e) => setIconColor(e.target.value)}
-                          />
-                          <input
-                            type="color"
-                            value={iconColor}
-                            onChange={(e) => setIconColor(e.target.value)}
-                            className="hidden-native-color"
-                          />
-                          <span className="color-pencil-ico">✎</span>
-                        </label>
-                      </div>
-
-                      {/* 6. Màu ô nhạc (nền) & màu điểm nhấn (thanh tiến trình, nút) — chỉ bố cục Basic có ô nhạc */}
-                      {[
-                        {
-                          key: 'musicBoxColor',
-                          label: language === 'vi' ? "Màu ô nhạc" : 'Music Box Color',
-                          fallback: '#141418'
-                        },
-                        {
-                          key: 'musicAccentColor',
-                          label: language === 'vi' ? "Màu thanh nhạc & nút" : 'Music Accent Color',
-                          fallback: textColor || '#ffffff'
-                        }
-                      ].map((f) => (
-                        <div className="custom-dark-field" key={f.key}>
-                          <label>
-                            {f.label}
-                            {formData[f.key] && (
-                              <button
-                                type="button"
-                                className="color-reset-link"
-                                onClick={() => setFormData((prev) => ({ ...prev, [f.key]: '' }))}
-                              >
-                                {language === 'vi' ? 'Mặc định' : 'Reset'}
-                              </button>
-                            )}
-                          </label>
-                          <label className="dark-color-pill">
-                            <span className="color-dot-preview" style={{ background: formData[f.key] || f.fallback }} />
-                            <input
-                              type="text"
-                              name={f.key}
-                              value={formData[f.key] || f.fallback}
-                              onChange={handleChange}
-                            />
-                            <input
-                              type="color"
-                              name={f.key}
-                              value={/^#[0-9a-f]{6}$/i.test(formData[f.key] || f.fallback) ? formData[f.key] || f.fallback : '#141418'}
-                              onChange={handleChange}
-                              className="hidden-native-color"
-                            />
-                            <span className="color-pencil-ico">✎</span>
-                          </label>
-                        </div>
-                      ))}
-
-                      {/* 7. Lanyard Badge Label */}
-                      <div className="custom-dark-field">
-                        <label>{language === 'vi' ? "Nhãn thẻ 3D" : '3D Card Title'}</label>
-                        <div className="dark-input-box">
-                          <input
-                            type="text"
-                            name="lanyardBadgeLabel"
-                            maxLength={18}
-                            value={formData.lanyardBadgeLabel || ''}
-                            onChange={handleChange}
-                            placeholder="KONONE PASS"
-                          />
-                        </div>
-                      </div>
                     </div>
 
                     <div className="color-gradient-cta">
@@ -1889,25 +1890,266 @@ export default function ProfileEditor() {
                           : L('Bật nền chuyển sắc', 'Enable Profile Gradient')}
                       </button>
                     </div>
+
+                    {profileGradient && (
+                      <div className="gradient-colors-row">
+                        {[
+                          ['gradientFrom', L('Màu chuyển 1', 'Gradient color 1'), formData.lanyardCardColor || formData.cardColor || '#18161c'],
+                          ['gradientTo', L('Màu chuyển 2', 'Gradient color 2'), formData.lanyardStrapColor || accentColor || '#f65c5c']
+                        ].map(([key, text, fallback]) => {
+                          const val = formData[key] || fallback;
+                          const hex = /^#[0-9a-f]{6}$/i.test(val) ? val : '#18161c';
+                          return (
+                            <div className="custom-dark-field" key={key}>
+                              <label>
+                                {text}
+                                {formData[key] && (
+                                  <button
+                                    type="button"
+                                    className="color-reset-link"
+                                    onClick={() => setFormData((prev) => ({ ...prev, [key]: '' }))}
+                                  >
+                                    {L('Mặc định', 'Reset')}
+                                  </button>
+                                )}
+                              </label>
+                              <label className="dark-color-pill">
+                                <span className="color-dot-preview" style={{ background: val }} />
+                                <input
+                                  type="text"
+                                  value={val}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, [key]: e.target.value }))}
+                                />
+                                <input
+                                  type="color"
+                                  value={hex}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, [key]: e.target.value }))}
+                                  className="hidden-native-color"
+                                />
+                                <span className="color-pencil-ico">✎</span>
+                              </label>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
 
-              {/* ================= SECTION 3.5: CURSOR EFFECT CUSTOMIZATION (SPLASH CURSOR & BLOB CURSOR) ================= */}
+              {/* ================= SECTION 4: OTHER CUSTOMIZATION ================= */}
               <section className="guns-section">
-                {!isPremium && (
-                  <div className="premium-notice">
-<DiamondIcon size={14} />
-                    <span>
-                      {language === 'vi'
-                        ? 'Hiệu ứng chuột là tính năng Premium — bạn vẫn xem thử được ở demo, nhưng cần Premium để lưu.'
-                        : 'Cursor effects are Premium — you can preview them in the demo, but saving requires Premium.'}
-                    </span>
-                    <button type="button" onClick={() => navigate('/premium')}>
-                      {language === 'vi' ? 'Nâng cấp' : 'Upgrade'}
-                    </button>
+                <h2 className="guns-section-title">{L("Tùy chỉnh khác", "Other Customization")}</h2>
+                <div className="guns-panel">
+                  <div className="other-toggles-grid">
+                    <div className="other-toggle-item">
+                      <label>
+                        {L("Icon đơn sắc", "Monochrome Icons")}{' '}<span className="help-q-ico">?</span>
+                      </label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.monochromeIcons}
+                        className={`guns-switch ${otherSettings.monochromeIcons ? 'on' : ''}`}
+                        onClick={() => toggleOther('monochromeIcons')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>
+                        {L("Đảo màu khung", "Swap Box Colors")}{' '}<span className="help-q-ico">?</span>
+                      </label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.swapBoxColors}
+                        className={`guns-switch ${otherSettings.swapBoxColors ? 'on' : ''}`}
+                        onClick={() => toggleOther('swapBoxColors')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Nút chỉnh âm lượng", "Volume Control")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.volumeControl}
+                        className={`guns-switch ${otherSettings.volumeControl ? 'on' : ''}`}
+                        onClick={() => toggleOther('volumeControl')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Dùng avatar Discord", "Use Discord Avatar")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.useDiscordAvatar}
+                        className={`guns-switch ${otherSettings.useDiscordAvatar ? 'on' : ''}`}
+                        onClick={() => toggleOther('useDiscordAvatar')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Khung trang trí avatar Discord", "Discord Avatar Decoration")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.discordAvatarDecoration}
+                        className={`guns-switch ${otherSettings.discordAvatarDecoration ? 'on' : ''}`}
+                        onClick={() => toggleOther('discordAvatarDecoration')}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
+                    <div className="other-toggle-item">
+                      <label>{L("Hiển thị liên kết", "Show Links")}</label>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={otherSettings.showLinks !== false}
+                        className={`guns-switch ${otherSettings.showLinks !== false ? 'on' : ''}`}
+                        onClick={() => setOtherSettings((prev) => ({ ...prev, showLinks: prev.showLinks === false }))}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+
                   </div>
+                </div>
+              </section>
+
+              {/* ================= PREMIUM ================= */}
+              <div className="premium-banner" role="separator">
+                <span>
+                  {L('Muốn có tính năng độc quyền? Mở khóa thêm với', 'Want exclusive features? Unlock more with')}
+                </span>
+                {isPremium ? (
+                  <strong className="premium-banner-link">
+                    <DiamondIcon size={16} /> Premium
+                  </strong>
+                ) : (
+                  <button type="button" className="premium-banner-link" onClick={() => navigate('/premium')}>
+                    <DiamondIcon size={16} /> Premium
+                  </button>
                 )}
+              </div>
+
+              {/* Khung Lựa chọn bố cục */}
+              <section className="guns-section premium-frame">
+                  <div className="layout-strip-card">
+                    <div className="layout-strip-meta">
+                      <div>
+                        <strong className="layout-strip-title">{L('Bố cục hồ sơ', 'Profile Layout')}</strong>
+                        <span className="layout-strip-sub">
+                          {L('Chọn kiểu hiển thị cho trang công khai của bạn', 'Choose how your public profile is presented')}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="demo-layout-switcher" role="tablist" aria-label={L('Chuyển bố cục', 'Layout Switcher')}>
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={formData.layout === 'card' || !formData.layout}
+                        className={`layout-switch-btn ${formData.layout === 'card' || !formData.layout ? 'active' : ''}`}
+                        onClick={() => handleLayoutSwitch('card')}
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="16" rx="2" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                        </svg>
+                        <span>{L('Basic', 'Basic')}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={formData.layout === 'lanyard'}
+                        className={`layout-switch-btn ${formData.layout === 'lanyard' ? 'active' : ''}`}
+                        onClick={() => handleLayoutSwitch('lanyard')}
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 2v5" />
+                          <rect x="5" y="7" width="14" height="15" rx="3" />
+                          <circle cx="12" cy="13" r="2.5" />
+                        </svg>
+                        <span>{L('Thẻ treo', 'Lanyard')}</span>
+                        {!isPremium && <DiamondIcon className="layout-pro-tag" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        role="tab"
+                        aria-selected={formData.layout === 'web'}
+                        className={`layout-switch-btn ${formData.layout === 'web' ? 'active' : ''}`}
+                        onClick={() => handleLayoutSwitch('web')}
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="2" y="3" width="20" height="18" rx="2" />
+                          <line x1="2" y1="8" x2="22" y2="8" />
+                          <line x1="9" y1="13" x2="19" y2="13" />
+                        </svg>
+                        <span>{L('Bố cục WEB', 'WEB')}</span>
+                        {!isPremium && <DiamondIcon className="layout-pro-tag" />}
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+              {/* Khung Hiệu ứng nền video */}
+              <section className="guns-section premium-frame">
+                <div className="splash-section-head">
+                  <h2 className="guns-section-title">
+                    {L('Hiệu ứng nền video', 'Video Background Effects')}
+                    <DiamondIcon className="pro-diamond" size={16} style={{ marginLeft: 8 }} />
+                  </h2>
+                </div>
+                <div className="guns-panel">
+                  <div className="video-fx-layout">
+                    <div className="video-fx-left">
+                      <label className="bg-modal-label">{L('Link video nền', 'Background video link')}</label>
+                      <div className="dark-input-box">
+                        <input
+                          type="url"
+                          name="backgroundVideo"
+                          value={formData.backgroundVideo}
+                          onChange={handleChange}
+                          placeholder={isPremium ? 'https://www.youtube.com/watch?v=...' : 'https://www.youtube.com/watch?v=... (Premium để lưu)'}
+                        />
+                      </div>
+                      <p className="bg-modal-note video-fx-note">
+                        {L('Dán link video YouTube để làm video nền cho hồ sơ.', 'Paste a YouTube link to use as your profile background video.')}
+                      </p>
+                    </div>
+
+                    <div className="video-fx-right">
+                      <label className="bg-modal-label">{L('Hiệu ứng', 'Effects')}</label>
+                      <div className="video-fx-grid" aria-disabled="true">
+                        {[0, 1, 2, 3, 4, 5].map((i) => (
+                          <span className="video-fx-chip" key={i} />
+                        ))}
+                      </div>
+                      <p className="bg-modal-note video-fx-note">
+                        {L('Các hiệu ứng video sẽ được cập nhật sớm.', 'Video effects will be added soon.')}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* Khung Hiệu ứng chuột */}
+              {/* ================= SECTION 3.5: CURSOR EFFECT CUSTOMIZATION (SPLASH CURSOR & BLOB CURSOR) ================= */}
+              <section className="guns-section premium-frame">
                 <div className="splash-section-head">
                   <h2 className="guns-section-title">
                     {language === 'vi' ? "Hiệu ứng Chuột" : 'Cursor Effects (Splash & Blob Cursor)'}
@@ -1967,48 +2209,8 @@ export default function ProfileEditor() {
                     </div>
                   </div>
 
-                  {/* Dải Preset Màu nhanh + Tùy chọn Rainbow / Click Splash */}
+                  {/* Tùy chọn Rainbow / Click Splash */}
                   <div className="splash-top-controls">
-                    <div className="splash-presets-group">
-                      <label className="splash-sub-label">
-                        {language === 'vi' ? "Bảng màu nhanh" : 'Color Presets'}
-                      </label>
-                      <div className="splash-preset-pills">
-                        {SPLASH_COLOR_PRESETS.map((preset) => {
-                          const isSelected =
-                            preset.rainbow === splashCursor.rainbow &&
-                            (!preset.rainbow
-                              ? JSON.stringify(preset.colors) === JSON.stringify(splashCursor.colors)
-                              : true);
-                          return (
-                            <button
-                              key={preset.name}
-                              type="button"
-                              className={`splash-preset-btn ${isSelected ? 'active' : ''}`}
-                              onClick={() =>
-                                setSplashCursor((prev) => ({
-                                  ...prev,
-                                  enabled: true,
-                                  rainbow: preset.rainbow,
-                                  colors: [...preset.colors]
-                                }))
-                              }
-                            >
-                              <span
-                                className="preset-dots"
-                                style={{
-                                  background: preset.rainbow
-                                    ? 'linear-gradient(90deg, #ff4d4d, #ffd166, #2dd4bf, #4f8cff, #c084fc)'
-                                    : `linear-gradient(90deg, ${preset.colors[0]}, ${preset.colors[1]}, ${preset.colors[2]})`
-                                }}
-                              />
-                              <span>{preset.name}</span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
                     <div className="splash-quick-switches">
                       <div className="other-toggle-item">
                         <label>{language === 'vi' ? "Chế độ Cầu vồng" : 'Rainbow Spectrum'}</label>
@@ -2521,109 +2723,6 @@ export default function ProfileEditor() {
                 )}
               </section>
 
-              {/* ================= SECTION 4: OTHER CUSTOMIZATION ================= */}
-              <section className="guns-section">
-                <h2 className="guns-section-title">{L("Tùy chỉnh khác", "Other Customization")}</h2>
-                <div className="guns-panel">
-                  <div className="other-toggles-grid">
-                    <div className="other-toggle-item">
-                      <label>
-                        {L("Icon đơn sắc", "Monochrome Icons")}{' '}<span className="help-q-ico">?</span>
-                      </label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={otherSettings.monochromeIcons}
-                        className={`guns-switch ${otherSettings.monochromeIcons ? 'on' : ''}`}
-                        onClick={() => toggleOther('monochromeIcons')}
-                      >
-                        <span className="switch-knob" />
-                      </button>
-                    </div>
-
-                    <div className="other-toggle-item">
-                      <label>{L("Tiêu đề chuyển động", "Animated Title")}</label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={otherSettings.animatedTitle}
-                        className={`guns-switch ${otherSettings.animatedTitle ? 'on' : ''}`}
-                        onClick={() => toggleOther('animatedTitle')}
-                      >
-                        <span className="switch-knob" />
-                      </button>
-                    </div>
-
-                    <div className="other-toggle-item">
-                      <label>
-                        {L("Đảo màu khung", "Swap Box Colors")}{' '}<span className="help-q-ico">?</span>
-                      </label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={otherSettings.swapBoxColors}
-                        className={`guns-switch ${otherSettings.swapBoxColors ? 'on' : ''}`}
-                        onClick={() => toggleOther('swapBoxColors')}
-                      >
-                        <span className="switch-knob" />
-                      </button>
-                    </div>
-
-                    <div className="other-toggle-item">
-                      <label>{L("Nút chỉnh âm lượng", "Volume Control")}</label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={otherSettings.volumeControl}
-                        className={`guns-switch ${otherSettings.volumeControl ? 'on' : ''}`}
-                        onClick={() => toggleOther('volumeControl')}
-                      >
-                        <span className="switch-knob" />
-                      </button>
-                    </div>
-
-                    <div className="other-toggle-item">
-                      <label>{L("Dùng avatar Discord", "Use Discord Avatar")}</label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={otherSettings.useDiscordAvatar}
-                        className={`guns-switch ${otherSettings.useDiscordAvatar ? 'on' : ''}`}
-                        onClick={() => toggleOther('useDiscordAvatar')}
-                      >
-                        <span className="switch-knob" />
-                      </button>
-                    </div>
-
-                    <div className="other-toggle-item">
-                      <label>{L("Khung trang trí avatar Discord", "Discord Avatar Decoration")}</label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={otherSettings.discordAvatarDecoration}
-                        className={`guns-switch ${otherSettings.discordAvatarDecoration ? 'on' : ''}`}
-                        onClick={() => toggleOther('discordAvatarDecoration')}
-                      >
-                        <span className="switch-knob" />
-                      </button>
-                    </div>
-
-                    <div className="other-toggle-item">
-                      <label>{L('Viền avatar', 'Avatar Border')}</label>
-                      <button
-                        type="button"
-                        role="switch"
-                        aria-checked={Boolean(otherSettings.avatarBorder)}
-                        className={`guns-switch ${otherSettings.avatarBorder ? 'on' : ''}`}
-                        onClick={() => toggleOther('avatarBorder')}
-                      >
-                        <span className="switch-knob" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
               {/* ================= SECTION 5: BỐ CỤC WEB — POSTER ĐỨNG & CHỮ GIỚI THIỆU ================= */}
               {formData.layout === 'web' && (
                 <section className="guns-section">
@@ -2676,8 +2775,10 @@ export default function ProfileEditor() {
                                 disabled={uploadingPoster}
                                 className="asset-file-input"
                               />
-                              <svg className="asset-svg-ico" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zm-5.04-6.71l-2.75 3.54-1.96-2.36L6.5 17h11l-3.54-4.71z" />
+                              <svg className="asset-svg-ico asset-svg-2d" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="4" y="3" width="16" height="18" rx="2.2" />
+                                <circle cx="9.5" cy="9" r="1.5" />
+                                <path d="M20 15.5l-4.5-4.5-6.5 6.5" />
                               </svg>
                               <span className="asset-hint">
                                 {language === 'vi' ? 'Tải lên Poster đứng (Tỉ lệ 2:3)' : 'Upload Vertical Poster'}
@@ -2732,7 +2833,8 @@ export default function ProfileEditor() {
               )}
             </div>
 
-            {/* BÊN PHẢI: KHUNG DEMO PROFILE TRỰC TIẾP + THANH CHUYỂN 3 BỐ CỤC Ở GÓC TRÊN ĐẦU */}
+            {/* BÊN PHẢI: KHUNG DEMO PROFILE (Tạm ẩn theo yêu cầu — bật lại bằng SHOW_DEMO_PROFILE) */}
+            {SHOW_DEMO_PROFILE && (
             <aside className="editor-right-demo">
               <div className="demo-panel-header">
                 {/* Nút chuyển đổi 3 bố cục ở góc trên đầu: Bố cục Basic, Bố cục Thẻ mới, Bố cục WEB */}
@@ -2988,10 +3090,10 @@ export default function ProfileEditor() {
                             ? 'transparent'
                             : profileGradient
                               ? `linear-gradient(145deg, ${hexToRgba(
-                                  formData.lanyardCardColor || formData.cardColor || '#18161c',
+                                  formData.gradientFrom || formData.lanyardCardColor || formData.cardColor || '#18161c',
                                   Math.max(0, profileOpacity / 100)
                                 )}, ${hexToRgba(
-                                  formData.lanyardStrapColor || accentColor,
+                                  formData.gradientTo || formData.lanyardStrapColor || accentColor,
                                   Math.max(0, (profileOpacity / 100) * 0.65)
                                 )})`
                               : hexToRgba(
@@ -3127,7 +3229,34 @@ export default function ProfileEditor() {
                 </div>
               </div>
             </aside>
+            )}
           </div>
+            </>
+          )}
+
+          {/* Thanh báo sau khi lưu — dùng chung cho cả khởi tạo mới & chỉnh sửa */}
+          {saveToast && (
+            <div className={`save-toast ${saveToast.ok ? 'ok' : 'err'}`} role="status">
+              <span className="save-toast-ico">{saveToast.ok ? '✓' : '!'}</span>
+              <span className="save-toast-text">{saveToast.text}</span>
+              {saveToast.ok && (savedUsername || formData.username) && (
+                <a
+                  href={`/${savedUsername || formData.username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="save-toast-btn"
+                >
+                  {L('Xem hồ sơ ngay', 'View profile')}
+                </a>
+              )}
+              <button type="button" className="save-toast-close" aria-label={L('Đóng', 'Close')} onClick={() => setSaveToast(null)}>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+          )}
         </form>
       </main>
     </div>

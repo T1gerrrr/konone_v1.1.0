@@ -2,23 +2,56 @@ import React, { useRef, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useNavigate, Link } from 'react-router-dom';
-import AuthLayout from './AuthLayout';
+import AuthLayout, { useAuthExit } from './AuthLayout';
 import { PasswordInput, SocialButtons } from './AuthWidgets';
 import FluidSlideCommit from './FluidSlideCommit';
+
+// Thông báo nhỏ gắn vào góc trên của ô nhập
+function FieldNotice({ notice, field }) {
+  if (!notice || notice.field !== field) return null;
+  return (
+    <div className={`field-notice field-notice--${notice.type}`} role={notice.type === 'error' ? 'alert' : 'status'} key={notice.id}>
+      <span className="field-notice-dot" aria-hidden="true" />
+      {notice.text}
+    </div>
+  );
+}
+
+let noticeSeq = 0;
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(true);
-  const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
+  const [notice, setNotice] = useState(null);
   const [loading, setLoading] = useState(false);
   const { login, resetPassword } = useAuth();
   const { language } = useLanguage();
   const L = (vi, en) => (language === 'vi' ? vi : en);
   const navigate = useNavigate();
+  const show = (field, type, text) => setNotice({ field, type, text, id: ++noticeSeq });
+  const clearOn = (field) => setNotice((n) => (n && n.field === field ? null : n));
+
+  // Rút gọn lỗi Firebase thành câu ngắn
+  function shortAuthError(err) {
+    const code = (err && err.code) || '';
+    if (/invalid-credential|wrong-password|user-not-found|invalid-login/.test(code)) {
+      return L('Email hoặc mật khẩu không đúng', 'Incorrect email or password');
+    }
+    if (/invalid-email/.test(code)) return L('Email không hợp lệ', 'Invalid email');
+    if (/too-many-requests/.test(code)) return L('Thử quá nhiều lần, hãy đợi một lúc', 'Too many attempts, try later');
+    if (/network/.test(code)) return L('Lỗi mạng, thử lại', 'Network error, try again');
+    return (err && err.message ? err.message : L('Đã có lỗi xảy ra', 'Something went wrong')).replace(/^Firebase:s*/, '');
+  }
   const formRef = useRef(null);
   const userRef = useRef(null);
+
+  const playExit = useAuthExit();
+
+  // Thành công: gom UI vào logo, phóng logo, rồi mới chuyển trang
+  function finishLogin(user) {
+    playExit(() => goAfterLogin(user));
+  }
 
   function goAfterLogin(user) {
     // Chưa xác thực email -> giữ đăng nhập và chuyển sang trang nhập mã OTP
@@ -27,15 +60,21 @@ export default function Login() {
 
   // Đăng nhập; ném lỗi nếu thất bại để thanh trượt báo lỗi
   async function doLogin() {
-    if (formRef.current && !formRef.current.reportValidity()) throw new Error('invalid');
-    setError('');
-    setInfo('');
+    if (!email.trim()) {
+      show('email', 'error', L('Vui lòng nhập email', 'Please enter your email'));
+      throw new Error('invalid');
+    }
+    if (!password) {
+      show('password', 'error', L('Vui lòng nhập mật khẩu', 'Please enter your password'));
+      throw new Error('invalid');
+    }
+    setNotice(null);
     setLoading(true);
     try {
       const userCredential = await login(email, password, remember);
       userRef.current = userCredential.user;
     } catch (err) {
-      setError(L('Đăng nhập thất bại: ', 'Login failed: ') + err.message);
+      show('password', 'error', shortAuthError(err));
       throw err;
     } finally {
       setLoading(false);
@@ -46,32 +85,20 @@ export default function Login() {
   function handleSubmit(e) {
     e.preventDefault();
     doLogin()
-      .then(() => goAfterLogin(userRef.current))
+      .then(() => finishLogin(userRef.current))
       .catch(() => {});
   }
 
   async function handleForgot() {
-    if (!email) {
-      setInfo('');
-      return setError(
-        L(
-          'Nhập email của bạn ở trên, rồi bấm "Quên mật khẩu?" lần nữa.',
-          'Enter your email above, then click "Forgot Password?" again.'
-        )
-      );
+    if (!email.trim()) {
+      return show('email', 'error', L('Nhập email rồi bấm "Quên mật khẩu?"', 'Enter your email, then click "Forgot Password?"'));
     }
     try {
-      setError('');
+      setNotice(null);
       await resetPassword(email);
-      setInfo(
-        L(
-          `Đã gửi email đặt lại mật khẩu đến ${email}. Hãy kiểm tra hộp thư (kể cả Spam).`,
-          `A password reset email was sent to ${email}. Check your inbox (and Spam).`
-        )
-      );
+      show('email', 'success', L('Đã gửi email đặt lại mật khẩu', 'Password reset email sent'));
     } catch (err) {
-      setInfo('');
-      setError(L('Không thể gửi email: ', 'Could not send email: ') + err.message);
+      show('email', 'error', shortAuthError(err));
     }
   }
 
@@ -82,13 +109,10 @@ export default function Login() {
         <p className="auth-subtitle">{L('Hồ sơ số của riêng bạn', 'Your Own Digital Profile')}</p>
       </div>
 
-      {error && <div className="error-message">{error}</div>}
-      {info && <div className="success-message">{info}</div>}
-
       <SocialButtons
         mode="login"
-        onSuccess={goAfterLogin}
-        onError={setError}
+        onSuccess={finishLogin}
+        onError={(msg) => show('email', 'error', msg)}
         disabled={loading}
       />
 
@@ -96,26 +120,29 @@ export default function Login() {
         <span>{L('HOẶC', 'OR')}</span>
       </div>
 
-      <form ref={formRef} onSubmit={handleSubmit} className="auth-form">
+      <form ref={formRef} onSubmit={handleSubmit} className="auth-form" noValidate>
         <div className="form-group">
+          <FieldNotice notice={notice} field="email" />
           <input
             id="login-email"
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => { setEmail(e.target.value); clearOn('email'); }}
             required
-            placeholder={L('Địa chỉ email', 'Email Address')}
+            placeholder=" "
             aria-label={L('Địa chỉ email', 'Email Address')}
             autoComplete="email"
           />
+          <label className="float-label" htmlFor="login-email">{L('Địa chỉ email', 'Email Address')}</label>
         </div>
         <div className="form-group">
+          <FieldNotice notice={notice} field="password" />
           <PasswordInput
             id="login-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => { setPassword(e.target.value); clearOn('password'); }}
             required
-            placeholder={L('Mật khẩu', 'Password')}
+            floatLabel={L('Mật khẩu', 'Password')}
             aria-label={L('Mật khẩu', 'Password')}
             autoComplete="current-password"
           />
@@ -145,7 +172,7 @@ export default function Login() {
           doneLabel={L('Đã đăng nhập', 'Logged in')}
           errorLabel={L('Đăng nhập thất bại', 'Login failed')}
           onConfirm={doLogin}
-          onDone={() => setTimeout(() => goAfterLogin(userRef.current), 600)}
+          onDone={() => setTimeout(() => finishLogin(userRef.current), 350)}
           trackColor="rgba(255, 255, 255, 0.06)"
           handleColor="#f65c5c"
           successColor="#22c55e"

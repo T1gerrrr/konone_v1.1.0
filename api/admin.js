@@ -12,6 +12,7 @@
 //   codes / createCode { code?, label?, maxUses? } / deleteCode { code }
 //   getConfig / saveConfig { config }
 //   claims / setClaimStatus { id, status }
+//   templates / saveTemplate { id?, template } / deleteTemplate { id }   (mẫu hồ sơ hiển thị ở trang Mẫu)
 //
 // Lưu ý: Firebase KHÔNG lưu mật khẩu gốc (chỉ lưu bản băm một chiều) nên không thể "giải mã" hay hiển thị mật khẩu.
 const { adminAuth, adminDb, requireUser } = require('./_lib/common');
@@ -57,6 +58,67 @@ function toDate(v) {
 // Khóa ngày YYYY-MM-DD theo giờ Việt Nam
 function dayKey(d) {
   return new Date(d.getTime() + VN_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+// ===== Mẫu hồ sơ (collection `templates`) =====
+const TEMPLATE_LAYOUTS = ['card', 'lanyard', 'web'];
+const TEMPLATE_EFFECTS = ['none', 'snow', 'particles', 'confetti', 'fireworks', 'rain', 'stars', 'leaves', 'aurora', 'matrix', 'nebula'];
+const CSS_SAFE = /^[#a-zA-Z0-9(),.%\s-]{1,200}$/;
+
+function str(v, max) {
+  return String(v == null ? '' : v).trim().slice(0, max);
+}
+
+function cssValue(v, fallback) {
+  const t = str(v, 200);
+  return CSS_SAFE.test(t) ? t : fallback;
+}
+
+function num(v, min, max, fallback) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
+}
+
+// Chỉ giữ các trường hợp lệ, ép đúng kiểu
+function cleanTemplate(t) {
+  const src = t || {};
+  const preset = src.preset || {};
+  const prev = src.preview || {};
+  const glow = preset.glowSettings || {};
+  const name = { vi: str(src.name && src.name.vi, 60), en: str(src.name && src.name.en, 60) };
+  if (!name.vi && !name.en) throw new Error('Cần nhập tên mẫu.');
+  if (!name.vi) name.vi = name.en;
+  if (!name.en) name.en = name.vi;
+  return {
+    name,
+    author: str(src.author, 40) || 'KonOne',
+    tags: (Array.isArray(src.tags) ? src.tags : []).map((x) => str(x, 20)).filter(Boolean).slice(0, 6),
+    premium: Boolean(src.premium),
+    preview: {
+      bg: cssValue(prev.bg, '#0a0a0c'),
+      card: cssValue(prev.card, '#18161c'),
+      accent: cssValue(prev.accent, '#ff5757'),
+      text: cssValue(prev.text, '#ffffff')
+    },
+    preset: {
+      layout: TEMPLATE_LAYOUTS.includes(preset.layout) ? preset.layout : 'card',
+      cardColor: cssValue(preset.cardColor, '#18161c'),
+      lanyardCardColor: cssValue(preset.lanyardCardColor || preset.cardColor, '#18161c'),
+      lanyardStrapColor: cssValue(preset.lanyardStrapColor, '#f65c5c'),
+      textColor: cssValue(preset.textColor, '#ffffff'),
+      bgColor: cssValue(preset.bgColor, '#0a0a0c'),
+      iconColor: cssValue(preset.iconColor, '#ffffff'),
+      effect: TEMPLATE_EFFECTS.includes(preset.effect) ? preset.effect : 'none',
+      profileOpacity: num(preset.profileOpacity, 0, 100, 60),
+      profileBlur: num(preset.profileBlur, 0, 100, 40),
+      profileGradient: Boolean(preset.profileGradient),
+      gradientFrom: preset.gradientFrom ? cssValue(preset.gradientFrom, '') : '',
+      gradientTo: preset.gradientTo ? cssValue(preset.gradientTo, '') : '',
+      textFontFamily: str(preset.textFontFamily, 40) || 'Arial',
+      text3DEffect: Boolean(preset.text3DEffect),
+      glowSettings: { username: Boolean(glow.username), socials: Boolean(glow.socials), badges: Boolean(glow.badges) }
+    }
+  };
 }
 
 async function listAllUsers() {
@@ -432,6 +494,39 @@ module.exports = async function handler(req, res) {
         const code = normalizePremiumCode(body.code);
         if (!isValidPremiumCode(code)) return fail(res, 400, 'Code không hợp lệ.', 'admin/bad-request');
         await db.collection('premiumCodes').doc(code).delete();
+        return res.status(200).json({ ok: true });
+      }
+
+      case 'templates': {
+        const snap = await db.collection('templates').limit(500).get();
+        const rows = snap.docs.map((d) => ({ id: d.id, ...plain(d.data()) }));
+        rows.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+        return res.status(200).json({ templates: rows });
+      }
+
+      case 'saveTemplate': {
+        let data;
+        try {
+          data = cleanTemplate(body.template);
+        } catch (e) {
+          return fail(res, 400, e.message, 'admin/bad-request');
+        }
+        const id = String(body.id || '');
+        if (id) {
+          if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return fail(res, 400, 'Id mẫu không hợp lệ.', 'admin/bad-request');
+          const ref = db.collection('templates').doc(id);
+          if (!(await ref.get()).exists) return fail(res, 404, 'Không tìm thấy mẫu.', 'admin/not-found');
+          await ref.update({ ...data, updatedAt: new Date(), updatedBy: decoded.uid });
+          return res.status(200).json({ ok: true, id });
+        }
+        const ref = await db.collection('templates').add({ ...data, createdAt: new Date(), createdBy: decoded.uid });
+        return res.status(200).json({ ok: true, id: ref.id });
+      }
+
+      case 'deleteTemplate': {
+        const id = String(body.id || '');
+        if (!/^[A-Za-z0-9_-]{1,64}$/.test(id)) return fail(res, 400, 'Id mẫu không hợp lệ.', 'admin/bad-request');
+        await db.collection('templates').doc(id).delete();
         return res.status(200).json({ ok: true });
       }
 

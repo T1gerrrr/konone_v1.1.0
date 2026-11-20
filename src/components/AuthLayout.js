@@ -1,5 +1,8 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Link, Outlet, useLocation } from 'react-router-dom';
+import { FaLanguage } from 'react-icons/fa6';
+import { useLanguage } from '../contexts/LanguageContext';
+import PageRays from './PageRays';
 import './Auth.css';
 
 const DiscordGlyph = ({ size = 28 }) => (
@@ -8,7 +11,108 @@ const DiscordGlyph = ({ size = 28 }) => (
   </svg>
 );
 
+// Nút chuyển đổi ngôn ngữ VI <-> EN
+function LangToggle() {
+  const { language, changeLanguage } = useLanguage();
+  const next = language === 'vi' ? 'en' : 'vi';
+  return (
+    <button
+      type="button"
+      className="auth-lang-btn"
+      onClick={() => changeLanguage(next)}
+      title={language === 'vi' ? 'English' : 'Tiếng Việt'}
+      aria-label={language === 'vi' ? 'Switch to English' : 'Chuyển sang Tiếng Việt'}
+    >
+      <FaLanguage />
+    </button>
+  );
+}
+
+const AuthShellContext = createContext(null);
+
+// Cho trang con chạy hiệu ứng thoát (gom vào logo, logo phóng to) rồi mới chuyển trang
+export function useAuthExit() {
+  const ctx = useContext(AuthShellContext);
+  return ctx ? ctx.playExit : (cb) => cb();
+}
+
+// Khung kính dùng chung cho Đăng nhập / Đăng ký: tia sáng + khung giữ nguyên,
+// chỉ nội dung bên trong đổi và chiều cao khung giãn mượt.
+export function AuthShell() {
+  const { pathname } = useLocation();
+  const innerRef = useRef(null);
+  const [height, setHeight] = useState(null);
+  const [phase, setPhase] = useState('idle'); // idle | gather | grow
+  const logoRef = useRef(null);
+  const bodyRef = useRef(null);
+  const busyRef = useRef(false);
+  const timers = useRef([]);
+
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+
+  function playExit(done) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    const logo = logoRef.current;
+    const body = bodyRef.current;
+    if (logo && body) {
+      const l = logo.getBoundingClientRect();
+      const b = body.getBoundingClientRect();
+      const lx = l.left + l.width / 2;
+      const ly = l.top + l.height / 2;
+      // Gom nội dung về tâm logo
+      body.style.setProperty('--gx', `${lx - (b.left + b.width / 2)}px`);
+      body.style.setProperty('--gy', `${ly - (b.top + b.height / 2)}px`);
+      // Logo bay về giữa màn hình
+      logo.style.setProperty('--lx', `${window.innerWidth / 2 - lx}px`);
+      logo.style.setProperty('--ly', `${window.innerHeight / 2 - ly}px`);
+    }
+    setPhase('gather');
+    timers.current.push(setTimeout(() => setPhase('grow'), 650));
+    timers.current.push(setTimeout(() => done && done(), 650 + 900));
+  }
+
+  useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el) return undefined;
+    setHeight(el.offsetHeight);
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => setHeight(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <AuthShellContext.Provider value={{ playExit }}>
+      <div className="auth-page auth-page--solo">
+        <div className="auth-rays" aria-hidden="true">
+          <PageRays />
+        </div>
+        <div className={`auth-glass${phase !== 'idle' ? ` is-${phase}` : ''}`}>
+          <Link to="/" className="auth-brand-link auth-glass-brand" aria-label="KonOne Home">
+            <img ref={logoRef} src="/logo-konone-v1.png" alt="KonOne Logo" className="auth-brand" />
+          </Link>
+          <div className="auth-glass-body" ref={bodyRef} style={height != null ? { height } : undefined}>
+            <div ref={innerRef} key="inner">
+              <div className="auth-form-wrap auth-page-swap" key={pathname}>
+                <Outlet />
+              </div>
+            </div>
+          </div>
+          <div className="auth-left-footer">
+            <Link to="/privacy">Privacy Policy</Link>
+            <LangToggle />
+          </div>
+        </div>
+      </div>
+    </AuthShellContext.Provider>
+  );
+}
+
 export default function AuthLayout({ children }) {
+  const inShell = useContext(AuthShellContext);
+  if (inShell) return <>{children}</>;
+
   return (
     <div className="auth-page">
       <div className="auth-shell">
@@ -28,7 +132,7 @@ export default function AuthLayout({ children }) {
 
           <div className="auth-left-footer">
             <Link to="/privacy">Privacy Policy</Link>
-            <span>Copyright 2026</span>
+            <LangToggle />
           </div>
         </div>
 

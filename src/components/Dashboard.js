@@ -5,12 +5,12 @@ import { useNavigate, Link } from 'react-router-dom';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { t } from '../translations';
-import { PLATFORM_BY_KEY } from '../constants/socialPlatforms';
 import { TOPICS } from '../chat/answers';
 import { lastNDays } from '../utils/dateKey';
 import ViewsChart from './ViewsChart';
 import { FEATURES } from '../constants/features';
 import AccountSettings from './AccountSettings';
+import { notifyError, notifySuccess } from '../notify/notify';
 import UserMenu from './UserMenu';
 import './Dashboard.css';
 
@@ -111,14 +111,25 @@ const Icon = {
       <path d="M3 12h18" />
       <path d="M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z" />
     </svg>
+  ),
+  mail: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="2" y="4" width="20" height="16" rx="2" />
+      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+    </svg>
+  ),
+  user: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.85" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  ),
+  arrowRight: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="5" y1="12" x2="19" y2="12" />
+      <polyline points="12 5 19 12 12 19" />
+    </svg>
   )
-};
-
-const LAYOUT_NAMES = {
-  card: { vi: 'Basic (Thẻ)', en: 'Basic (Card)' },
-  lanyard: { vi: 'Dây thẻ', en: 'Lanyard' },
-  web: { vi: 'Web', en: 'Web' },
-  modern: { vi: 'Modern', en: 'Modern' }
 };
 
 function toDate(v) {
@@ -134,7 +145,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState('overview');
+  const [activeSection, setActiveSection] = useState(() => {
+    const s = new URLSearchParams(window.location.search).get('section');
+    return ['overview', 'account', 'guide'].includes(s) ? s : 'overview';
+  });
   const [emailStatus, setEmailStatus] = useState(null);
   const [range, setRange] = useState(7);
   const [chartView, setChartView] = useState('chart');
@@ -195,6 +209,46 @@ export default function Dashboard() {
     setTimeout(() => setCopied(''), 1600);
   }
 
+  // ===== Sửa nhanh Username / Display Name =====
+  const [nameForm, setNameForm] = useState({ username: '', displayName: '' });
+  const [savingName, setSavingName] = useState(false);
+
+  useEffect(() => {
+    setNameForm({ username: profile?.username || '', displayName: profile?.displayName || '' });
+  }, [profile?.username, profile?.displayName]);
+
+  const nameChanged =
+    nameForm.username !== (profile?.username || '') || nameForm.displayName !== (profile?.displayName || '');
+
+  async function saveNames(e) {
+    e.preventDefault();
+    if (!profile?.id || savingName) return;
+    const username = nameForm.username.toLowerCase().trim();
+    const displayName = nameForm.displayName.trim();
+    if (!username || !displayName) {
+      notifyError(L('Vui lòng nhập tên người dùng và tên hiển thị!', 'Please enter a username and display name!'));
+      return;
+    }
+    setSavingName(true);
+    try {
+      if (username !== profile.username) {
+        const snap = await getDocs(query(collection(db, 'profiles'), where('username', '==', username)));
+        if (snap.docs.some((d) => d.id !== profile.id)) {
+          notifyError(L('Tên người dùng đã tồn tại. Vui lòng chọn tên khác.', 'This username is already taken. Please choose another one.'));
+          return;
+        }
+      }
+      await updateDoc(doc(db, 'profiles', profile.id), { username, displayName, updatedAt: new Date() });
+      setProfile((prev) => ({ ...prev, username, displayName }));
+      notifySuccess(L('Đã lưu thay đổi!', 'Changes saved!'));
+    } catch (err) {
+      console.error('Error saving names:', err);
+      notifyError(L('Không thể lưu: ', 'Could not save: ') + err.message);
+    } finally {
+      setSavingName(false);
+    }
+  }
+
   const profileLink = profile?.username ? `${window.location.origin}/${profile.username}` : null;
 
   // ===== Số liệu =====
@@ -222,7 +276,6 @@ export default function Dashboard() {
 
   const premiumUntil = toDate(profile?.premiumExpiresAt);
   const isPremium = Boolean(profile?.isPremium && premiumUntil && premiumUntil > new Date());
-  const createdAt = toDate(profile?.createdAt);
 
   const checklist = profile
     ? [
@@ -254,7 +307,7 @@ export default function Dashboard() {
       ? [{ id: 'templates', label: L('Mẫu', 'Templates'), icon: Icon.templates, to: '/profile-template' }]
       : []),
     { id: 'guide', label: L('Hướng dẫn', 'Guide'), icon: Icon.guide },
-    { id: 'account', label: L('Tài khoản', 'Account'), icon: Icon.edit }
+    { id: 'account', label: L('Tài khoản', 'Account'), icon: Icon.user }
   ];
 
   const pageTitle =
@@ -326,28 +379,38 @@ export default function Dashboard() {
             <section className="db-overview">
               {/* Lời chào + link hồ sơ */}
               <div className="db-hero">
-                <div className="db-hero-id">
-                  {profile?.avatar ? (
-                    <img src={profile.avatar} alt="" className="db-hero-avatar" />
-                  ) : (
-                    <div className="db-hero-avatar db-hero-avatar-fallback">
-                      {(profile?.displayName || profile?.username || currentUser.email || 'K').charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div>
-                    <h2>
-                      {L('Xin chào', 'Hello')}, {profile?.displayName || profile?.username || L('bạn', 'there')}
-                    </h2>
-                    {profileLink ? (
-                      <button type="button" className="db-link-pill" onClick={() => copyText(profileLink, 'link')}>
-                        <span>{profileLink.replace(/^https?:\/\//, '')}</span>
-                        {copied === 'link' ? Icon.check : Icon.copy}
+                {profile?.id ? (
+                  <form className="db-hero-form" onSubmit={saveNames}>
+                    <label className="db-field">
+                      <span>Username</span>
+                      <input
+                        type="text"
+                        value={nameForm.username}
+                        onChange={(e) => setNameForm((f) => ({ ...f, username: e.target.value.toLowerCase().replace(/[^a-z0-9]/g, '') }))}
+                        maxLength={30}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                    </label>
+                    <label className="db-field">
+                      <span>Display Name</span>
+                      <input
+                        type="text"
+                        value={nameForm.displayName}
+                        onChange={(e) => setNameForm((f) => ({ ...f, displayName: e.target.value }))}
+                        maxLength={40}
+                        autoComplete="off"
+                      />
+                    </label>
+                    {nameChanged && (
+                      <button type="submit" className="db-btn primary" disabled={savingName}>
+                        {savingName ? L('Đang lưu...', 'Saving...') : L('Lưu', 'Save')}
                       </button>
-                    ) : (
-                      <p className="db-muted">{L('Bạn chưa tạo hồ sơ.', 'You have not created a profile yet.')}</p>
                     )}
-                  </div>
-                </div>
+                  </form>
+                ) : (
+                  <p className="db-muted">{L('Bạn chưa tạo hồ sơ.', 'You have not created a profile yet.')}</p>
+                )}
                 <div className="db-hero-actions">
                   <button type="button" className="db-btn primary" onClick={() => navigate('/edit-profile')}>
                     {Icon.edit}
@@ -476,69 +539,6 @@ export default function Dashboard() {
                 )}
               </div>
 
-              <div className="db-grid-2">
-                {/* Thông tin tài khoản */}
-                <div className="db-card">
-                  <div className="db-card-head">
-                    <h3>{L('Thông tin tài khoản', 'Account info')}</h3>
-                  </div>
-                  <dl className="db-info">
-                    <div>
-                      <dt>{L('Tên người dùng', 'Username')}</dt>
-                      <dd>{profile?.username ? `@${profile.username}` : '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>{L('Tên hiển thị', 'Display name')}</dt>
-                      <dd>{profile?.displayName || '—'}</dd>
-                    </div>
-                    <div>
-                      <dt>UID</dt>
-                      <dd>
-                        <button type="button" className="db-copy" onClick={() => copyText(currentUser.uid, 'uid')} title={currentUser.uid}>
-                          <code>{currentUser.uid}</code>
-                          {copied === 'uid' ? Icon.check : Icon.copy}
-                        </button>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>Email</dt>
-                      <dd>
-                        {currentUser.email}
-                        <span className={`db-tag ${currentUser.emailVerified ? 'ok' : 'warn'}`}>
-                          {currentUser.emailVerified ? L('Đã xác minh', 'Verified') : L('Chưa xác minh', 'Unverified')}
-                        </span>
-                      </dd>
-                    </div>
-                    <div>
-                      <dt>{L('Bố cục', 'Layout')}</dt>
-                      <dd>{(LAYOUT_NAMES[profile?.layout || 'card'] || LAYOUT_NAMES.card)[language === 'vi' ? 'vi' : 'en']}</dd>
-                    </div>
-                    <div>
-                      <dt>{L('Gói', 'Plan')}</dt>
-                      <dd>
-                        {isPremium ? (
-                          <span className="db-tag pro">
-                            Premium · {L('đến', 'until')} {fmtDate(premiumUntil)}
-                          </span>
-                        ) : (
-                          <>
-                            {L('Miễn phí', 'Free')}
-                            <button type="button" className="db-inline-link" onClick={() => navigate('/premium')}>
-                              {L('Nâng cấp', 'Upgrade')}
-                            </button>
-                          </>
-                        )}
-                      </dd>
-                    </div>
-                    {createdAt && (
-                      <div>
-                        <dt>{L('Ngày tạo', 'Created')}</dt>
-                        <dd>{fmtDate(createdAt)}</dd>
-                      </div>
-                    )}
-                  </dl>
-                </div>
-
                 {/* Độ hoàn thiện hồ sơ */}
                 <div className="db-card">
                   <div className="db-card-head">
@@ -562,90 +562,12 @@ export default function Dashboard() {
                     ))}
                   </ul>
                 </div>
-              </div>
-
-              {/* Mạng xã hội + vị trí hiển thị */}
-              {profile && (
-                <div className="db-card db-socials">
-                  <div className="db-socials-left">
-                    <div className="db-card-head">
-                      <h3>
-                        {L('Liên kết', 'Links')} <span className="db-muted">({linkCount})</span>
-                      </h3>
-                      <button type="button" className="db-inline-link" onClick={() => navigate('/links')}>
-                        {L('+ Quản lý Links', '+ Manage Links')}
-                      </button>
-                    </div>
-                    <div className="db-social-icons">
-                      {socialEntries.map(([key, val]) => {
-                        const p = PLATFORM_BY_KEY[key];
-                        return (
-                          <button
-                            key={key}
-                            type="button"
-                            className="db-social-ico"
-                            onClick={() => navigate('/links')}
-                            title={`${p ? p.name : key}: ${val}`}
-                            style={{ color: p?.color || '#ffffff' }}
-                          >
-                            {p ? p.icon : key.slice(0, 2).toUpperCase()}
-                          </button>
-                        );
-                      })}
-                      {customLinks.map((c) => (
-                        <button
-                          key={c.id || c.url}
-                          type="button"
-                          className="db-social-ico"
-                          onClick={() => navigate('/links')}
-                          title={`${c.label || L('Liên kết riêng', 'Custom URL')}: ${c.url}`}
-                        >
-                          {Icon.globe}
-                        </button>
-                      ))}
-                      {linkCount === 0 && (
-                        <span className="db-muted">
-                          {L('Chưa có liên kết nào — bấm "+ Quản lý Links" để thêm', 'No links yet — click "+ Manage Links" to add')}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="db-socials-right">
-                    <span className="db-muted">{L('Vị trí hiển thị', 'Display position')}</span>
-                    <div className="db-seg">
-                      {['inside', 'outside'].map((pos) => {
-                        const active = (profile.socialPosition || 'inside') === pos;
-                        return (
-                          <button
-                            key={pos}
-                            type="button"
-                            className={active ? 'active' : ''}
-                            onClick={async () => {
-                              setProfile((prev) => ({ ...prev, socialPosition: pos }));
-                              if (profile.id) {
-                                try {
-                                  await updateDoc(doc(db, 'profiles', profile.id), { socialPosition: pos });
-                                } catch (e) {
-                                  console.error(e);
-                                }
-                              }
-                            }}
-                          >
-                            {pos === 'inside' ? L('Bên trong thẻ', 'Inside card') : L('Bên ngoài thẻ', 'Outside card')}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Email chưa xác minh */}
               {currentUser && !currentUser.emailVerified && (
                 <section className="email-verification-alert">
                   <div className="alert-content">
-                    <span className="alert-icon">📧</span>
+                    <span className="alert-icon db-alert-ico-2d">{Icon.mail}</span>
                     <div className="alert-text">
                       <strong>{t(language, 'dashboard.emailNotVerified')}</strong>
                       <p>{t(language, 'dashboard.checkEmail', { email: currentUser.email })}</p>

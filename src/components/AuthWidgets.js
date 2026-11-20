@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
 // Ô nhập mật khẩu có nút con mắt hiện/ẩn
-export function PasswordInput(props) {
+export function PasswordInput({ floatLabel, ...props }) {
   const [visible, setVisible] = useState(false);
   return (
     <div className="password-field">
-      <input {...props} type={visible ? 'text' : 'password'} />
+      <input {...props} type={visible ? 'text' : 'password'} placeholder={floatLabel ? ' ' : props.placeholder} />
+      {floatLabel && <label className="float-label" htmlFor={props.id}>{floatLabel}</label>}
       <button
         type="button"
         className="eye-btn"

@@ -21,11 +21,19 @@
   box-sizing: border-box;
   position: relative;
   overflow-x: hidden;
-  background: url('../../public/bg_konone.png') no-repeat center center fixed;
+  background: url('../../public/bg_konone-no1.png') no-repeat center center fixed;
   background-color: #0a0a0c;
   background-size: cover;
   font-family: 'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif;
   color: #fff;
+}
+
+/* Tia sáng nền (trang Đăng ký) */
+.auth-rays {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
 }
 
 .auth-page::before {
@@ -71,9 +79,11 @@
   z-index: 10;
   pointer-events: none;
 }
+
 .auth-shell::before {
   top: -7px;
 }
+
 .auth-shell::after {
   bottom: -7px;
 }
@@ -100,6 +110,7 @@
   text-decoration: none;
   transition: transform 0.2s ease;
 }
+
 .auth-brand-link:hover {
   transform: scale(1.05);
 }
@@ -196,6 +207,7 @@
   font-weight: 500;
   letter-spacing: 0.8px;
 }
+
 .auth-divider::before,
 .auth-divider::after {
   content: '';
@@ -250,6 +262,7 @@
 .password-field {
   position: relative;
 }
+
 .password-field input {
   padding-right: 44px;
 }
@@ -269,9 +282,11 @@
   cursor: pointer;
   transition: color 0.2s;
 }
+
 .eye-btn:hover {
   color: #fff;
 }
+
 .eye-btn svg {
   width: 100%;
   height: 100%;
@@ -295,9 +310,11 @@
   user-select: none;
   transition: color 0.2s;
 }
+
 .remember:hover {
   color: rgba(255, 255, 255, 0.8);
 }
+
 .remember input {
   position: absolute;
   opacity: 0;
@@ -326,13 +343,13 @@
   transition: transform 0.18s ease;
 }
 
-.remember input:checked + .remember-circle {
+.remember input:checked+.remember-circle {
   background: var(--auth-gradient);
   border-color: transparent;
   box-shadow: 0 0 10px rgba(246, 92, 92, 0.4);
 }
 
-.remember input:checked + .remember-circle::after {
+.remember input:checked+.remember-circle::after {
   transform: scale(1);
 }
 
@@ -345,6 +362,7 @@
   cursor: pointer;
   transition: color 0.2s;
 }
+
 .link-btn:hover {
   color: #f65c5c;
 }
@@ -411,6 +429,7 @@
   text-decoration: none;
   transition: color 0.2s;
 }
+
 .auth-left-footer a:hover {
   color: rgba(255, 255, 255, 0.8);
 }
@@ -424,11 +443,13 @@
   font-size: 12.5px;
   line-height: 1.5;
 }
+
 .error-message {
   background: rgba(220, 38, 38, 0.16);
   color: #ffb4b4;
   border: 1px solid rgba(246, 92, 92, 0.35);
 }
+
 .success-message {
   background: rgba(40, 167, 69, 0.15);
   color: #b6f0c5;
@@ -443,16 +464,19 @@
   margin-bottom: 14px;
   text-align: center;
 }
+
 .verification-notice p {
   margin: 4px 0;
   color: rgba(255, 255, 255, 0.85);
   font-size: 13px;
   line-height: 1.55;
 }
+
 .verification-hint {
   font-size: 12px !important;
   color: rgba(255, 255, 255, 0.52) !important;
 }
+
 .verification-notice strong {
   color: #f65c5c;
 }
@@ -473,10 +497,12 @@
   cursor: pointer;
   transition: background 0.2s, border-color 0.2s;
 }
+
 .resend-btn:hover:not(:disabled) {
   background: rgba(246, 92, 92, 0.15);
   border-color: rgba(246, 92, 92, 0.45);
 }
+
 .resend-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
@@ -520,6 +546,7 @@
   font-weight: 500;
   transition: color 0.2s;
 }
+
 .auth-nav-item:hover {
   color: #fff;
 }
@@ -554,10 +581,12 @@
   color: rgba(255, 255, 255, 0.75);
   transition: color 0.2s, transform 0.2s;
 }
+
 .auth-search-btn:hover {
   color: #fff;
   transform: scale(1.06);
 }
+
 .auth-search-btn svg {
   width: 15px;
   height: 15px;
@@ -574,6 +603,7 @@
   box-shadow: 0 6px 18px rgba(220, 38, 38, 0.3);
   transition: transform 0.2s, box-shadow 0.2s;
 }
+
 .auth-get-started-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 10px 22px rgba(246, 92, 92, 0.45);
@@ -605,6 +635,7 @@
   filter: blur(44px);
   pointer-events: none;
 }
+
 .phone-glow-top {
   width: 210px;
   height: 210px;
@@ -612,6 +643,7 @@
   right: 15px;
   background: radial-gradient(circle, rgba(220, 38, 38, 0.52) 0%, transparent 70%);
 }
+
 .phone-glow-bottom {
   width: 220px;
   height: 190px;
@@ -792,7 +824,9 @@
 }
 
 @keyframes cursor-blink {
-  to { visibility: hidden; }
+  to {
+    visibility: hidden;
+  }
 }
 
 /* Khung Discord Rich Presence (popaperc - Playing Visual Studio Code) */
@@ -858,10 +892,12 @@
   border-radius: 50%;
   display: inline-block;
 }
+
 .konone-rpc-tag.red {
   background: #f87171;
   box-shadow: 0 0 4px rgba(248, 113, 113, 0.7);
 }
+
 .konone-rpc-tag.green {
   background: #a3e635;
   box-shadow: 0 0 4px rgba(163, 230, 53, 0.7);
@@ -875,6 +911,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .konone-rpc-line b {
   color: #ffffff;
   font-weight: 600;
@@ -950,8 +987,13 @@
 }
 
 @keyframes float-bob {
-  from { transform: translateY(0); }
-  to { transform: translateY(-6px); }
+  from {
+    transform: translateY(0);
+  }
+
+  to {
+    transform: translateY(-6px);
+  }
 }
 
 /* Thẻ nổi 1: Phía trên bên phải */
@@ -978,6 +1020,7 @@
   border: 1px solid rgba(246, 92, 92, 0.45);
   flex-shrink: 0;
 }
+
 .float-profile-avatar img {
   width: 100%;
   height: 100%;
@@ -990,6 +1033,7 @@
   font-weight: 600;
   color: #fff;
 }
+
 .float-profile-head small {
   display: block;
   font-size: 8px;
@@ -1015,6 +1059,7 @@
   font-size: 10.5px;
   color: #fff;
 }
+
 .float-price small {
   font-size: 8px;
   color: rgba(255, 255, 255, 0.45);
@@ -1024,6 +1069,7 @@
   display: flex;
   gap: 5px;
 }
+
 .float-act-btn {
   width: 18px;
   height: 18px;
@@ -1036,6 +1082,7 @@
   font-size: 8px;
   color: rgba(255, 255, 255, 0.7);
 }
+
 .float-act-btn.active {
   color: #f65c5c;
   border-color: rgba(246, 92, 92, 0.4);
@@ -1099,6 +1146,7 @@
   text-decoration: none;
   transition: background 0.2s;
 }
+
 .float-promo-btn:hover {
   background: var(--auth-gradient);
 }
@@ -1110,14 +1158,17 @@
     max-width: 480px;
     min-height: auto;
   }
+
   .auth-shell::before,
   .auth-shell::after {
     display: none;
   }
+
   .auth-left {
     border-right: none;
     padding: 28px 28px 22px;
   }
+
   .auth-right {
     display: none;
   }
@@ -1127,12 +1178,15 @@
   .auth-page {
     padding: 12px;
   }
+
   .auth-left {
     padding: 22px 20px 18px;
   }
+
   .social-grid {
     grid-template-columns: 1fr;
   }
+
   .auth-title {
     font-size: 24px;
   }
@@ -1152,6 +1206,359 @@
 }
 
 .auth-form .slide-commit,
-.auth-form > div:has(> .slide-commit) {
+.auth-form>div:has(> .slide-commit) {
   margin-top: 6px;
+}
+/* ===== Trang Đăng ký: một khung kính giữa màn hình ===== */
+.auth-page--solo {
+  background: #0b0b0e;
+}
+
+.auth-page--solo::before {
+  display: none;
+}
+
+.auth-glass {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 440px;
+  box-sizing: border-box;
+  padding: 28px 40px 22px;
+  border-radius: 28px;
+  background: linear-gradient(160deg, rgba(34, 34, 40, 0.55) 0%, rgba(16, 16, 20, 0.62) 55%, rgba(12, 12, 15, 0.7) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  backdrop-filter: blur(22px) saturate(140%);
+  box-shadow:
+    0 30px 80px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+
+/* Vệt sáng đỏ ở góc trên-trái và vệt trắng chéo */
+.auth-glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 0% 0%, rgba(255, 87, 87, 0.42) 0%, rgba(255, 87, 87, 0.12) 32%, transparent 55%),
+    linear-gradient(115deg, transparent 38%, rgba(255, 255, 255, 0.07) 52%, transparent 66%);
+}
+
+.auth-glass > * {
+  position: relative;
+}
+
+.auth-glass-brand {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 4px;
+}
+
+.auth-glass .auth-form-wrap {
+  max-width: 100%;
+  margin: 0;
+  padding: 6px 0 10px;
+}
+
+.auth-glass .auth-left-footer {
+  margin-top: 8px;
+}
+
+/* Ô nhập trong suốt, mượt khi focus/gõ */
+.auth-glass .auth-form input,
+.auth-glass .form-group input {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  transition: background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.auth-glass .auth-form input:focus,
+.auth-glass .form-group input:focus {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 120, 120, 0.7);
+  box-shadow: 0 0 0 3px rgba(255, 87, 87, 0.16);
+  outline: none;
+}
+
+@media (max-width: 480px) {
+  .auth-glass {
+    padding: 24px 22px 18px;
+    border-radius: 22px;
+  }
+}
+
+/* Tinh chỉnh sát ảnh mẫu: ô nhập dạng viên thuốc, viền sáng, vệt đỏ góc trái */
+.auth-glass {
+  max-width: 460px;
+  border-radius: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: linear-gradient(165deg, rgba(40, 40, 46, 0.5) 0%, rgba(18, 18, 22, 0.6) 50%, rgba(12, 12, 15, 0.68) 100%);
+}
+
+.auth-glass::before {
+  background:
+    radial-gradient(75% 45% at 4% 0%, rgba(255, 87, 87, 0.6) 0%, rgba(255, 87, 87, 0.18) 40%, transparent 65%),
+    linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, 0.09) 54%, transparent 68%);
+}
+
+.auth-glass .auth-form input,
+.auth-glass .form-group input {
+  border-radius: 999px;
+  padding-left: 22px;
+}
+
+/* Chuyển trang Đăng nhập <-> Đăng ký mượt */
+.auth-glass-body {
+  overflow: hidden;
+  transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auth-page-swap {
+  animation: authSwapIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes authSwapIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-glass-body { transition: none; }
+  .auth-page-swap { animation: none; }
+}
+
+/* Thông báo nhỏ gắn góc trên ô nhập */
+.form-group {
+  position: relative;
+}
+
+.field-notice {
+  position: absolute;
+  top: -10px;
+  right: 14px;
+  z-index: 3;
+  max-width: calc(100% - 28px);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px 3px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #ffd0d0;
+  background: rgba(40, 14, 16, 0.88);
+  border: 1px solid rgba(255, 87, 87, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 14px rgba(255, 87, 87, 0.16);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  animation: fieldNoticeIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.field-notice-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff5757;
+  box-shadow: 0 0 8px #ff5757;
+}
+
+.field-notice--success {
+  color: #c4f5d2;
+  background: rgba(10, 34, 20, 0.88);
+  border-color: rgba(100, 220, 130, 0.45);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 14px rgba(80, 220, 120, 0.16);
+}
+
+.field-notice--success .field-notice-dot {
+  background: #4ade80;
+  box-shadow: 0 0 8px #4ade80;
+}
+
+@keyframes fieldNoticeIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ===== Hiệu ứng thoát khi đăng nhập thành công ===== */
+.auth-glass.is-gather,
+.auth-glass.is-grow {
+  overflow: visible;
+  pointer-events: none;
+}
+
+.auth-glass-body,
+.auth-glass .auth-left-footer {
+  transition: height 0.45s cubic-bezier(0.22, 1, 0.36, 1), transform 0.65s cubic-bezier(0.65, 0, 0.35, 1), opacity 0.5s ease 0.1s;
+}
+
+.auth-glass.is-gather .auth-glass-body,
+.auth-glass.is-grow .auth-glass-body {
+  transform: translate(var(--gx, 0), var(--gy, 0)) scale(0.04);
+  opacity: 0;
+}
+
+.auth-glass.is-gather .auth-left-footer,
+.auth-glass.is-grow .auth-left-footer {
+  transform: translate(0, -160px) scale(0.04);
+  opacity: 0;
+}
+
+.auth-glass.is-gather .auth-form-wrap {
+  filter: blur(2px);
+}
+
+.auth-glass {
+  transition: background 0.6s ease, border-color 0.6s ease, box-shadow 0.6s ease, backdrop-filter 0.6s ease, -webkit-backdrop-filter 0.6s ease;
+}
+
+.auth-glass::before {
+  transition: opacity 0.5s ease;
+}
+
+.auth-glass.is-gather {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.auth-glass.is-gather::before,
+.auth-glass.is-grow::before {
+  opacity: 0;
+}
+
+.auth-glass.is-grow {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+.auth-glass .auth-brand {
+  position: relative;
+  z-index: 5;
+  transition: transform 0.9s cubic-bezier(0.22, 1, 0.36, 1), filter 0.9s ease;
+}
+
+.auth-glass.is-gather .auth-brand {
+  filter: drop-shadow(0 0 16px rgba(255, 87, 87, 0.7));
+}
+
+.auth-glass.is-grow .auth-brand {
+  transform: translate(var(--lx, 0), var(--ly, 0)) scale(5);
+  filter: drop-shadow(0 0 34px rgba(255, 87, 87, 0.85));
+}
+
+/* ===== Nhãn nổi: chữ nhỏ lên đầu ô khi bắt đầu nhập ===== */
+.auth-glass .form-group input,
+.auth-glass .password-field input {
+  padding: 24px 22px 8px;
+  font-size: 14px;
+}
+
+.auth-glass .password-field input {
+  padding-right: 48px;
+}
+
+.float-label {
+  position: absolute;
+  left: 23px;
+  top: 50%;
+  transform: translateY(-50%);
+  max-width: calc(100% - 70px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.45);
+  pointer-events: none;
+  transform-origin: left top;
+  transition: top 0.25s cubic-bezier(0.22, 1, 0.36, 1), transform 0.25s cubic-bezier(0.22, 1, 0.36, 1), font-size 0.25s cubic-bezier(0.22, 1, 0.36, 1), color 0.25s ease;
+}
+
+.auth-glass .form-group,
+.auth-glass .password-field {
+  position: relative;
+}
+
+.auth-glass input:focus ~ .float-label,
+.auth-glass input:not(:placeholder-shown) ~ .float-label,
+.auth-glass input:-webkit-autofill ~ .float-label {
+  top: 9px;
+  transform: none;
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  color: rgba(255, 140, 140, 0.9);
+}
+
+.auth-glass input:not(:focus):not(:-webkit-autofill):not(:placeholder-shown) ~ .float-label {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* Nút đổi ngôn ngữ ở chân khung */
+.auth-lang-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 20px;
+  cursor: pointer;
+  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.auth-lang-btn:hover {
+  color: #fff;
+  background: rgba(255, 87, 87, 0.18);
+  border-color: rgba(255, 120, 120, 0.55);
+  transform: scale(1.06);
+}
+
+/* Ẩn icon mắt/xóa mặc định của trình duyệt (Edge) để chỉ còn icon mắt của KonOne */
+.auth-glass input::-ms-reveal,
+.auth-glass input::-ms-clear {
+  display: none;
+}
+
+.auth-glass input::-webkit-credentials-auto-fill-button,
+.auth-glass input::-webkit-contacts-auto-fill-button {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
+}
+
+/* Chặn nền xanh nhạt của tự điền: giữ nền kính tối và chữ trắng */
+.auth-glass input:-webkit-autofill,
+.auth-glass input:-webkit-autofill:hover,
+.auth-glass input:-webkit-autofill:focus,
+.auth-glass input:-webkit-autofill:active {
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+  border-radius: 999px;
+  -webkit-box-shadow: 0 0 0 1000px rgba(30, 30, 36, 0.92) inset;
+  box-shadow: 0 0 0 1000px rgba(30, 30, 36, 0.92) inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
+.auth-glass input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px rgba(38, 38, 46, 0.92) inset, 0 0 0 3px rgba(255, 87, 87, 0.16);
+  box-shadow: 0 0 0 1000px rgba(38, 38, 46, 0.92) inset, 0 0 0 3px rgba(255, 87, 87, 0.16);
 }

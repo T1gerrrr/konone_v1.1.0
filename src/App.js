@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { FEATURES } from './constants/features';
 import { AuthProvider } from './contexts/AuthContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -7,9 +7,11 @@ import PrivateRoute from './components/PrivateRoute';
 import Home from './components/Home';
 import Login from './components/Login';
 import Register from './components/Register';
+import { AuthShell } from './components/AuthLayout';
 import VerifyEmail from './components/VerifyEmail';
 import LegalPage from './components/LegalPage';
 import ChatWidget from './components/ChatWidget';
+import ClickSpark from './components/ClickSpark';
 import NotifyHost from './notify/NotifyHost';
 import Dashboard from './components/Dashboard';
 import ProfileEditor from './components/ProfileEditor';
@@ -20,22 +22,38 @@ import Admin from './components/Admin';
 import RouteTracker from './components/RouteTracker';
 import Community from './components/Community';
 import ProfileTemplate from './components/ProfileTemplate';
-import LayoutEditor from './components/LayoutEditor';
 import LinksPage from './components/LinksPage';
 import Leaderboard from './components/Leaderboard';
 import './App.css';
+
+// Trang chủ không hiển thị boxchat
+function HideOnHome({ children }) {
+  const { pathname } = useLocation();
+  return pathname === '/' ? null : children;
+}
 
 function App() {
   return (
     <Router>
       <AuthProvider>
         <LanguageProvider>
+          <ClickSpark
+            sparkColor="#fff"
+            shape="line"
+            sparkCount={8}
+            sparkSize={14}
+            sparkRadius={30}
+            duration={500}
+            style={{ height: 'auto', minHeight: '100vh' }}
+          >
           <div className="App">
             <RouteTracker />
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/register" element={<Register />} />
+              <Route element={<AuthShell />}>
+                <Route path="/login" element={<Login />} />
+                <Route path="/register" element={<Register />} />
+              </Route>
               <Route path="/verify-email" element={<VerifyEmail />} />
               <Route path="/community" element={<Community />} />
               <Route path="/leaderboard" element={<Leaderboard />} />
@@ -103,19 +121,14 @@ function App() {
                   )
                 }
               />
-              <Route
-                path="/edit-layout"
-                element={
-                  <PrivateRoute>
-                    <LayoutEditor />
-                  </PrivateRoute>
-                }
-              />
+              {/* Trang Bố cục cũ đã được thay bằng trang Mẫu */}
+              <Route path="/edit-layout" element={<Navigate to="/profile-template" replace />} />
               <Route path="/:username" element={<PublicProfile />} />
             </Routes>
-            <ChatWidget />
+            <HideOnHome><ChatWidget /></HideOnHome>
             <NotifyHost />
           </div>
+          </ClickSpark>
         </LanguageProvider>
       </AuthProvider>
     </Router>

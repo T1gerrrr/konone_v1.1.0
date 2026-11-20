@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { LEGAL, LEGAL_UPDATED, LEGAL_EMAIL } from '../legal/content';
+import PageRays from './PageRays';
 import './LegalPage.css';
 
 const NAV = [
@@ -37,6 +38,10 @@ export default function LegalPage({ doc }) {
 
   return (
     <div className="legal-page">
+      <div className="legal-rays" aria-hidden="true">
+        <PageRays />
+      </div>
+
       <header className="legal-header">
         <Link to="/" className="legal-brand">
           <img src="/logo-konone-v1.png" alt="KonOne Logo" />

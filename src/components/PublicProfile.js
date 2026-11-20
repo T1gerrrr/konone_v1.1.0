@@ -611,7 +611,7 @@ export default function PublicProfile() {
   const glowOn = profile.glowSettings || { username: true, socials: true, badges: true };
 
   const renderSocialIconsBlock = (extraClass = '') => {
-    if (!hasAnySocialOrCustom) return null;
+    if (!hasAnySocialOrCustom || profile.otherSettings?.showLinks === false) return null;
     return (
       <div className={`social-icons-container ${extraClass}`.trim()}>
         {Object.entries(socialLinks)
@@ -964,10 +964,10 @@ export default function PublicProfile() {
                   ? 'transparent'
                   : profile.profileGradient
                     ? `linear-gradient(145deg, ${hexToRgba(
-                        profile.lanyardCardColor || profile.cardColor || '#141417',
+                        profile.gradientFrom || profile.lanyardCardColor || profile.cardColor || '#141417',
                         Math.max(0, (profile.profileOpacity ?? 0) / 100)
                       )}, ${hexToRgba(
-                        profile.lanyardStrapColor || cardColor,
+                        profile.gradientTo || profile.lanyardStrapColor || cardColor,
                         Math.max(0, ((profile.profileOpacity ?? 0) / 100) * 0.65)
                       )})`
                     : hexToRgba(

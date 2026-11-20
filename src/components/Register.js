@@ -88,10 +88,11 @@ export default function Register() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            placeholder={L('Địa chỉ email', 'Email Address')}
+            placeholder=" "
             aria-label={L('Địa chỉ email', 'Email Address')}
             autoComplete="email"
           />
+          <label className="float-label" htmlFor="reg-email">{L('Địa chỉ email', 'Email Address')}</label>
         </div>
         <div className="form-group">
           <PasswordInput
@@ -100,7 +101,7 @@ export default function Register() {
             onChange={(e) => setPassword(e.target.value)}
             required
             minLength={6}
-            placeholder={L('Mật khẩu (tối thiểu 6 ký tự)', 'Password (min 6 characters)')}
+            floatLabel={L('Mật khẩu (tối thiểu 6 ký tự)', 'Password (min 6 characters)')}
             aria-label={L('Mật khẩu', 'Password')}
             autoComplete="new-password"
           />
@@ -111,7 +112,7 @@ export default function Register() {
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            placeholder={L('Nhập lại mật khẩu', 'Confirm Password')}
+            floatLabel={L('Nhập lại mật khẩu', 'Confirm Password')}
             aria-label={L('Nhập lại mật khẩu', 'Confirm Password')}
             autoComplete="new-password"
           />

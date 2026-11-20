@@ -91,3 +91,47 @@ td .adm-tag:first-child { margin-left: 0; }
 .adm-premium { display: grid; gap: 10px; margin: 12px 0 4px; padding: 12px; border-radius: 10px; background: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.07); }
 .adm-premium-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .adm-premium-row .adm-input { width: 90px; }
+
+/* Tab Template */
+.adm-colorfield {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adm-colorfield input[type='color'] {
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.adm-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adm-subhead {
+  margin: 18px 0 4px;
+  font-size: 14px;
+  opacity: 0.8;
+}
+
+.adm-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.adm-swatch i {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+}

@@ -3,6 +3,8 @@
   min-height: 100vh;
   padding: 40px 24px 72px;
   box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
   background: #0d0d10;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   color: rgba(255, 255, 255, 0.78);
@@ -15,6 +17,24 @@
   max-width: 740px;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Tia sáng nền */
+.legal-rays {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 600px;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.legal-header,
+.legal-doc,
+.legal-footer {
+  position: relative;
+  z-index: 1;
 }
 
 /* Header tối giản không viền */

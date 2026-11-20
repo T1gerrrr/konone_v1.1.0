@@ -19,7 +19,7 @@ export const TOPICS = [
         '1. Đăng nhập rồi vào Dashboard.',
         '2. Chọn "Edit profile" để nhập tên người dùng (chữ thường và số), tên hiển thị, tiểu sử, ảnh đại diện và ảnh nền.',
         '3. Thêm các liên kết mạng xã hội hoặc website của bạn.',
-        '4. Vào "Edit layout" hoặc chọn mẫu giao diện để tùy biến bố cục.',
+        '4. Vào trang "Mẫu" để chọn mẫu giao diện, hoặc tự tùy biến trong "Chỉnh sửa hồ sơ".',
         '5. Lưu lại. Trang của bạn sẽ có địa chỉ dạng konone/tên-người-dùng để chia sẻ.',
       ],
       en: [
@@ -27,13 +27,13 @@ export const TOPICS = [
         '1. Sign in and open the Dashboard.',
         '2. Choose "Edit profile" to enter your username (lowercase letters and numbers), display name, bio, avatar and background.',
         '3. Add your social links or website.',
-        '4. Open "Edit layout" or pick a template to customize the layout.',
+        '4. Open the "Templates" page to pick a template, or customize it in "Edit profile".',
         '5. Save. Your page gets a shareable address like konone/your-username.',
       ],
     },
     links: [
       { to: '/edit-profile', label: { vi: 'Chỉnh sửa hồ sơ', en: 'Edit profile' } },
-      { to: '/edit-layout', label: { vi: 'Chỉnh sửa bố cục', en: 'Edit layout' } },
+      { to: '/profile-template', label: { vi: 'Chọn mẫu giao diện', en: 'Pick a template' } },
     ],
   },
   {

@@ -4,6 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { lastNDays } from '../utils/dateKey';
 import ViewsChart from './ViewsChart';
 import UserMenu from './UserMenu';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { db } from '../firebase';
+import { TEMPLATE_LAYOUTS, TEMPLATE_EFFECTS, TEMPLATE_FONTS } from '../constants/templates';
 import './Admin.css';
 
 const TABS = [
@@ -11,6 +14,7 @@ const TABS = [
   { id: 'users', label: 'Tài khoản' },
   { id: 'codes', label: 'Mã mời' },
   { id: 'premium', label: 'Code Premium' },
+  { id: 'templates', label: 'Template' },
   { id: 'event', label: 'Sự kiện & quà' }
 ];
 
@@ -99,6 +103,7 @@ export default function Admin() {
         {tab === 'users' && <Users call={adminCall} />}
         {tab === 'codes' && <Codes call={adminCall} />}
         {tab === 'premium' && <PremiumCodes call={adminCall} />}
+        {tab === 'templates' && <Templates call={adminCall} />}
         {tab === 'event' && <EventConfig call={adminCall} />}
       </main>
     </div>
@@ -761,6 +766,325 @@ function EventConfig({ call }) {
             </table>
           </div>
         )}
+      </div>
+    </section>
+  );
+}
+
+// ===== Template: quản lý mẫu hiển thị ở trang Mẫu =====
+const EMPTY_TEMPLATE = {
+  id: '',
+  nameVi: '',
+  nameEn: '',
+  author: 'KonOne',
+  tags: '',
+  premium: false,
+  bg1: '#0a0a0c',
+  bg2: '#18181d',
+  layout: 'card',
+  cardColor: '#18161c',
+  strapColor: '#f65c5c',
+  textColor: '#ffffff',
+  bgColor: '#0a0a0c',
+  iconColor: '#ffffff',
+  effect: 'none',
+  profileOpacity: 60,
+  profileBlur: 40,
+  profileGradient: false,
+  gradientFrom: '#18161c',
+  gradientTo: '#f65c5c',
+  font: 'Arial',
+  text3D: false,
+  glowUsername: true,
+  glowSocials: true,
+  glowBadges: true
+};
+
+const hex6 = (v, fallback) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback);
+
+function formToTemplate(f) {
+  return {
+    name: { vi: f.nameVi, en: f.nameEn },
+    author: f.author,
+    tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean),
+    premium: f.premium,
+    preview: {
+      bg: `linear-gradient(160deg,${f.bg1},${f.bg2})`,
+      card: f.cardColor,
+      accent: f.strapColor,
+      text: f.textColor
+    },
+    preset: {
+      layout: f.layout,
+      cardColor: f.cardColor,
+      lanyardCardColor: f.cardColor,
+      lanyardStrapColor: f.strapColor,
+      textColor: f.textColor,
+      bgColor: f.bgColor,
+      iconColor: f.iconColor,
+      effect: f.effect,
+      profileOpacity: Number(f.profileOpacity),
+      profileBlur: Number(f.profileBlur),
+      profileGradient: f.profileGradient,
+      gradientFrom: f.profileGradient ? f.gradientFrom : '',
+      gradientTo: f.profileGradient ? f.gradientTo : '',
+      textFontFamily: f.font,
+      text3DEffect: f.text3D,
+      glowSettings: { username: f.glowUsername, socials: f.glowSocials, badges: f.glowBadges }
+    }
+  };
+}
+
+function templateToForm(t) {
+  const pr = t.preset || {};
+  const pv = t.preview || {};
+  const g = pr.glowSettings || {};
+  // preview.bg dạng "linear-gradient(160deg,#aaa,#bbb)" -> lấy lại 2 màu
+  const m = /#[0-9a-f]{6}/gi.exec(pv.bg || '');
+  const all = String(pv.bg || '').match(/#[0-9a-f]{6}/gi) || [];
+  return {
+    ...EMPTY_TEMPLATE,
+    id: t.id,
+    nameVi: (t.name && t.name.vi) || '',
+    nameEn: (t.name && t.name.en) || '',
+    author: t.author || 'KonOne',
+    tags: (t.tags || []).join(', '),
+    premium: Boolean(t.premium),
+    bg1: hex6(all[0] || (m && m[0]), EMPTY_TEMPLATE.bg1),
+    bg2: hex6(all[1], EMPTY_TEMPLATE.bg2),
+    layout: pr.layout || 'card',
+    cardColor: hex6(pr.cardColor, EMPTY_TEMPLATE.cardColor),
+    strapColor: hex6(pr.lanyardStrapColor, EMPTY_TEMPLATE.strapColor),
+    textColor: hex6(pr.textColor, EMPTY_TEMPLATE.textColor),
+    bgColor: hex6(pr.bgColor, EMPTY_TEMPLATE.bgColor),
+    iconColor: hex6(pr.iconColor, EMPTY_TEMPLATE.iconColor),
+    effect: pr.effect || 'none',
+    profileOpacity: pr.profileOpacity ?? 60,
+    profileBlur: pr.profileBlur ?? 40,
+    profileGradient: Boolean(pr.profileGradient),
+    gradientFrom: hex6(pr.gradientFrom, EMPTY_TEMPLATE.gradientFrom),
+    gradientTo: hex6(pr.gradientTo, EMPTY_TEMPLATE.gradientTo),
+    font: pr.textFontFamily || 'Arial',
+    text3D: Boolean(pr.text3DEffect),
+    glowUsername: g.username !== false,
+    glowSocials: g.socials !== false,
+    glowBadges: g.badges !== false
+  };
+}
+
+function ColorField({ label, value, onChange }) {
+  return (
+    <label>{label}
+      <span className="adm-colorfield">
+        <input type="color" value={hex6(value, '#000000')} onChange={(e) => onChange(e.target.value)} />
+        <input className="adm-input adm-mono" value={value} onChange={(e) => onChange(e.target.value)} maxLength={9} />
+      </span>
+    </label>
+  );
+}
+
+function Templates({ call }) {
+  const { currentUser } = useAuth();
+  const { data, error, reload } = useLoad(call, { action: 'templates' });
+  const [f, setF] = useState(EMPTY_TEMPLATE);
+  const [msg, setMsg] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
+  const editing = Boolean(f.id);
+
+  async function save(e) {
+    e.preventDefault();
+    setBusy(true);
+    setMsg(null);
+    try {
+      await call({ action: 'saveTemplate', id: f.id || undefined, template: formToTemplate(f) });
+      setMsg({ ok: true, text: editing ? 'Đã cập nhật mẫu.' : 'Đã thêm mẫu.' });
+      setF(EMPTY_TEMPLATE);
+      reload();
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(t) {
+    if (!window.confirm(`Xóa mẫu "${(t.name && (t.name.vi || t.name.en)) || t.id}"? Hồ sơ đã dùng mẫu này không bị ảnh hưởng.`)) return;
+    try {
+      await call({ action: 'deleteTemplate', id: t.id });
+      if (f.id === t.id) setF(EMPTY_TEMPLATE);
+      reload();
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    }
+  }
+
+  // Lấy thiết kế từ hồ sơ của chính quản trị viên làm điểm bắt đầu
+  async function fillFromMyProfile() {
+    setMsg(null);
+    try {
+      const snap = await getDocs(query(collection(db, 'profiles'), where('userId', '==', currentUser.uid), limit(1)));
+      if (snap.empty) {
+        setMsg({ ok: false, text: 'Tài khoản của bạn chưa có hồ sơ.' });
+        return;
+      }
+      const p = snap.docs[0].data();
+      const next = templateToForm({
+        id: f.id,
+        name: { vi: f.nameVi, en: f.nameEn },
+        author: f.author,
+        tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean),
+        premium: f.premium,
+        preview: { bg: `linear-gradient(160deg,${p.bgColor || f.bg1},${f.bg2})` },
+        preset: {
+          layout: p.layout,
+          cardColor: p.lanyardCardColor || p.cardColor,
+          lanyardStrapColor: p.lanyardStrapColor,
+          textColor: p.textColor,
+          bgColor: p.bgColor,
+          iconColor: p.iconColor,
+          effect: p.effect,
+          profileOpacity: p.profileOpacity,
+          profileBlur: p.profileBlur,
+          profileGradient: p.profileGradient,
+          gradientFrom: p.gradientFrom,
+          gradientTo: p.gradientTo,
+          textFontFamily: p.textFontFamily,
+          text3DEffect: p.text3DEffect,
+          glowSettings: p.glowSettings
+        }
+      });
+      setF(next);
+      setMsg({ ok: true, text: 'Đã lấy thiết kế từ hồ sơ của bạn. Hãy đặt tên rồi lưu.' });
+    } catch (err) {
+      setMsg({ ok: false, text: err.message });
+    }
+  }
+
+  if (!data) return <Status error={error} loading />;
+
+  return (
+    <section className="adm-stack">
+      <form className="adm-card adm-form" onSubmit={save}>
+        <div className="adm-card-head">
+          <h2>{editing ? 'Sửa mẫu' : 'Thêm mẫu mới'}</h2>
+          <div>
+            <button type="button" className="adm-btn ghost" onClick={fillFromMyProfile}>Lấy từ hồ sơ của tôi</button>{' '}
+            {editing && <button type="button" className="adm-btn ghost" onClick={() => { setF(EMPTY_TEMPLATE); setMsg(null); }}>Hủy sửa</button>}
+          </div>
+        </div>
+
+        <div className="adm-row">
+          <label>Tên (Tiếng Việt)
+            <input className="adm-input" maxLength={60} value={f.nameVi} onChange={(e) => set({ nameVi: e.target.value })} placeholder="VD: Kính đỏ Crimson" />
+          </label>
+          <label>Tên (English)
+            <input className="adm-input" maxLength={60} value={f.nameEn} onChange={(e) => set({ nameEn: e.target.value })} placeholder="e.g. Crimson Glass" />
+          </label>
+          <label>Tác giả
+            <input className="adm-input" maxLength={40} value={f.author} onChange={(e) => set({ author: e.target.value })} />
+          </label>
+          <label>Thẻ (cách nhau bằng dấu phẩy)
+            <input className="adm-input" value={f.tags} onChange={(e) => set({ tags: e.target.value })} placeholder="free, dark, bio" />
+          </label>
+          <label className="adm-check"><input type="checkbox" checked={f.premium} onChange={(e) => set({ premium: e.target.checked })} /> Chỉ dành cho Premium</label>
+        </div>
+
+        <h3 className="adm-subhead">Hình xem trước</h3>
+        <div className="adm-row">
+          <ColorField label="Nền (màu 1)" value={f.bg1} onChange={(v) => set({ bg1: v })} />
+          <ColorField label="Nền (màu 2)" value={f.bg2} onChange={(v) => set({ bg2: v })} />
+        </div>
+
+        <h3 className="adm-subhead">Thiết kế áp dụng cho hồ sơ</h3>
+        <div className="adm-row">
+          <label>Bố cục
+            <select className="adm-input" value={f.layout} onChange={(e) => set({ layout: e.target.value })}>
+              {TEMPLATE_LAYOUTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </label>
+          <label>Hiệu ứng nền
+            <select className="adm-input" value={f.effect} onChange={(e) => set({ effect: e.target.value })}>
+              {TEMPLATE_EFFECTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            </select>
+          </label>
+          <label>Phông chữ
+            <select className="adm-input" value={f.font} onChange={(e) => set({ font: e.target.value })}>
+              {TEMPLATE_FONTS.map((x) => <option key={x} value={x}>{x}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="adm-row">
+          <ColorField label="Màu thẻ" value={f.cardColor} onChange={(v) => set({ cardColor: v })} />
+          <ColorField label="Màu nhấn / dây đeo" value={f.strapColor} onChange={(v) => set({ strapColor: v })} />
+          <ColorField label="Màu chữ" value={f.textColor} onChange={(v) => set({ textColor: v })} />
+          <ColorField label="Màu nền" value={f.bgColor} onChange={(v) => set({ bgColor: v })} />
+          <ColorField label="Màu icon" value={f.iconColor} onChange={(v) => set({ iconColor: v })} />
+        </div>
+        <div className="adm-row">
+          <label>Độ trong suốt thẻ ({f.profileOpacity})
+            <input type="range" min="0" max="100" value={f.profileOpacity} onChange={(e) => set({ profileOpacity: e.target.value })} />
+          </label>
+          <label>Độ mờ thẻ ({f.profileBlur})
+            <input type="range" min="0" max="100" value={f.profileBlur} onChange={(e) => set({ profileBlur: e.target.value })} />
+          </label>
+          <label className="adm-check"><input type="checkbox" checked={f.text3D} onChange={(e) => set({ text3D: e.target.checked })} /> Chữ nổi 3D</label>
+        </div>
+        <div className="adm-row">
+          <label className="adm-check"><input type="checkbox" checked={f.profileGradient} onChange={(e) => set({ profileGradient: e.target.checked })} /> Nền chuyển sắc</label>
+          {f.profileGradient && (
+            <>
+              <ColorField label="Màu chuyển 1" value={f.gradientFrom} onChange={(v) => set({ gradientFrom: v })} />
+              <ColorField label="Màu chuyển 2" value={f.gradientTo} onChange={(v) => set({ gradientTo: v })} />
+            </>
+          )}
+        </div>
+        <div className="adm-row">
+          <label className="adm-check"><input type="checkbox" checked={f.glowUsername} onChange={(e) => set({ glowUsername: e.target.checked })} /> Phát sáng tên</label>
+          <label className="adm-check"><input type="checkbox" checked={f.glowSocials} onChange={(e) => set({ glowSocials: e.target.checked })} /> Phát sáng icon</label>
+          <label className="adm-check"><input type="checkbox" checked={f.glowBadges} onChange={(e) => set({ glowBadges: e.target.checked })} /> Phát sáng huy hiệu</label>
+        </div>
+
+        <div className="adm-row">
+          <button type="submit" className="adm-btn" disabled={busy || (!f.nameVi.trim() && !f.nameEn.trim())}>
+            {editing ? 'Lưu thay đổi' : 'Thêm mẫu'}
+          </button>
+        </div>
+        {msg && <div className={msg.ok ? 'adm-ok' : 'adm-error'}>{msg.text}</div>}
+      </form>
+
+      <div className="adm-card">
+        <div className="adm-card-head">
+          <h2>Mẫu đang có <span className="adm-count">{data.templates.length}</span></h2>
+          <button type="button" className="adm-btn ghost" onClick={reload}>Làm mới</button>
+        </div>
+        <div className="adm-table-wrap">
+          <table className="adm-table static">
+            <thead><tr><th>Xem trước</th><th>Tên</th><th>Tác giả</th><th>Thẻ</th><th>Loại</th><th>Ngày tạo</th><th /></tr></thead>
+            <tbody>
+              {data.templates.map((t) => (
+                <tr key={t.id}>
+                  <td>
+                    <span className="adm-swatch" style={{ background: (t.preview && t.preview.bg) || '#111' }}>
+                      <i style={{ background: (t.preview && t.preview.card) || '#222' }} />
+                    </span>
+                  </td>
+                  <td><b>{(t.name && (t.name.vi || t.name.en)) || t.id}</b></td>
+                  <td>{t.author || '—'}</td>
+                  <td>{(t.tags || []).join(', ') || '—'}</td>
+                  <td><span className={`adm-tag ${t.premium ? 'warn' : 'ok'}`}>{t.premium ? 'Premium' : 'Miễn phí'}</span></td>
+                  <td>{fmt(t.createdAt)}</td>
+                  <td>
+                    <button type="button" className="adm-btn ghost small" onClick={() => { setF(templateToForm(t)); setMsg(null); window.scrollTo({ top: 0, behavior: 'smooth' }); }}>Sửa</button>{' '}
+                    <button type="button" className="adm-btn danger small" onClick={() => remove(t)}>Xóa</button>
+                  </td>
+                </tr>
+              ))}
+              {!data.templates.length && <tr><td colSpan={7} className="adm-muted">Chưa có mẫu nào — hãy thêm mẫu đầu tiên ở form phía trên.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+        <p className="adm-note">Mẫu hiển thị ngay ở trang Mẫu của người dùng. Người dùng bấm "Dùng mẫu" thì các thiết lập trên được áp dụng vào hồ sơ của họ.</p>
       </div>
     </section>
   );
