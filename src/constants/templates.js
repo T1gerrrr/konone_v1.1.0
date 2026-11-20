@@ -2,11 +2,13 @@
 // Dữ liệu lưu ở bộ sưu tập Firestore `templates`, trang Mẫu chỉ đọc.
 
 // Các trường của hồ sơ được ghi/đọc khi dùng hoặc tạo mẫu
+// Toàn bộ phần THIẾT KẾ của hồ sơ (không gồm thông tin cá nhân như tên, mô tả, avatar, liên kết, nhạc)
 export const TEMPLATE_FIELDS = [
   'layout',
   'cardColor',
   'lanyardCardColor',
   'lanyardStrapColor',
+  'lanyardBadgeLabel',
   'textColor',
   'bgColor',
   'iconColor',
@@ -18,7 +20,20 @@ export const TEMPLATE_FIELDS = [
   'gradientTo',
   'textFontFamily',
   'text3DEffect',
-  'glowSettings'
+  'glowSettings',
+  'nameScale',
+  'bioScale',
+  'backgroundImage',
+  'backgroundVideo',
+  'coverImage',
+  'avatarFrame',
+  'cursorIcon',
+  'musicBoxColor',
+  'musicAccentColor',
+  'socialPosition',
+  'otherSettings',
+  'splashCursor',
+  'blobCursor'
 ];
 
 export const TEMPLATE_LAYOUTS = [

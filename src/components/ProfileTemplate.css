@@ -404,3 +404,87 @@
   .tp-sort { padding: 14px 18px; }
   .tp-tabs { border-radius: 24px; }
 }
+
+/* Xem trước bằng hồ sơ thật */
+.tp-eye {
+  display: inline-flex;
+  padding: 10px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.85);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.tp-eye:hover {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.tp-preview-modal {
+  width: 100%;
+  max-width: 880px;
+  max-height: calc(100vh - 40px);
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 24px;
+  color: #fff;
+  background: linear-gradient(165deg, rgba(40, 40, 46, 0.92), rgba(16, 16, 20, 0.96));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.6);
+}
+
+.tp-preview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  font-size: 17px;
+}
+
+.tp-preview-x {
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  cursor: pointer;
+}
+
+.tp-real {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #000;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+/* Khung có transform nên mọi phần tử position: fixed bên trong bám theo khung này */
+.tp-real-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  overflow: hidden;
+}
+
+/* Hình xem trước trên thẻ */
+.tp-thumb {
+  position: relative;
+  width: 100%;
+  overflow: hidden;
+  background: #000;
+}
+
+.tp-thumb .tp-preview {
+  height: 100%;
+}
+
+.tp-thumb .tp-real {
+  border: 0;
+  border-radius: 0;
+}

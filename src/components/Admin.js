@@ -6,7 +6,7 @@ import ViewsChart from './ViewsChart';
 import UserMenu from './UserMenu';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
-import { TEMPLATE_LAYOUTS, TEMPLATE_EFFECTS, TEMPLATE_FONTS } from '../constants/templates';
+import { TEMPLATE_FIELDS, TEMPLATE_LAYOUTS, TEMPLATE_EFFECTS, TEMPLATE_FONTS } from '../constants/templates';
 import './Admin.css';
 
 const TABS = [
@@ -797,8 +797,15 @@ const EMPTY_TEMPLATE = {
   text3D: false,
   glowUsername: true,
   glowSocials: true,
-  glowBadges: true
+  glowBadges: true,
+  extra: {} // các thiết lập thiết kế còn lại (ảnh nền, khung avatar, hiệu ứng chuột...) lấy y chang từ hồ sơ
 };
+
+// Các trường đã có ô riêng trong form; phần còn lại nằm trong `extra`
+const MANAGED_PRESET_KEYS = [
+  'layout', 'cardColor', 'lanyardCardColor', 'lanyardStrapColor', 'textColor', 'bgColor', 'iconColor', 'effect',
+  'profileOpacity', 'profileBlur', 'profileGradient', 'gradientFrom', 'gradientTo', 'textFontFamily', 'text3DEffect', 'glowSettings'
+];
 
 const hex6 = (v, fallback) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback);
 
@@ -815,6 +822,7 @@ function formToTemplate(f) {
       text: f.textColor
     },
     preset: {
+      ...f.extra,
       layout: f.layout,
       cardColor: f.cardColor,
       lanyardCardColor: f.cardColor,
@@ -842,8 +850,13 @@ function templateToForm(t) {
   // preview.bg dạng "linear-gradient(160deg,#aaa,#bbb)" -> lấy lại 2 màu
   const m = /#[0-9a-f]{6}/gi.exec(pv.bg || '');
   const all = String(pv.bg || '').match(/#[0-9a-f]{6}/gi) || [];
+  const extra = {};
+  Object.keys(pr).forEach((k) => {
+    if (!MANAGED_PRESET_KEYS.includes(k)) extra[k] = pr[k];
+  });
   return {
     ...EMPTY_TEMPLATE,
+    extra,
     id: t.id,
     nameVi: (t.name && t.name.vi) || '',
     nameEn: (t.name && t.name.en) || '',
@@ -937,6 +950,10 @@ function Templates({ call }) {
         premium: f.premium,
         preview: { bg: `linear-gradient(160deg,${p.bgColor || f.bg1},${f.bg2})` },
         preset: {
+          ...TEMPLATE_FIELDS.reduce((acc, k) => {
+            if (p[k] !== undefined) acc[k] = p[k];
+            return acc;
+          }, {}),
           layout: p.layout,
           cardColor: p.lanyardCardColor || p.cardColor,
           lanyardStrapColor: p.lanyardStrapColor,
@@ -955,7 +972,7 @@ function Templates({ call }) {
         }
       });
       setF(next);
-      setMsg({ ok: true, text: 'Đã lấy thiết kế từ hồ sơ của bạn. Hãy đặt tên rồi lưu.' });
+      setMsg({ ok: true, text: 'Đã sao chép y chang thiết kế từ hồ sơ của bạn (kể cả ảnh nền, khung avatar, hiệu ứng chuột...). Hãy đặt tên rồi lưu.' });
     } catch (err) {
       setMsg({ ok: false, text: err.message });
     }

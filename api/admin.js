@@ -79,6 +79,26 @@ function num(v, min, max, fallback) {
   return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : fallback;
 }
 
+// Làm sạch giá trị lồng nhau (chỉ số, boolean, chuỗi ngắn, mảng/đối tượng nhỏ)
+function cleanDeep(v, depth) {
+  if (v == null) return null;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'boolean') return v;
+  if (typeof v === 'string') return v.slice(0, 500);
+  if (depth <= 0) return null;
+  if (Array.isArray(v)) return v.slice(0, 20).map((x) => cleanDeep(x, depth - 1));
+  if (typeof v === 'object') {
+    const out = {};
+    Object.keys(v).slice(0, 60).forEach((k) => {
+      if (/^[A-Za-z0-9_]{1,40}$/.test(k)) out[k] = cleanDeep(v[k], depth - 1);
+    });
+    return out;
+  }
+  return null;
+}
+
+const URL_FIELDS = ['backgroundImage', 'backgroundVideo', 'coverImage', 'avatarFrame', 'cursorIcon'];
+
 // Chỉ giữ các trường hợp lệ, ép đúng kiểu
 function cleanTemplate(t) {
   const src = t || {};
@@ -116,7 +136,21 @@ function cleanTemplate(t) {
       gradientTo: preset.gradientTo ? cssValue(preset.gradientTo, '') : '',
       textFontFamily: str(preset.textFontFamily, 40) || 'Arial',
       text3DEffect: Boolean(preset.text3DEffect),
-      glowSettings: { username: Boolean(glow.username), socials: Boolean(glow.socials), badges: Boolean(glow.badges) }
+      glowSettings: { username: Boolean(glow.username), socials: Boolean(glow.socials), badges: Boolean(glow.badges) },
+      lanyardBadgeLabel: str(preset.lanyardBadgeLabel, 18),
+      nameScale: num(preset.nameScale, 60, 160, 100),
+      bioScale: num(preset.bioScale, 60, 160, 100),
+      musicBoxColor: preset.musicBoxColor ? cssValue(preset.musicBoxColor, '') : '',
+      musicAccentColor: preset.musicAccentColor ? cssValue(preset.musicAccentColor, '') : '',
+      socialPosition: preset.socialPosition === 'outside' ? 'outside' : 'inside',
+      ...URL_FIELDS.reduce((acc, k) => {
+        const u = str(preset[k], 600);
+        acc[k] = /^(https?:\/\/|\/)/i.test(u) ? u : '';
+        return acc;
+      }, {}),
+      otherSettings: cleanDeep(preset.otherSettings, 2) || {},
+      splashCursor: cleanDeep(preset.splashCursor, 3) || {},
+      blobCursor: cleanDeep(preset.blobCursor, 3) || {}
     }
   };
 }

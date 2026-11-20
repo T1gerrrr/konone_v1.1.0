@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -9,6 +10,7 @@ import { isPremiumActive } from '../constants/premium';
 import { TEMPLATE_FIELDS } from '../constants/templates';
 import AppSidebar from './AppSidebar';
 import DiamondIcon from './DiamondIcon';
+import PublicProfile from './PublicProfile';
 import './ProfileTemplate.css';
 
 const TABS = ['library', 'favorites', 'recent', 'mine'];
@@ -49,6 +51,76 @@ function MiniPreview({ tpl }) {
   );
 }
 
+// Xem trước bằng CHÍNH trang hồ sơ thật (PublicProfile), thu nhỏ vừa khung
+function RealPreview({ previewProfile }) {
+  const boxRef = useRef(null);
+  const [scale, setScale] = useState(0.4);
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 720;
+
+  useLayoutEffect(() => {
+    const el = boxRef.current;
+    if (!el) return undefined;
+    const update = () => setScale(el.clientWidth / vw);
+    update();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [vw]);
+
+  return (
+    <div className="tp-real" ref={boxRef} style={{ aspectRatio: `${vw} / ${vh}` }}>
+      <div className="tp-real-stage" style={{ width: vw, height: vh, transform: `scale(${scale})` }}>
+        <PublicProfile previewProfile={previewProfile} />
+      </div>
+    </div>
+  );
+}
+
+// Hồ sơ xem trước: nội dung thật của bạn (tên, avatar, mô tả, liên kết) + thiết kế của mẫu
+function buildPreviewProfile(tpl, mine, sampleBio) {
+  return {
+    displayName: 'KonOne',
+    username: 'konone',
+    bio: sampleBio,
+    ...(mine || {}),
+    ...(tpl.preset || {}),
+    musicUrl: '',
+    backgroundVideo: '',
+    isHidden: false,
+    isPremium: true,
+    premiumExpiresAt: new Date(Date.now() + 86400000)
+  };
+}
+
+// Hình xem trước ngay trên thẻ: vẽ bằng hồ sơ thật khi thẻ nằm trong màn hình, ngoài màn hình thì dùng bản thu nhỏ nhẹ
+function TemplateThumb({ tpl, mine, sampleBio }) {
+  const ref = useRef(null);
+  const [inView, setInView] = useState(false);
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1280;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 720;
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return undefined;
+    const io = new IntersectionObserver(
+      (entries) => setInView(entries.some((e) => e.isIntersecting)),
+      { rootMargin: '120px' }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const pv = useMemo(() => (inView ? buildPreviewProfile(tpl, mine, sampleBio) : null), [inView, tpl, mine, sampleBio]);
+
+  return (
+    <div className="tp-thumb" ref={ref} style={{ aspectRatio: `${vw} / ${vh}` }}>
+      {inView && pv ? <RealPreview previewProfile={pv} /> : <MiniPreview tpl={tpl} />}
+    </div>
+  );
+}
+
 export default function ProfileTemplate() {
   const { currentUser } = useAuth();
   const { language } = useLanguage();
@@ -68,12 +140,14 @@ export default function ProfileTemplate() {
   const [mine, setMine] = useState(() => readList(mineKey));
   const [library, setLibrary] = useState([]); // mẫu do quản trị viên thêm (Firestore `templates`)
   const [libraryLoading, setLibraryLoading] = useState(true);
+  const [libraryError, setLibraryError] = useState('');
   const [profile, setProfile] = useState(null);
   const [profileDocId, setProfileDocId] = useState('');
   const [applyingId, setApplyingId] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTags, setNewTags] = useState('');
+  const [previewTpl, setPreviewTpl] = useState(null);
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -104,7 +178,10 @@ export default function ProfileTemplate() {
         rows.sort((a, b) => b._created - a._created);
         setLibrary(rows);
       })
-      .catch((err) => console.error('Load templates error:', err))
+      .catch((err) => {
+        console.error('Load templates error:', err);
+        if (!cancelled) setLibraryError(err.code || err.message || 'error');
+      })
       .finally(() => {
         if (!cancelled) setLibraryLoading(false);
       });
@@ -114,6 +191,12 @@ export default function ProfileTemplate() {
   }, []);
 
   const premium = isPremiumActive(profile);
+
+  const sampleBio = L('Mô tả của bạn sẽ hiển thị ở đây', 'Your description will appear here');
+  const previewProfile = useMemo(
+    () => (previewTpl ? buildPreviewProfile(previewTpl, profile, sampleBio) : null),
+    [previewTpl, profile, sampleBio]
+  );
 
   const allTemplates = useMemo(() => [...mine, ...library], [mine, library]);
 
@@ -231,7 +314,9 @@ export default function ProfileTemplate() {
   const emptyText = {
     library: libraryLoading
       ? L('Đang tải mẫu...', 'Loading templates...')
-      : search.trim()
+      : libraryError
+        ? L('Không tải được mẫu (' + libraryError + '). Kiểm tra quy tắc Firestore cho bộ sưu tập templates.', 'Could not load templates (' + libraryError + '). Check the Firestore rules for the templates collection.')
+        : search.trim()
         ? L('Không tìm thấy mẫu phù hợp.', 'No templates found.')
         : L('Chưa có mẫu nào trong thư viện.', 'There are no templates in the library yet.'),
     favorites: L('Bạn chưa đánh dấu mẫu yêu thích nào.', 'You have no favorite templates yet.'),
@@ -298,7 +383,7 @@ export default function ProfileTemplate() {
                       </svg>
                     </button>
 
-                    <MiniPreview tpl={tpl} />
+                    <TemplateThumb tpl={tpl} mine={profile} sampleBio={sampleBio} />
 
                     <div className="tp-body">
                       <h3 className="tp-name">
@@ -314,6 +399,12 @@ export default function ProfileTemplate() {
                       <div className="tp-actions">
                         <button type="button" className="tp-use" disabled={applyingId === tpl.id} onClick={() => applyTemplate(tpl)}>
                           {applyingId === tpl.id ? L('Đang áp dụng...', 'Applying...') : L('Dùng mẫu', 'Use Template')}
+                        </button>
+                        <button type="button" className="tp-eye" onClick={() => setPreviewTpl(tpl)} aria-label={L('Xem trước', 'Preview')} title={L('Xem trước trên hồ sơ của bạn', 'Preview on your profile')}>
+                          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                            <circle cx="12" cy="12" r="3" />
+                          </svg>
                         </button>
                         {isMine && (
                           <button type="button" className="tp-del" onClick={() => deleteMine(tpl.id)} aria-label={L('Xóa mẫu', 'Delete template')}>
@@ -332,6 +423,38 @@ export default function ProfileTemplate() {
             </div>
           )}
         </div>
+
+        {previewTpl && createPortal(
+          <div className="tp-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setPreviewTpl(null); }}>
+            <div className="tp-preview-modal" role="dialog" aria-modal="true">
+              <div className="tp-preview-head">
+                <strong>
+                  {(previewTpl.name && (previewTpl.name[language === 'vi' ? 'vi' : 'en'] || previewTpl.name.vi || previewTpl.name.en)) || previewTpl.id}
+                </strong>
+                <button type="button" className="tp-preview-x" onClick={() => setPreviewTpl(null)} aria-label={L('Đóng', 'Close')}>✕</button>
+              </div>
+              <RealPreview previewProfile={previewProfile} />
+              <p className="tp-modal-note">
+                {L('Đây là hồ sơ thật của bạn khi áp dụng mẫu này.', 'This is your real profile with this template applied.')}
+              </p>
+              <div className="tp-modal-foot">
+                <button type="button" className="tp-btn" onClick={() => setPreviewTpl(null)}>{L('Đóng', 'Close')}</button>
+                <button
+                  type="button"
+                  className="tp-btn primary"
+                  disabled={applyingId === previewTpl.id}
+                  onClick={async () => {
+                    await applyTemplate(previewTpl);
+                    setPreviewTpl(null);
+                  }}
+                >
+                  {L('Dùng mẫu', 'Use Template')}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
         {showCreate && (
           <div className="tp-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}>

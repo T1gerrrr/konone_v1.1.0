@@ -76,7 +76,8 @@ function hexToRgba(hex, alpha = 0.5) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export default function PublicProfile() {
+export default function PublicProfile({ previewProfile = null }) {
+  const isPreview = Boolean(previewProfile); // xem trước mẫu: dùng dữ liệu truyền vào, không có tác dụng phụ
   const { username } = useParams();
   const { language } = useLanguage();
   const { currentUser } = useAuth();
@@ -87,7 +88,7 @@ export default function PublicProfile() {
   const [isPlaying, setIsPlaying] = useState(false); // Start with false, will play after Enter
   const [volume, setVolume] = useState(50);
   const [showVolumeControl, setShowVolumeControl] = useState(false);
-  const [showEnterOverlay, setShowEnterOverlay] = useState(true);
+  const [showEnterOverlay, setShowEnterOverlay] = useState(!previewProfile);
   const [audioTrackTitle, setAudioTrackTitle] = useState('');
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [audioDuration, setAudioDuration] = useState(0);
@@ -96,6 +97,7 @@ export default function PublicProfile() {
 
   // Ẩn toàn bộ thanh cuộn khi đang ở trang hồ sơ public
   useEffect(() => {
+    if (isPreview) return undefined;
     const root = document.documentElement;
     root.classList.add('pp-hide-scrollbar');
     document.body.classList.add('pp-hide-scrollbar');
@@ -106,7 +108,7 @@ export default function PublicProfile() {
       document.body.classList.remove('pp-hide-scrollbar');
       window.removeEventListener('scroll', onScroll);
     };
-  }, []);
+  }, [isPreview]);
 
   // Get YouTube video ID (before early returns)
   const youtubeVideoId = profile?.musicUrl ? getYouTubeVideoId(profile.musicUrl) : null;
@@ -151,6 +153,12 @@ export default function PublicProfile() {
   }, [youtubeVideoId]);
 
   useEffect(() => {
+    // Xem trước mẫu: dùng thẳng dữ liệu truyền vào (không truy vấn, không đếm lượt xem)
+    if (previewProfile) {
+      setProfile(applyFreePlan(previewProfile));
+      setLoading(false);
+      return;
+    }
     // Reset view count flag khi username thay đổi
     viewCountUpdated.current = false;
 
@@ -220,7 +228,7 @@ export default function PublicProfile() {
       setError({ code: 'invalid' });
       setLoading(false);
     }
-  }, [username]);
+  }, [username, previewProfile]);
 
   // ===== Phát nhạc YouTube =====
   // Trình duyệt chỉ cho phát nhạc có tiếng sau khi người dùng tương tác, nên:
@@ -447,6 +455,7 @@ export default function PublicProfile() {
   const tabHidden = Boolean(profile?.isHidden) && !(currentUser && currentUser.uid === profile?.userId);
   const tabAnimated = Boolean(profile?.otherSettings?.animatedTitle);
   useEffect(() => {
+    if (isPreview) return undefined;
     const original = document.title;
     if (!tabName || tabHidden) {
       document.title = 'KonOne';
@@ -487,11 +496,11 @@ export default function PublicProfile() {
       clearInterval(timer);
       document.title = original;
     };
-  }, [tabName, tabDisplay, tabHidden, tabAnimated]);
+  }, [tabName, tabDisplay, tabHidden, tabAnimated, isPreview]);
 
   // Apply custom cursor if available
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || isPreview) return;
 
     // Check if user has premium
     const isPremium = profile.isPremium && profile.premiumExpiresAt?.toDate ?
@@ -543,7 +552,7 @@ export default function PublicProfile() {
         existingStyle.remove();
       }
     }
-  }, [profile?.cursorIcon, profile?.isPremium, profile?.premiumExpiresAt, profile]);
+  }, [profile?.cursorIcon, profile?.isPremium, profile?.premiumExpiresAt, profile, isPreview]);
 
   if (loading) {
     return (
