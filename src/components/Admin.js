@@ -6,6 +6,7 @@ import ViewsChart from './ViewsChart';
 import UserMenu from './UserMenu';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
+import { uploadToCloudinary } from '../config/cloudinary';
 import { TEMPLATE_FIELDS, TEMPLATE_LAYOUTS, TEMPLATE_EFFECTS, TEMPLATE_FONTS } from '../constants/templates';
 import './Admin.css';
 
@@ -896,6 +897,53 @@ function ColorField({ label, value, onChange }) {
   );
 }
 
+// Ô tải ảnh/video lên Cloudinary (hoặc dán URL) cho mẫu
+function MediaField({ label, kind, value, onChange, hint }) {
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const isVideo = kind === 'video';
+
+  async function pick(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    const max = isVideo ? 50 : 10;
+    if (file.size > max * 1024 * 1024) {
+      setErr(`Tệp quá lớn (tối đa ${max}MB).`);
+      return;
+    }
+    setBusy(true);
+    setErr('');
+    try {
+      onChange(await uploadToCloudinary(file, 'templates', isVideo ? 'video' : 'image'));
+    } catch (ex) {
+      setErr('Tải lên thất bại: ' + ex.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <label style={{ minWidth: 260 }}>{label}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {value && (isVideo
+          ? <video src={value} muted style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
+          : <img src={value} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />)}
+        <input className="adm-input" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="https://... hoặc bấm Tải lên" />
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+        <span className="adm-btn ghost small" style={{ cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+          {busy ? 'Đang tải...' : 'Tải lên'}
+          <input type="file" accept={isVideo ? 'video/*' : 'image/*'} hidden disabled={busy} onChange={pick} />
+        </span>
+        {value && <button type="button" className="adm-btn ghost small" onClick={() => onChange('')}>Xóa</button>}
+      </div>
+      {hint && <small className="adm-muted">{hint}</small>}
+      {err && <small className="adm-error">{err}</small>}
+    </label>
+  );
+}
+
 function Templates({ call }) {
   const { currentUser } = useAuth();
   const { data, error, reload } = useLoad(call, { action: 'templates' });
@@ -903,6 +951,17 @@ function Templates({ call }) {
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = (patch) => setF((prev) => ({ ...prev, ...patch }));
+  const setExtra = (patch) => setF((prev) => ({ ...prev, extra: { ...prev.extra, ...patch } }));
+  // Khung avatar chỉ hiện khi otherSettings.discordAvatarDecoration bật
+  const setFrame = (url) =>
+    setF((prev) => ({
+      ...prev,
+      extra: {
+        ...prev.extra,
+        avatarFrame: url,
+        otherSettings: { ...(prev.extra.otherSettings || {}), discordAvatarDecoration: Boolean(url) }
+      }
+    }));
   const editing = Boolean(f.id);
 
   async function save(e) {
@@ -1011,6 +1070,14 @@ function Templates({ call }) {
         <div className="adm-row">
           <ColorField label="Nền (màu 1)" value={f.bg1} onChange={(v) => set({ bg1: v })} />
           <ColorField label="Nền (màu 2)" value={f.bg2} onChange={(v) => set({ bg2: v })} />
+        </div>
+
+        <h3 className="adm-subhead">Ảnh &amp; video</h3>
+        <div className="adm-row">
+          <MediaField label="Ảnh nền" kind="image" value={f.extra.backgroundImage} onChange={(u) => setExtra({ backgroundImage: u })} hint="Tối đa 10MB" />
+          <MediaField label="Video nền" kind="video" value={f.extra.backgroundVideo} onChange={(u) => setExtra({ backgroundVideo: u })} hint="Tối đa 50MB (mp4/webm)" />
+          <MediaField label="Khung avatar" kind="image" value={f.extra.avatarFrame} onChange={setFrame} hint="PNG trong suốt, tối đa 10MB" />
+          <MediaField label="Ảnh bìa" kind="image" value={f.extra.coverImage} onChange={(u) => setExtra({ coverImage: u })} hint="Tối đa 10MB" />
         </div>
 
         <h3 className="adm-subhead">Thiết kế áp dụng cho hồ sơ</h3>
