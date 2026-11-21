@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { lastNDays } from '../utils/dateKey';
@@ -910,6 +910,7 @@ function ColorField({ label, value, onChange }) {
 
 // Ô tải ảnh/video lên Cloudinary (hoặc dán URL) cho mẫu
 function MediaField({ label, kind, value, onChange, hint }) {
+  const fileRef = useRef(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const isVideo = kind === 'video';
@@ -935,7 +936,8 @@ function MediaField({ label, kind, value, onChange, hint }) {
   }
 
   return (
-    <label style={{ minWidth: 260 }}>{label}
+    <div className="adm-mediafield" style={{ minWidth: 260 }}>
+      <span>{label}</span>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {value && (isVideo
           ? <video src={value} muted style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8 }} />
@@ -943,15 +945,15 @@ function MediaField({ label, kind, value, onChange, hint }) {
         <input className="adm-input" value={value || ''} onChange={(e) => onChange(e.target.value)} placeholder="https://... hoặc bấm Tải lên" />
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
-        <span className="adm-btn ghost small" style={{ cursor: 'pointer', opacity: busy ? 0.6 : 1 }}>
+        <button type="button" className="adm-btn ghost small" disabled={busy} onClick={() => fileRef.current && fileRef.current.click()}>
           {busy ? 'Đang tải...' : 'Tải lên'}
-          <input type="file" accept={isVideo ? 'video/*' : 'image/*'} hidden disabled={busy} onChange={pick} />
-        </span>
+        </button>
+        <input ref={fileRef} type="file" accept={isVideo ? 'video/*' : 'image/*'} hidden disabled={busy} onChange={pick} />
         {value && <button type="button" className="adm-btn ghost small" onClick={() => onChange('')}>Xóa</button>}
       </div>
       {hint && <small className="adm-muted">{hint}</small>}
       {err && <small className="adm-error">{err}</small>}
-    </label>
+    </div>
   );
 }
 
@@ -1082,7 +1084,8 @@ function Templates({ call }) {
 
         <h3 className="adm-subhead">Avatar</h3>
         <div className="adm-row">
-          <MediaField label="Upload khung avatar" kind="image" value={f.extra.avatarFrame} onChange={setFrame} hint="PNG/GIF trong suốt phủ quanh avatar, tối đa 10MB. Ảnh avatar vẫn là của người dùng." />
+          <MediaField label="Upload avatar (ảnh mặc định)" kind="image" value={f.extra.avatar} onChange={(u) => setExtra({ avatar: u })} hint="Chỉ hiện khi người dùng chưa có avatar riêng. Tối đa 10MB" />
+          <MediaField label="Upload khung avatar" kind="image" value={f.extra.avatarFrame} onChange={setFrame} hint="PNG/GIF trong suốt phủ quanh avatar, tối đa 10MB" />
         </div>
 
         <h3 className="adm-subhead">Video nền <Pm /></h3>
@@ -1092,7 +1095,7 @@ function Templates({ call }) {
 
         <h3 className="adm-subhead">Nhạc</h3>
         <div className="adm-row">
-          <label>Link nhạc (YouTube)
+          <label>Link nhạc (YouTube hoặc .mp3/.mp4)
             <input className="adm-input" value={f.extra.musicUrl || ''} onChange={(e) => setExtra({ musicUrl: e.target.value })} placeholder="https://www.youtube.com/watch?v=..." />
           </label>
         </div>

@@ -229,3 +229,24 @@
   color: #fff;
   background: rgba(255, 87, 87, 0.25);
 }
+
+/* ===== Mobile: thu gọn để pill luôn nằm vừa màn hình ===== */
+@media (max-width: 640px) {
+  .site-header { top: 10px; padding: 0 8px; }
+  .site-header-pill {
+    max-width: 100%;
+    gap: 2px;
+    padding: 4px;
+  }
+  .site-header-logo { width: 28px; height: 28px; padding: 4px; flex: none; }
+  .site-header-sep { margin: 0 2px; height: 14px; flex: none; }
+  .site-header-link { padding: 8px 10px; font-size: 12.5px; flex: 0 1 auto; min-width: 0; }
+  .site-header-user { gap: 4px; padding: 8px 9px; }
+  .site-header-user > span { display: none; }
+  .site-header-lang { width: 30px; height: 30px; font-size: 19px; flex: none; }
+}
+
+@media (max-width: 380px) {
+  .site-header-link { padding: 7px 7px; font-size: 12px; }
+  .site-header-pill > .site-header-sep:first-of-type { display: none; }
+}

@@ -784,3 +784,70 @@
   .hf-q { padding: 20px 20px; font-size: 15.5px; }
   .hf-a { padding: 16px 20px 22px; font-size: 14px; }
 }
+
+/* ===== Hero 2 cột: chữ bên trái, ảnh showcase bên phải ===== */
+.home-main {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(24px, 4vw, 64px);
+  padding: 14vh clamp(20px, 6vw, 96px) 6vh;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.home-hero-text {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.home-hero-text .home-title {
+  text-align: left;
+  white-space: normal;
+  font-size: clamp(30px, 4.2vw, 64px);
+}
+
+.home-hero-text .home-subtitle {
+  text-align: left;
+  white-space: normal;
+  max-width: 520px;
+}
+
+.home-hero-art {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  animation: homeTitleIn 1s cubic-bezier(0.22, 1, 0.36, 1) 0.6s both;
+}
+
+.home-hero-art img {
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  user-select: none;
+  filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.55));
+}
+
+@media (max-width: 900px) {
+  .home-main {
+    flex-direction: column;
+    justify-content: flex-start;
+    padding-top: 16vh;
+    gap: 36px;
+  }
+  .home-hero-text {
+    align-items: center;
+  }
+  .home-hero-text .home-title,
+  .home-hero-text .home-subtitle {
+    text-align: center;
+  }
+  .home-hero-art img {
+    max-width: 480px;
+  }
+}

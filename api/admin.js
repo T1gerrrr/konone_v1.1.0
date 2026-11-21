@@ -98,7 +98,7 @@ function cleanDeep(v, depth) {
   return null;
 }
 
-const URL_FIELDS = ['backgroundImage', 'backgroundVideo', 'coverImage', 'avatarFrame', 'cursorIcon'];
+const URL_FIELDS = ['backgroundImage', 'backgroundVideo', 'coverImage', 'avatarFrame', 'cursorIcon', 'avatar'];
 
 // Chỉ giữ các trường hợp lệ, ép đúng kiểu
 function cleanTemplate(t) {
@@ -158,7 +158,7 @@ function cleanTemplate(t) {
         const fx = cleanDeep(preset.cursorFx, 2) || {};
         return { ...fx, id: CURSOR_FX_IDS.includes(fx.id) ? fx.id : '' };
       })(),
-      musicUrl: /^https?:///i.test(str(preset.musicUrl, 400)) ? str(preset.musicUrl, 400) : ''
+      musicUrl: /^https?:\/\//i.test(str(preset.musicUrl, 400)) ? str(preset.musicUrl, 400) : ''
     }
   };
 }

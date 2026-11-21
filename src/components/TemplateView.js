@@ -123,6 +123,7 @@ export default function TemplateView() {
       displayName: who.displayName,
       username: who.username,
       ...(tpl.preset || {}),
+      avatar: mine.avatar || (tpl.preset && tpl.preset.avatar) || '',
       isHidden: false,
       isPremium: true,
       premiumExpiresAt: new Date(Date.now() + 86400000)
@@ -174,7 +175,7 @@ export default function TemplateView() {
     }
     setApplying(true);
     try {
-      await applyTemplateToProfile(profileDocId, tpl);
+      await applyTemplateToProfile(profileDocId, tpl, profile);
       pushRecentId(uid, tpl.id);
       notifySuccess(L('Đã áp dụng mẫu cho hồ sơ của bạn!', 'Template applied to your profile!'));
       navigate('/profile-template');

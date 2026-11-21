@@ -40,9 +40,10 @@ export function pushRecentId(uid, id) {
 }
 
 // Ghi thiết kế của mẫu vào hồ sơ. Không ghi đè nhạc của người dùng nếu mẫu không có nhạc.
-export async function applyTemplateToProfile(profileDocId, tpl) {
+export async function applyTemplateToProfile(profileDocId, tpl, currentProfile) {
   const preset = { ...(tpl.preset || {}) };
   if (!preset.musicUrl) delete preset.musicUrl;
+  if (!preset.avatar || currentProfile?.avatar) delete preset.avatar; // không ghi đè avatar của người dùng
   await updateDoc(doc(db, 'profiles', profileDocId), { ...preset, updatedAt: new Date() });
 }
 

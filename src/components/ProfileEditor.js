@@ -1014,7 +1014,7 @@ export default function ProfileEditor() {
                   </div>
 
                   <div className="bg-modal-body">
-                    <label className="bg-modal-label">{L('Link nhạc YouTube', 'YouTube audio link')}</label>
+                    <label className="bg-modal-label">{L('Link nhạc (YouTube hoặc .mp3/.mp4)', 'Music link (YouTube or .mp3/.mp4)')}</label>
                     <div className="dark-input-box">
                       <input
                         id="music-url-input"
@@ -1022,11 +1022,11 @@ export default function ProfileEditor() {
                         name="musicUrl"
                         value={formData.musicUrl}
                         onChange={handleChange}
-                        placeholder="https://www.youtube.com/watch?v=..."
+                        placeholder="https://youtube.com/watch?v=... hoặc https://.../nhac.mp4"
                         autoFocus
                       />
                     </div>
-                    <p className="bg-modal-note">{L('Dán link video YouTube để làm nhạc nền cho hồ sơ.', 'Paste a YouTube link to use as your profile music.')}</p>
+                    <p className="bg-modal-note">{L('Dán link YouTube hoặc link tệp trực tiếp (.mp3, .mp4...) để làm nhạc nền.', 'Paste a YouTube link or a direct file link (.mp3, .mp4...) as your music.')}</p>
                   </div>
 
                   <div className="bg-modal-foot">

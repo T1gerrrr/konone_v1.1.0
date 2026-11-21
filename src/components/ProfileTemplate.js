@@ -69,6 +69,7 @@ function buildPreviewProfile(tpl, mine, sampleBio) {
     bio: sampleBio,
     ...(mine || {}),
     ...(tpl.preset || {}),
+    avatar: (mine && mine.avatar) || (tpl.preset && tpl.preset.avatar) || '',
     musicUrl: '',
     backgroundVideo: '',
     isHidden: false,
@@ -231,7 +232,7 @@ export default function ProfileTemplate() {
     }
     setApplyingId(tpl.id);
     try {
-      await applyTemplateToProfile(profileDocId, tpl);
+      await applyTemplateToProfile(profileDocId, tpl, profile);
       setRecent((prev) => {
         const next = [tpl.id, ...prev.filter((x) => x !== tpl.id)].slice(0, 12);
         writeList(recentKey, next);

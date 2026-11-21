@@ -41,6 +41,7 @@ export default function Home() {
       </div>
 
       <main className="home-main">
+        <div className="home-hero-text">
         <h1 className="home-title">
           <ShinyText
             text="ONE LINK. YOUR WHOLE WORLD"
@@ -91,6 +92,11 @@ export default function Home() {
             </button>
           </form>
         )}
+        </div>
+
+        <div className="home-hero-art" aria-hidden="true">
+          <img src="/profile_showcase_bg.png" alt="" draggable={false} />
+        </div>
       </main>
 
       <section className="home-section">

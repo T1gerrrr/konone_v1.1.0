@@ -23,7 +23,7 @@ import WakeSlider from './WakeSlider';
 import SplashCursor from './SplashCursor';
 import BlobCursor from './BlobCursor';
 import CursorFx from './CursorFx';
-import { isDirectVideoUrl } from '../utils/video';
+import { isDirectVideoUrl, isDirectMediaUrl, trackNameFromUrl } from '../utils/video';
 import { RevealText, TypeText } from './ProfileTextFx';
 import { dateKey } from '../utils/dateKey';
 import { musicBoxBg } from '../utils/color';
@@ -114,7 +114,11 @@ export default function PublicProfile({ previewProfile = null }) {
   }, [isPreview]);
 
   // Get YouTube video ID (before early returns)
-  const youtubeVideoId = profile?.musicUrl ? getYouTubeVideoId(profile.musicUrl) : null;
+  // Nhạc: link YouTube, hoặc link tệp trực tiếp (mp3/mp4...) — tệp trực tiếp dùng mã giả "direct:<url>"
+  const ytMusicId = profile?.musicUrl ? getYouTubeVideoId(profile.musicUrl) : null;
+  const directMusicUrl = !ytMusicId && isDirectMediaUrl(profile?.musicUrl) ? profile.musicUrl.trim() : null;
+  const youtubeVideoId = ytMusicId || (directMusicUrl ? `direct:${directMusicUrl}` : null);
+  const isDirectMusic = Boolean(directMusicUrl);
 
   // Fetch YouTube track title & poll playback progress for the bottom Audio Player Box
   useEffect(() => {
@@ -126,14 +130,18 @@ export default function PublicProfile({ previewProfile = null }) {
     }
 
     let cancelled = false;
-    fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${youtubeVideoId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled && data?.title) {
-          setAudioTrackTitle(data.title);
-        }
-      })
-      .catch(() => {});
+    if (isDirectMusic) {
+      setAudioTrackTitle(trackNameFromUrl(directMusicUrl));
+    } else {
+      fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${youtubeVideoId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!cancelled && data?.title) {
+            setAudioTrackTitle(data.title);
+          }
+        })
+        .catch(() => {});
+    }
 
     const timer = setInterval(() => {
       const p = window.youtubePlayer;
@@ -153,7 +161,7 @@ export default function PublicProfile({ previewProfile = null }) {
       cancelled = true;
       clearInterval(timer);
     };
-  }, [youtubeVideoId]);
+  }, [youtubeVideoId, isDirectMusic, directMusicUrl]);
 
   useEffect(() => {
     // Xem trước mẫu: dùng thẳng dữ liệu truyền vào (không truy vấn, không đếm lượt xem)
@@ -288,8 +296,51 @@ export default function PublicProfile({ previewProfile = null }) {
     }
   };
 
+  // Nhạc từ tệp trực tiếp: bọc <audio> thành đối tượng có cùng giao diện với YouTube player
   useEffect(() => {
-    if (!youtubeVideoId || !playerHostRef.current) return undefined;
+    if (!isDirectMusic) return undefined;
+    const audio = new Audio();
+    audio.src = directMusicUrl;
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.crossOrigin = 'anonymous';
+    audio.volume = Math.min(1, Math.max(0, volumeRef.current / 100));
+
+    const player = {
+      playVideo: () => { const pr = audio.play(); if (pr && pr.catch) pr.catch(() => {}); },
+      pauseVideo: () => audio.pause(),
+      setVolume: (v) => { audio.volume = Math.min(1, Math.max(0, v / 100)); },
+      mute: () => { audio.muted = true; },
+      unMute: () => { audio.muted = false; },
+      isMuted: () => audio.muted,
+      seekTo: (t) => { audio.currentTime = t; },
+      getCurrentTime: () => audio.currentTime || 0,
+      getDuration: () => (Number.isFinite(audio.duration) ? audio.duration : 0)
+    };
+    const onPlay = () => {
+      setIsPlaying(true);
+      if (overlayOpenRef.current) setShowEnterOverlay(false);
+    };
+    const onPause = () => setIsPlaying(false);
+    audio.addEventListener('play', onPlay);
+    audio.addEventListener('pause', onPause);
+
+    window.youtubePlayer = player;
+    setPlayerReady(true);
+    if (!userPausedRef.current && wantPlayRef.current) player.playVideo();
+
+    return () => {
+      audio.removeEventListener('play', onPlay);
+      audio.removeEventListener('pause', onPause);
+      audio.pause();
+      audio.src = '';
+      if (window.youtubePlayer === player) window.youtubePlayer = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [directMusicUrl]);
+
+  useEffect(() => {
+    if (!youtubeVideoId || isDirectMusic || !playerHostRef.current) return undefined;
 
     // Div con do mình tạo để YouTube thay bằng iframe, tránh đụng DOM của React
     const mount = document.createElement('div');
@@ -371,7 +422,7 @@ export default function PublicProfile({ previewProfile = null }) {
       if (window.youtubePlayer === player) window.youtubePlayer = null;
       mount.remove();
     };
-  }, [youtubeVideoId]);
+  }, [youtubeVideoId, isDirectMusic]);
 
   // Nếu tự phát bị chặn: phát ở lần tương tác đầu tiên (desktop + mobile)
   useEffect(() => {
@@ -1508,7 +1559,7 @@ export default function PublicProfile({ previewProfile = null }) {
           }}
         >
           <img
-            src={`https://img.youtube.com/vi/${youtubeVideoId}/hqdefault.jpg`}
+            src={`https://img.youtube.com/vi/${ytMusicId}/hqdefault.jpg`}
             alt={L("Ảnh bìa nhạc", "Audio Thumbnail")}
             className="guns-audio-thumb"
           />
