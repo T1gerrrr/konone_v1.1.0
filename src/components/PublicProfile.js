@@ -1044,7 +1044,7 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
         {/* Standard Basic Layout (guns.lol style matching user screenshots) */}
         {(!profile.layout || profile.layout === 'card') && (
           <div
-            className="profile-card-3d guns-basic-card"
+            className={`profile-card-3d guns-basic-card${(profile.profileBlur ?? 0) > 0 ? ' guns-glass' : ''}`}
             style={{
               borderColor:
                 (profile.profileOpacity ?? 0) <= 5

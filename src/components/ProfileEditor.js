@@ -462,6 +462,11 @@ export default function ProfileEditor() {
   async function handleLayoutSwitch(nextLayout) {
     // Cho xem demo mọi bố cục; bố cục Premium chỉ được lưu khi có Premium (kiểm tra lúc bấm Lưu)
     setFormData((prev) => ({ ...prev, layout: nextLayout }));
+    // Chuyển sang Basic: hai thanh kéo (độ trong suốt, độ mờ) tự về 0
+    if (nextLayout === 'card') {
+      setProfileOpacity(0);
+      setProfileBlur(0);
+    }
     if (profileId && (isPremium || !PREMIUM_LAYOUTS.includes(nextLayout))) {
       try {
         await updateDoc(doc(db, 'profiles', profileId), { layout: nextLayout });
@@ -3187,7 +3192,7 @@ export default function ProfileEditor() {
                   ) : (
                     <>
                     <div
-                      className="demo-basic-card guns-style-demo-card"
+                      className={`demo-basic-card guns-style-demo-card${profileBlur > 0 ? ' guns-glass' : ''}`}
                       style={{
                         borderColor:
                           profileOpacity <= 5
