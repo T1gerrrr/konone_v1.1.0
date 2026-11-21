@@ -32,6 +32,8 @@ import DiamondIcon from './DiamondIcon';
 import { BackgroundEffectModal, UsernameEffectModal, BACKGROUND_EFFECTS } from './EditorEffectModals';
 import SlideCommit from './SlideCommit';
 import { musicBoxSyncStyle } from '../utils/color';
+import GamePresence from './GamePresence';
+import { GAME_PRESETS, isHttpUrl } from '../constants/games';
 import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
 import './ProfileEditor.css';
 
@@ -276,7 +278,12 @@ export default function ProfileEditor() {
     webAboutText: '',
     webShopEnabled: false,
     webShopTitle: '',
-    webShopItems: []
+    webShopItems: [],
+    gameEnabled: false,
+    gameKey: '',
+    gameName: '',
+    gameLogo: '',
+    gameDetail: ''
   });
 
   useEffect(() => {
@@ -351,7 +358,12 @@ export default function ProfileEditor() {
             webAboutText: profileData.webAboutText || '',
             webShopEnabled: Boolean(profileData.webShopEnabled),
             webShopTitle: profileData.webShopTitle || '',
-            webShopItems: Array.isArray(profileData.webShopItems) ? profileData.webShopItems : []
+            webShopItems: Array.isArray(profileData.webShopItems) ? profileData.webShopItems : [],
+            gameEnabled: Boolean(profileData.gameEnabled),
+            gameKey: profileData.gameKey || '',
+            gameName: profileData.gameName || '',
+            gameLogo: profileData.gameLogo || '',
+            gameDetail: profileData.gameDetail || ''
           });
 
           setProfileOpacity(profileData.profileOpacity ?? 0);
@@ -604,6 +616,11 @@ export default function ProfileEditor() {
         webAboutText: String(formData.webAboutText || '').slice(0, 5000),
         webShopEnabled: Boolean(formData.webShopEnabled),
         webShopTitle: String(formData.webShopTitle || '').slice(0, 60),
+        gameEnabled: Boolean(formData.gameEnabled),
+        gameKey: String(formData.gameKey || ''),
+        gameName: String(formData.gameName || '').slice(0, 40),
+        gameLogo: isHttpUrl(formData.gameLogo) ? String(formData.gameLogo).trim().slice(0, 500) : '',
+        gameDetail: String(formData.gameDetail || '').slice(0, 60),
         webShopItems: (Array.isArray(formData.webShopItems) ? formData.webShopItems : [])
           .map((it) => ({ title: String(it?.title || '').trim().slice(0, 80), url: String(it?.url || '').trim().slice(0, 500) }))
           .filter((it) => /^https?:\/\//i.test(it.url))
@@ -2869,6 +2886,106 @@ export default function ProfileEditor() {
                 </div>
               </section>
 
+              {/* ================= GAME ĐANG CHƠI (Bố cục Basic, tùy chọn) ================= */}
+              {formData.layout !== 'web' && formData.layout !== 'lanyard' && (
+                <section className="guns-section">
+                  <div className="splash-section-head">
+                    <h2 className="guns-section-title">
+                      {L('Game đang chơi', 'Now playing')}
+                      <span className="new-pill-badge" style={{ marginLeft: 8 }}>{L('TÙY CHỌN', 'OPTIONAL')}</span>
+                    </h2>
+                  </div>
+                  <div className="guns-panel web-extra-panel">
+                    <label className="web-extra-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.gameEnabled)}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, gameEnabled: e.target.checked }))}
+                      />
+                      <span>{L('Hiện game đang chơi dưới Avatar', 'Show the game you are playing under the avatar')}</span>
+                    </label>
+
+                    {formData.gameEnabled && (
+                      <div className="web-intro-fields-col">
+                        <div className="custom-dark-field">
+                          <label>{L('Chọn game', 'Game')}</label>
+                          <div className="game-picker-grid">
+                            {GAME_PRESETS.map((g) => (
+                              <button
+                                type="button"
+                                key={g.id}
+                                className={`game-picker-item${formData.gameKey === g.id ? ' active' : ''}`}
+                                onClick={() => setFormData((prev) => ({ ...prev, gameKey: g.id }))}
+                              >
+                                {g.slug ? (
+                                  <img src={`https://cdn.simpleicons.org/${g.slug}/ffffff`} alt="" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                ) : (
+                                  <i>{g.short}</i>
+                                )}
+                                <span>{g.name}</span>
+                              </button>
+                            ))}
+                            <button
+                              type="button"
+                              className={`game-picker-item${formData.gameKey === 'custom' ? ' active' : ''}`}
+                              onClick={() => setFormData((prev) => ({ ...prev, gameKey: 'custom' }))}
+                            >
+                              <i>+</i>
+                              <span>{L('Game khác', 'Other game')}</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {formData.gameKey === 'custom' && (
+                          <>
+                            <div className="custom-dark-field">
+                              <label>{L('Tên game', 'Game name')}</label>
+                              <div className="dark-input-box">
+                                <input
+                                  type="text"
+                                  maxLength={40}
+                                  value={formData.gameName}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, gameName: e.target.value }))}
+                                  placeholder="Lethal Ape"
+                                />
+                              </div>
+                            </div>
+                            <div className="custom-dark-field">
+                              <label>{L('Link logo game (https://...)', 'Game logo URL (https://...)')}</label>
+                              <div className="dark-input-box">
+                                <input
+                                  type="url"
+                                  maxLength={500}
+                                  value={formData.gameLogo}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, gameLogo: e.target.value }))}
+                                  placeholder="https://..."
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
+
+                        <div className="custom-dark-field">
+                          <label>{L('Dòng phụ (tùy chọn)', 'Extra line (optional)')}</label>
+                          <div className="dark-input-box">
+                            <input
+                              type="text"
+                              maxLength={60}
+                              value={formData.gameDetail}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, gameDetail: e.target.value }))}
+                              placeholder={L('Rank Vàng • Đang leo rank', 'Gold rank • Climbing')}
+                            />
+                          </div>
+                        </div>
+                        {!formData.gameKey && (
+                          <small className="web-extra-count">{L('Hãy chọn một game để thẻ hiển thị.', 'Pick a game for the card to appear.')}</small>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </section>
+              )}
+
               {/* ================= SECTION 5: BỐ CỤC WEB — POSTER ĐỨNG & CHỮ GIỚI THIỆU ================= */}
               {formData.layout === 'web' && (
                 <section className="guns-section">
@@ -3455,6 +3572,8 @@ export default function ProfileEditor() {
                             <span>📍 {formData.location}</span>
                           </div>
                         )}
+
+                        <GamePresence profile={formData} textColor={textColor} demo />
 
                         {hasPresence && (
                           <div className="demo-basic-presence">

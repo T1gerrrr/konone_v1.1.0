@@ -27,6 +27,7 @@ import { isDirectVideoUrl, isDirectMediaUrl, trackNameFromUrl } from '../utils/v
 import { RevealText, TypeText } from './ProfileTextFx';
 import { dateKey } from '../utils/dateKey';
 import { musicBoxSyncStyle } from '../utils/color';
+import GamePresence from './GamePresence';
 import { PREMIUM_LAYOUTS, FREE_LINK_LIMIT, isPremiumActive } from '../constants/premium';
 import { PLATFORM_BY_KEY } from '../constants/socialPlatforms';
 import { resolveProfileBadges } from '../constants/badges';
@@ -1209,6 +1210,9 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
                   <span>📍 {profile.location}</span>
                 </div>
               )}
+
+              {/* 5b. Game đang chơi (tùy chọn): avatar + "Đang chơi <game>" + logo game */}
+              <GamePresence profile={profile} textColor={effectiveTextColor} />
 
               {/* 6. Presence / Discord Box (nếu có) */}
               {(profile.presenceTitle || profile.presenceSubtitle) && (

@@ -1,0 +1,132 @@
+/* Thẻ "Đang chơi" — kính mờ, avatar tròn bên trái, logo game bên phải */
+.game-presence {
+  width: 100%;
+  max-width: 440px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  margin: 4px 0 16px;
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.game-presence-avatar-wrap {
+  position: relative;
+  width: 58px;
+  height: 58px;
+  flex-shrink: 0;
+}
+
+.game-presence-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+}
+
+.game-presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #23a55a;
+  border: 3px solid rgba(24, 24, 28, 0.95);
+  box-sizing: border-box;
+}
+
+.game-presence-meta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.game-presence-name {
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game-presence-line,
+.game-presence-detail {
+  font-size: 13px;
+  opacity: 0.72;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game-presence-line b {
+  font-weight: 700;
+  opacity: 1;
+}
+
+.game-presence-detail {
+  opacity: 0.55;
+  font-style: italic;
+}
+
+.game-presence-logo {
+  width: 52px;
+  height: 52px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.game-presence-logo img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.25));
+}
+
+.game-presence-logo span {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+}
+
+.game-presence.is-demo {
+  padding: 9px 12px;
+  gap: 10px;
+  border-radius: 14px;
+}
+
+.game-presence.is-demo .game-presence-avatar-wrap {
+  width: 40px;
+  height: 40px;
+}
+
+.game-presence.is-demo .game-presence-dot {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+}
+
+.game-presence.is-demo .game-presence-name {
+  font-size: 13px;
+}
+
+.game-presence.is-demo .game-presence-line,
+.game-presence.is-demo .game-presence-detail {
+  font-size: 11px;
+}
+
+.game-presence.is-demo .game-presence-logo {
+  width: 34px;
+  height: 34px;
+}
