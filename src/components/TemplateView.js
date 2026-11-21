@@ -205,7 +205,7 @@ export default function TemplateView() {
 
   return (
     <div className="tv-page">
-      <PublicProfile previewProfile={previewProfile} />
+      <PublicProfile previewProfile={previewProfile} applyCursor />
 
       <div className="tv-bar" role="toolbar">
         <button type="button" className="tv-back" onClick={() => navigate('/profile-template')} aria-label={L('Quay lại', 'Back')}>

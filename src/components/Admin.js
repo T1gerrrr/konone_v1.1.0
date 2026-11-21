@@ -1130,6 +1130,16 @@ function Templates({ call }) {
           </label>
         </div>
 
+        <h3 className="adm-subhead">Thẻ hồ sơ</h3>
+        <div className="adm-row">
+          <label>Độ trong suốt thẻ ({f.profileOpacity}%)
+            <input type="range" min="0" max="100" value={f.profileOpacity} onChange={(e) => set({ profileOpacity: e.target.value })} />
+          </label>
+          <label>Độ mờ nền kính ({f.profileBlur})
+            <input type="range" min="0" max="100" value={f.profileBlur} onChange={(e) => set({ profileBlur: e.target.value })} />
+          </label>
+        </div>
+
         <h3 className="adm-subhead">Tùy chỉnh chữ</h3>
         <div className="adm-row">
           <label>Phông chữ
@@ -1161,12 +1171,6 @@ function Templates({ call }) {
             <ColorField label="Màu icon" value={f.iconColor} onChange={(v) => set({ iconColor: v })} />
           </div>
           <div className="adm-row">
-            <label>Độ trong suốt thẻ ({f.profileOpacity})
-              <input type="range" min="0" max="100" value={f.profileOpacity} onChange={(e) => set({ profileOpacity: e.target.value })} />
-            </label>
-            <label>Độ mờ thẻ ({f.profileBlur})
-              <input type="range" min="0" max="100" value={f.profileBlur} onChange={(e) => set({ profileBlur: e.target.value })} />
-            </label>
             <label className="adm-check"><input type="checkbox" checked={f.profileGradient} onChange={(e) => set({ profileGradient: e.target.checked })} /> Nền chuyển sắc</label>
             {f.profileGradient && (
               <>

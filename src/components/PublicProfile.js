@@ -79,7 +79,8 @@ function hexToRgba(hex, alpha = 0.5) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-export default function PublicProfile({ previewProfile = null }) {
+// applyCursor: trang xem mẫu toàn màn hình muốn dùng con trỏ của mẫu (xem trước thu nhỏ thì không)
+export default function PublicProfile({ previewProfile = null, applyCursor = false }) {
   const isPreview = Boolean(previewProfile); // xem trước mẫu: dùng dữ liệu truyền vào, không có tác dụng phụ
   const { username } = useParams();
   const { language } = useLanguage();
@@ -554,7 +555,7 @@ export default function PublicProfile({ previewProfile = null }) {
 
   // Apply custom cursor if available
   useEffect(() => {
-    if (!profile || isPreview) return;
+    if (!profile || (isPreview && !applyCursor)) return;
 
     // Check if user has premium
     const isPremium = profile.isPremium && profile.premiumExpiresAt?.toDate ?
@@ -606,7 +607,7 @@ export default function PublicProfile({ previewProfile = null }) {
         existingStyle.remove();
       }
     }
-  }, [profile?.cursorIcon, profile?.isPremium, profile?.premiumExpiresAt, profile, isPreview]);
+  }, [profile?.cursorIcon, profile?.isPremium, profile?.premiumExpiresAt, profile, isPreview, applyCursor]);
 
   if (loading) {
     return (
