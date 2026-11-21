@@ -2119,7 +2119,6 @@ export default function ProfileEditor() {
                           <circle cx="12" cy="13" r="2.5" />
                         </svg>
                         <span>{L('Thẻ treo', 'Lanyard')}</span>
-                        {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                       </button>
 
                       <button
@@ -2135,7 +2134,6 @@ export default function ProfileEditor() {
                           <line x1="9" y1="13" x2="19" y2="13" />
                         </svg>
                         <span>{L('Bố cục WEB', 'WEB')}</span>
-                        {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                       </button>
                     </div>
                   </div>
@@ -2968,7 +2966,6 @@ export default function ProfileEditor() {
                       <circle cx="12" cy="13" r="2.5" />
                     </svg>
                     <span>{language === 'vi' ? 'Bố cục Thẻ mới' : '3D Card'}</span>
-                    {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                   </button>
 
                   <button
@@ -2984,7 +2981,6 @@ export default function ProfileEditor() {
                       <line x1="9" y1="13" x2="19" y2="13" />
                     </svg>
                     <span>{language === 'vi' ? 'Bố cục WEB' : 'WEB Layout'}</span>
-                    {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                   </button>
                 </div>
               </div>

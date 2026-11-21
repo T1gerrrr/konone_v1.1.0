@@ -71,7 +71,8 @@ function buildPreviewProfile(tpl, mine, sampleBio) {
     ...(tpl.preset || {}),
     avatar: (mine && mine.avatar) || (tpl.preset && tpl.preset.avatar) || '',
     musicUrl: '',
-    backgroundVideo: '',
+    // Video nền lấy từ chính mẫu (không lấy của hồ sơ người xem) để ai cũng thấy đúng như trang công khai
+    backgroundVideo: (tpl.preset && tpl.preset.backgroundVideo) || '',
     isHidden: false,
     isPremium: true,
     premiumExpiresAt: new Date(Date.now() + 86400000)
@@ -265,7 +266,7 @@ export default function ProfileTemplate() {
       name: { vi: name, en: name },
       author: profile.username ? `@${profile.username}` : L('Bạn', 'You'),
       tags: newTags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 4),
-      premium: ['lanyard', 'web'].includes(preset.layout),
+      premium: false,
       preview: {
         bg: preset.bgColor || '#0a0a0c',
         card: preset.cardColor || '#18161c',

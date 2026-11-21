@@ -947,3 +947,334 @@
 .activate-slide {
   flex-shrink: 0;
 }
+
+/* ================= PREMIUM LUXE LAYOUT (ghi đè) =================
+   Tông: đen than + vàng champagne + đỏ KONONE làm điểm nhấn.
+   Thẻ kính mờ, viền mảnh, khoảng thở rộng, chữ có tracking. */
+.premium-page {
+  --pm-gold: #f5d08a;
+  --pm-gold-2: #d9a85b;
+  --pm-card: rgba(18, 18, 22, 0.72);
+  --pm-line: rgba(245, 208, 138, 0.16);
+  padding: 56px 24px 80px;
+}
+
+.premium-page::before {
+  background:
+    radial-gradient(60% 40% at 50% 0%, rgba(245, 208, 138, 0.10) 0%, transparent 70%),
+    radial-gradient(40% 35% at 15% 60%, rgba(246, 92, 92, 0.08) 0%, transparent 70%),
+    linear-gradient(180deg, rgba(5, 5, 6, 0.55), rgba(5, 5, 6, 0.85));
+}
+
+.premium-container {
+  max-width: 1040px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.premium-header {
+  margin-bottom: 8px;
+}
+
+.premium-title {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  background: linear-gradient(120deg, #fff 0%, var(--pm-gold) 45%, var(--pm-gold-2) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  margin-bottom: 10px;
+}
+
+.premium-subtitle {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 15px;
+  max-width: 560px;
+  margin: 0 auto;
+  line-height: 1.6;
+}
+
+/* Thẻ trạng thái */
+.premium-status {
+  margin-bottom: 0;
+  padding: 26px 30px;
+  border-radius: 22px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(var(--pm-card), var(--pm-card)) padding-box,
+    linear-gradient(135deg, rgba(245, 208, 138, 0.45), rgba(255, 255, 255, 0.04) 40%, rgba(246, 92, 92, 0.25)) border-box;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.premium-status.active {
+  border-color: transparent;
+  background:
+    linear-gradient(rgba(28, 22, 14, 0.78), rgba(18, 14, 10, 0.78)) padding-box,
+    linear-gradient(135deg, var(--pm-gold), rgba(255, 255, 255, 0.08) 45%, var(--pm-gold-2)) border-box;
+  box-shadow: 0 20px 60px rgba(245, 208, 138, 0.12);
+}
+
+.status-content h2 {
+  font-size: 20px;
+  letter-spacing: 0.02em;
+  margin-bottom: 6px;
+}
+
+.status-content p {
+  font-size: 14.5px;
+  color: rgba(255, 255, 255, 0.62);
+}
+
+.status-content strong {
+  background: linear-gradient(120deg, var(--pm-gold), var(--pm-gold-2));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.expires-date {
+  color: var(--pm-gold) !important;
+  letter-spacing: 0.02em;
+}
+
+/* Tab dạng viên thuốc, căn giữa */
+.payment-tabs {
+  align-self: center;
+  margin-bottom: 0;
+  padding: 5px;
+  gap: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--pm-line);
+  backdrop-filter: blur(12px);
+}
+
+.tab-button {
+  flex: none;
+  min-width: 160px;
+  padding: 11px 26px;
+  border-radius: 999px;
+  font-size: 14px;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.tab-button::before {
+  display: none;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, var(--pm-gold) 0%, var(--pm-gold-2) 100%);
+  color: #1a1206;
+  font-weight: 700;
+  transform: none;
+  box-shadow: 0 6px 20px rgba(245, 208, 138, 0.28);
+}
+
+.tab-button:hover:not(.active) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Khối nội dung */
+.payment-section,
+.activation-section {
+  margin-bottom: 0;
+  padding: 40px;
+  border-radius: 24px;
+  border: 1px solid var(--pm-line);
+  background: var(--pm-card);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+}
+
+.activation-section {
+  max-width: 640px;
+  width: 100%;
+  align-self: center;
+  text-align: center;
+}
+
+.activation-section::before {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--pm-gold), transparent);
+  animation: none;
+}
+
+.section-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: linear-gradient(120deg, #fff, var(--pm-gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  padding-bottom: 14px;
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.section-title::after {
+  left: 50%;
+  transform: translateX(-50%);
+  width: 44px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--pm-gold), var(--pm-gold-2));
+}
+
+.activation-form {
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+
+.activation-input {
+  width: 100%;
+  flex: none;
+  padding: 18px 20px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--pm-line);
+  border-radius: 14px;
+  font-size: 17px;
+  letter-spacing: 0.35em;
+  text-indent: 0.35em;
+}
+
+.activation-input:focus {
+  border-color: var(--pm-gold);
+  background: rgba(0, 0, 0, 0.6);
+  box-shadow: 0 0 0 4px rgba(245, 208, 138, 0.12), 0 0 28px rgba(245, 208, 138, 0.12);
+}
+
+/* Lưới gói */
+.packages-grid {
+  gap: 22px;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  align-items: stretch;
+}
+
+.package-card {
+  display: flex;
+  flex-direction: column;
+  padding: 32px 28px 28px;
+  border-radius: 22px;
+  border: 1px solid var(--pm-line);
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.01) 100%);
+}
+
+.package-card::before {
+  display: none;
+}
+
+.package-card:hover {
+  transform: translateY(-6px);
+  border-color: rgba(245, 208, 138, 0.5);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(245, 208, 138, 0.08);
+}
+
+.package-card.popular {
+  border-color: rgba(245, 208, 138, 0.6);
+  background: linear-gradient(160deg, rgba(245, 208, 138, 0.10) 0%, rgba(246, 92, 92, 0.05) 100%);
+  box-shadow: 0 20px 55px rgba(245, 208, 138, 0.12);
+}
+
+.package-card.selected {
+  border-color: var(--pm-gold);
+  box-shadow: 0 0 0 3px rgba(245, 208, 138, 0.2);
+}
+
+.package-badge {
+  top: 18px;
+  right: 18px;
+  padding: 5px 12px;
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: #1a1206;
+  background: linear-gradient(135deg, var(--pm-gold), var(--pm-gold-2));
+  box-shadow: 0 4px 14px rgba(245, 208, 138, 0.3);
+}
+
+.package-badge.special {
+  background: linear-gradient(135deg, #fff, var(--pm-gold));
+}
+
+.package-header {
+  flex: 1;
+}
+
+.package-name {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pm-gold);
+  margin-bottom: 18px;
+}
+
+.price-main {
+  font-size: 36px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  background: linear-gradient(120deg, #fff 30%, var(--pm-gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+.price-original {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.package-description {
+  color: rgba(255, 255, 255, 0.6);
+  line-height: 1.55;
+}
+
+.package-discount {
+  background: rgba(245, 208, 138, 0.14);
+  color: var(--pm-gold);
+}
+
+.package-savings {
+  color: var(--pm-gold);
+}
+
+.package-duration {
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+  border-bottom: 1px solid var(--pm-line);
+}
+
+.package-select-btn {
+  padding: 14px 24px;
+  border-radius: 999px;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  color: #1a1206;
+  background: linear-gradient(135deg, var(--pm-gold) 0%, var(--pm-gold-2) 100%);
+  box-shadow: 0 8px 24px rgba(245, 208, 138, 0.22);
+}
+
+.package-select-btn:hover:not(:disabled) {
+  box-shadow: 0 12px 32px rgba(245, 208, 138, 0.4);
+}
+
+.message {
+  border-radius: 14px;
+  border-width: 1px;
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .premium-page { padding: 28px 14px 60px; }
+  .premium-title { font-size: 30px; }
+  .payment-tabs { width: 100%; }
+  .tab-button { flex: 1; min-width: 0; padding: 11px 10px; }
+  .payment-section, .activation-section { padding: 26px 18px; }
+  .premium-status { padding: 22px 18px; }
+}

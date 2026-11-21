@@ -1,8 +1,8 @@
 // Quy tắc Premium dùng chung cho Editor, Links, Dashboard và trang Public.
 import { confirmDialog } from '../notify/notify';
 
-// Bố cục chỉ dành cho Premium (Basic 'card' là miễn phí)
-export const PREMIUM_LAYOUTS = ['lanyard', 'web'];
+// Bố cục chỉ dành cho Premium. Hiện cả 'card', 'lanyard' (Thẻ) và 'web' đều miễn phí.
+export const PREMIUM_LAYOUTS = [];
 
 // Số liên kết / icon tối đa cho tài khoản miễn phí
 export const FREE_LINK_LIMIT = 3;
