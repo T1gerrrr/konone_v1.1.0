@@ -31,7 +31,7 @@ import {
 import DiamondIcon from './DiamondIcon';
 import { BackgroundEffectModal, UsernameEffectModal, BACKGROUND_EFFECTS } from './EditorEffectModals';
 import SlideCommit from './SlideCommit';
-import { musicBoxBg } from '../utils/color';
+import { musicBoxSyncStyle } from '../utils/color';
 import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
 import './ProfileEditor.css';
 
@@ -270,7 +270,13 @@ export default function ProfileEditor() {
     presenceIcon: '',
     webPosterImage: '',
     webIntroTitle: '',
-    webIntroText: ''
+    webIntroText: '',
+    webAboutEnabled: false,
+    webAboutTitle: '',
+    webAboutText: '',
+    webShopEnabled: false,
+    webShopTitle: '',
+    webShopItems: []
   });
 
   useEffect(() => {
@@ -339,7 +345,13 @@ export default function ProfileEditor() {
             presenceIcon: profileData.presenceIcon || '',
             webPosterImage: profileData.webPosterImage || '',
             webIntroTitle: profileData.webIntroTitle || '',
-            webIntroText: profileData.webIntroText || ''
+            webIntroText: profileData.webIntroText || '',
+            webAboutEnabled: Boolean(profileData.webAboutEnabled),
+            webAboutTitle: profileData.webAboutTitle || '',
+            webAboutText: profileData.webAboutText || '',
+            webShopEnabled: Boolean(profileData.webShopEnabled),
+            webShopTitle: profileData.webShopTitle || '',
+            webShopItems: Array.isArray(profileData.webShopItems) ? profileData.webShopItems : []
           });
 
           setProfileOpacity(profileData.profileOpacity ?? 0);
@@ -459,6 +471,24 @@ export default function ProfileEditor() {
     }
   }
 
+  // Bố cục WEB: danh sách liên kết Shop
+  function updateShopItem(index, patch) {
+    setFormData((prev) => ({
+      ...prev,
+      webShopItems: (prev.webShopItems || []).map((it, i) => (i === index ? { ...it, ...patch } : it))
+    }));
+  }
+  function addShopItem() {
+    setFormData((prev) => {
+      const list = prev.webShopItems || [];
+      if (list.length >= 30) return prev;
+      return { ...prev, webShopItems: [...list, { title: '', url: '' }] };
+    });
+  }
+  function removeShopItem(index) {
+    setFormData((prev) => ({ ...prev, webShopItems: (prev.webShopItems || []).filter((_, i) => i !== index) }));
+  }
+
   async function handleLayoutSwitch(nextLayout) {
     // Cho xem demo mọi bố cục; bố cục Premium chỉ được lưu khi có Premium (kiểm tra lúc bấm Lưu)
     setFormData((prev) => ({ ...prev, layout: nextLayout }));
@@ -569,6 +599,15 @@ export default function ProfileEditor() {
         webPosterImage: String(formData.webPosterImage || ''),
         webIntroTitle: String(formData.webIntroTitle || ''),
         webIntroText: String(formData.webIntroText || ''),
+        webAboutEnabled: Boolean(formData.webAboutEnabled),
+        webAboutTitle: String(formData.webAboutTitle || '').slice(0, 80),
+        webAboutText: String(formData.webAboutText || '').slice(0, 5000),
+        webShopEnabled: Boolean(formData.webShopEnabled),
+        webShopTitle: String(formData.webShopTitle || '').slice(0, 60),
+        webShopItems: (Array.isArray(formData.webShopItems) ? formData.webShopItems : [])
+          .map((it) => ({ title: String(it?.title || '').trim().slice(0, 80), url: String(it?.url || '').trim().slice(0, 500) }))
+          .filter((it) => /^https?:\/\//i.test(it.url))
+          .slice(0, 30),
         profileOpacity: Number(profileOpacity) || 0,
         profileBlur: Number(profileBlur) || 0,
         textFontFamily: String(textFontFamily || 'Arial'),
@@ -2124,6 +2163,7 @@ export default function ProfileEditor() {
                           <circle cx="12" cy="13" r="2.5" />
                         </svg>
                         <span>{L('Thẻ treo', 'Lanyard')}</span>
+                        {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                       </button>
 
                       <button
@@ -2139,6 +2179,7 @@ export default function ProfileEditor() {
                           <line x1="9" y1="13" x2="19" y2="13" />
                         </svg>
                         <span>{L('Bố cục WEB', 'WEB')}</span>
+                        {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                       </button>
                     </div>
                   </div>
@@ -2933,6 +2974,112 @@ export default function ProfileEditor() {
                         </div>
                       </div>
                     </div>
+                    <p className="web-layout-order-note">
+                      {L(
+                        'Thứ tự trang: Đầu trang → Giới thiệu (tùy chọn) → Shop → Poster & chữ giới thiệu ở cuối.',
+                        'Page order: Hero → About (optional) → Shop → Poster & intro text at the bottom.'
+                      )}
+                    </p>
+                  </div>
+
+                  {/* Trang Giới thiệu ở giữa (tùy chọn) */}
+                  <div className="guns-panel web-extra-panel">
+                    <label className="web-extra-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.webAboutEnabled)}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, webAboutEnabled: e.target.checked }))}
+                      />
+                      <span>{L('Trang Giới thiệu ở giữa (tùy chọn)', 'About page in the middle (optional)')}</span>
+                    </label>
+                    {formData.webAboutEnabled && (
+                      <div className="web-intro-fields-col">
+                        <div className="custom-dark-field">
+                          <label>{L('Tiêu đề', 'Title')}</label>
+                          <div className="dark-input-box">
+                            <input
+                              type="text"
+                              maxLength={80}
+                              value={formData.webAboutTitle}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, webAboutTitle: e.target.value }))}
+                              placeholder={L('Về tôi', 'About me')}
+                            />
+                          </div>
+                        </div>
+                        <div className="custom-dark-field">
+                          <label>{L('Nội dung (nhập nhiều chữ, xuống dòng được)', 'Content (long text, line breaks allowed)')}</label>
+                          <textarea
+                            rows={10}
+                            maxLength={5000}
+                            className="web-intro-textarea"
+                            value={formData.webAboutText}
+                            onChange={(e) => setFormData((prev) => ({ ...prev, webAboutText: e.target.value }))}
+                            placeholder={L('Viết giới thiệu chi tiết về bạn, dự án, câu chuyện...', 'Write a detailed introduction about you, projects, your story...')}
+                          />
+                          <small className="web-extra-count">{(formData.webAboutText || '').length}/5000</small>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Shop: danh sách liên kết */}
+                  <div className="guns-panel web-extra-panel">
+                    <label className="web-extra-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(formData.webShopEnabled)}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, webShopEnabled: e.target.checked }))}
+                      />
+                      <span>{L('Shop — danh sách liên kết', 'Shop — link list')}</span>
+                    </label>
+                    {formData.webShopEnabled && (
+                      <div className="web-intro-fields-col">
+                        <div className="custom-dark-field">
+                          <label>{L('Tên khu vực', 'Section title')}</label>
+                          <div className="dark-input-box">
+                            <input
+                              type="text"
+                              maxLength={60}
+                              value={formData.webShopTitle}
+                              onChange={(e) => setFormData((prev) => ({ ...prev, webShopTitle: e.target.value }))}
+                              placeholder="Shop"
+                            />
+                          </div>
+                        </div>
+
+                        {(formData.webShopItems || []).map((it, i) => (
+                          <div className="web-shop-edit-row" key={i}>
+                            <input
+                              type="text"
+                              maxLength={80}
+                              value={it.title}
+                              onChange={(e) => updateShopItem(i, { title: e.target.value })}
+                              placeholder={L('Tên (vd: Claim Service)', 'Name (e.g. Claim Service)')}
+                            />
+                            <input
+                              type="url"
+                              maxLength={500}
+                              value={it.url}
+                              onChange={(e) => updateShopItem(i, { url: e.target.value })}
+                              placeholder="https://..."
+                            />
+                            <button type="button" className="web-shop-remove" onClick={() => removeShopItem(i)} aria-label={L('Xóa', 'Remove')}>✕</button>
+                          </div>
+                        ))}
+
+                        <button
+                          type="button"
+                          className="splash-preset-btn web-shop-add"
+                          onClick={addShopItem}
+                          disabled={(formData.webShopItems || []).length >= 30}
+                        >
+                          <span>+ {L('Thêm liên kết', 'Add link')}</span>
+                        </button>
+                        <small className="web-extra-count">
+                          {L('Chỉ nhận liên kết bắt đầu bằng http:// hoặc https://', 'Only links starting with http:// or https:// are shown')}
+                        </small>
+                      </div>
+                    )}
                   </div>
                 </section>
               )}
@@ -2971,6 +3118,7 @@ export default function ProfileEditor() {
                       <circle cx="12" cy="13" r="2.5" />
                     </svg>
                     <span>{language === 'vi' ? 'Bố cục Thẻ mới' : '3D Card'}</span>
+                    {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                   </button>
 
                   <button
@@ -2986,6 +3134,7 @@ export default function ProfileEditor() {
                       <line x1="9" y1="13" x2="19" y2="13" />
                     </svg>
                     <span>{language === 'vi' ? 'Bố cục WEB' : 'WEB Layout'}</span>
+                    {!isPremium && <DiamondIcon className="layout-pro-tag" />}
                   </button>
                 </div>
               </div>
@@ -3125,7 +3274,30 @@ export default function ProfileEditor() {
                         <div className="demo-web-scroll-hint">↓</div>
                       </div>
 
-                      {/* Phần 2: Khi cuộn xuống — Poster đứng bên trái, Chữ giới thiệu bên phải */}
+                      {/* Trang Giới thiệu (tùy chọn) */}
+                      {formData.webAboutEnabled && (
+                        <div className="demo-web-about" style={{ color: textColor }}>
+                          <h4 style={{ color: textColor }}>{formData.webAboutTitle || L('Về tôi', 'About me')}</h4>
+                          <p style={{ color: `${textColor}cc` }}>
+                            {(formData.webAboutText || '').trim() || L('Nội dung giới thiệu của bạn...', 'Your introduction text...')}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Shop: danh sách liên kết */}
+                      {formData.webShopEnabled && (
+                        <div className="demo-web-shop">
+                          <h4 style={{ color: textColor }}>{formData.webShopTitle || 'Shop'}</h4>
+                          {(formData.webShopItems || []).filter((it) => /^https?:\/\//i.test(String(it.url || '').trim())).slice(0, 4).map((it, i) => (
+                            <div className="demo-web-shop-item" key={i} style={{ color: textColor }}>
+                              <strong>{it.title || it.url}</strong>
+                              <small>{it.url}</small>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Cuối trang: Poster đứng bên trái, Chữ giới thiệu bên phải */}
                       <div className="demo-web-showcase">
                         <div className="demo-web-poster-card">
                           {formData.webPosterImage || formData.coverImage || formData.avatar ? (
@@ -3303,11 +3475,18 @@ export default function ProfileEditor() {
                     {/* Khung Âm Thanh ở dưới nếu thêm âm thanh (giống ảnh mẫu spool) */}
                     {formData.musicUrl && (
                       <div
-                        className="demo-audio-player-card"
+                        className={`demo-audio-player-card${profileBlur > 0 ? ' guns-glass' : ''}`}
                         style={{
                           color: textColor,
-                          borderColor: `${textColor}18`,
-                          ...(formData.musicBoxColor ? { background: musicBoxBg(formData.musicBoxColor) } : {})
+                          ...musicBoxSyncStyle({
+                            cardColor: formData.lanyardCardColor || formData.cardColor,
+                            musicBoxColor: formData.musicBoxColor,
+                            opacity: profileOpacity,
+                            blur: profileBlur,
+                            gradient: profileGradient,
+                            gradientFrom: formData.gradientFrom || formData.lanyardCardColor || formData.cardColor,
+                            gradientTo: formData.gradientTo || formData.lanyardStrapColor || accentColor
+                          })
                         }}
                       >
                         <img

@@ -266,7 +266,7 @@ export default function ProfileTemplate() {
       name: { vi: name, en: name },
       author: profile.username ? `@${profile.username}` : L('Bạn', 'You'),
       tags: newTags.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 4),
-      premium: false,
+      premium: ['lanyard', 'web'].includes(preset.layout),
       preview: {
         bg: preset.bgColor || '#0a0a0c',
         card: preset.cardColor || '#18161c',

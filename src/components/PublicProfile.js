@@ -26,7 +26,7 @@ import CursorFx from './CursorFx';
 import { isDirectVideoUrl, isDirectMediaUrl, trackNameFromUrl } from '../utils/video';
 import { RevealText, TypeText } from './ProfileTextFx';
 import { dateKey } from '../utils/dateKey';
-import { musicBoxBg } from '../utils/color';
+import { musicBoxSyncStyle } from '../utils/color';
 import { PREMIUM_LAYOUTS, FREE_LINK_LIMIT, isPremiumActive } from '../constants/premium';
 import { PLATFORM_BY_KEY } from '../constants/socialPlatforms';
 import { resolveProfileBadges } from '../constants/badges';
@@ -674,6 +674,32 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
   const profileBadges = resolveProfileBadges(profile, isPremium);
   const effectiveTextColor = profile.textColor || '#ffffff';
   const glowOn = profile.glowSettings || { username: true, socials: true, badges: true };
+
+  // Bố cục WEB: trang Giới thiệu (tùy chọn) + Shop dạng danh sách + Poster/chữ cũ ở cuối
+  const webAboutText = String(profile.webAboutText || '').trim();
+  const webAboutOn = Boolean(profile.webAboutEnabled) && webAboutText.length > 0;
+  const webShopItems = (Array.isArray(profile.webShopItems) ? profile.webShopItems : [])
+    .filter((it) => it && /^https?:\/\//i.test(String(it.url || '').trim()))
+    .slice(0, 30);
+  const webShopOn = Boolean(profile.webShopEnabled) && webShopItems.length > 0;
+  const webNextSectionId = webAboutOn ? 'web-about' : webShopOn ? 'web-shop' : 'web-poster-showcase';
+  const webPanelStyle = {
+    background:
+      (profile.profileOpacity ?? 0) <= 2
+        ? 'transparent'
+        : hexToRgba(
+            profile.lanyardCardColor || profile.cardColor || '#121216',
+            Math.max(0.15, (profile.profileOpacity ?? 0) / 100)
+          ),
+    backdropFilter:
+      (profile.profileBlur ?? 0) > 0
+        ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
+        : 'none',
+    WebkitBackdropFilter:
+      (profile.profileBlur ?? 0) > 0
+        ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
+        : 'none'
+  };
 
   const renderSocialIconsBlock = (extraClass = '') => {
     if (!hasAnySocialOrCustom || profile.otherSettings?.showLinks === false) return null;
@@ -1441,7 +1467,7 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
               </div>
 
               <a
-                href="#web-poster-showcase"
+                href={`#${webNextSectionId}`}
                 className={`web-scroll-down-cta ${scrolled ? 'is-hidden' : ''}`}
                 aria-label={language === 'vi' ? 'Cuộn xuống' : 'Scroll down'}
               >
@@ -1451,27 +1477,79 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
               </a>
             </section>
 
-            {/* PHẦN 2: CUỘN XUỐNG — BÊN TRÁI LÀ 1 POSTER ĐỨNG, BÊN PHẢI LÀ CHỮ GIỚI THIỆU */}
+            {/* PHẦN 2 (tùy chọn): TRANG GIỚI THIỆU Ở GIỮA — nhập nhiều chữ */}
+            {webAboutOn && (
+              <section id="web-about" className="web-showcase-section web-about-section">
+                <div className="web-about-container" style={{ ...webPanelStyle, color: effectiveTextColor }}>
+                  <span className="web-intro-eyebrow" style={{ color: profile.lanyardStrapColor || '#22c55e' }}>
+                    {L("GIỚI THIỆU", "ABOUT")}
+                  </span>
+                  <h2
+                    className="web-intro-heading"
+                    style={{
+                      color: effectiveTextColor,
+                      textShadow: glowOn.username !== false ? `0 0 16px ${effectiveTextColor}55` : 'none'
+                    }}
+                  >
+                    {profile.webAboutTitle || L('Về tôi', 'About me')}
+                  </h2>
+                  <div className="web-intro-body-text web-about-text" style={{ color: `${effectiveTextColor}dd` }}>
+                    {webAboutText}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* PHẦN 3: SHOP — danh sách liên kết */}
+            {webShopOn && (
+              <section id="web-shop" className="web-showcase-section web-shop-section">
+                <div className="web-shop-wrap">
+                  <h2
+                    className="web-intro-heading web-shop-heading"
+                    style={{
+                      color: effectiveTextColor,
+                      textShadow: glowOn.username !== false ? `0 0 16px ${effectiveTextColor}55` : 'none'
+                    }}
+                  >
+                    {profile.webShopTitle || 'Shop'}
+                  </h2>
+                  <div className="web-shop-list">
+                    {webShopItems.map((it, i) => {
+                      const url = String(it.url).trim();
+                      return (
+                        <a
+                          key={`${url}-${i}`}
+                          className="web-shop-item"
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                          style={{
+                            backdropFilter: webPanelStyle.backdropFilter,
+                            WebkitBackdropFilter: webPanelStyle.WebkitBackdropFilter,
+                            color: effectiveTextColor
+                          }}
+                        >
+                          <span className="web-shop-item-title">{it.title || url}</span>
+                          <span className="web-shop-item-url" style={{ color: `${effectiveTextColor}99` }}>
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            </svg>
+                            {url}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* PHẦN CUỐI TRANG: POSTER ĐỨNG BÊN TRÁI, CHỮ GIỚI THIỆU BÊN PHẢI */}
             <section id="web-poster-showcase" className="web-showcase-section">
               <div
                 className="web-showcase-container"
-                style={{
-                  background:
-                    (profile.profileOpacity ?? 0) <= 2
-                      ? 'transparent'
-                      : hexToRgba(
-                          profile.lanyardCardColor || profile.cardColor || '#121216',
-                          Math.max(0.15, (profile.profileOpacity ?? 0) / 100)
-                        ),
-                  backdropFilter:
-                    (profile.profileBlur ?? 0) > 0
-                      ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
-                      : 'none',
-                  WebkitBackdropFilter:
-                    (profile.profileBlur ?? 0) > 0
-                      ? `blur(${Math.round(((profile.profileBlur ?? 0) / 100) * 40)}px)`
-                      : 'none'
-                }}
+                style={webPanelStyle}
               >
                 {/* Cột trái: Poster đứng */}
                 <div className="web-poster-column">
@@ -1552,11 +1630,18 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
       {/* Khung Âm Thanh ở dưới — chỉ hiện ở bố cục Basic */}
       {youtubeVideoId && (!profile.layout || profile.layout === 'card') && (
         <div
-          className="guns-audio-player-card"
+          className={`guns-audio-player-card${(profile.profileBlur ?? 0) > 0 ? ' guns-glass' : ''}`}
           style={{
-            borderColor: `${effectiveTextColor}14`,
             color: effectiveTextColor,
-            ...(profile.musicBoxColor ? { background: musicBoxBg(profile.musicBoxColor) } : {})
+            ...musicBoxSyncStyle({
+              cardColor: profile.lanyardCardColor || profile.cardColor,
+              musicBoxColor: profile.musicBoxColor,
+              opacity: profile.profileOpacity ?? 0,
+              blur: profile.profileBlur ?? 0,
+              gradient: profile.profileGradient,
+              gradientFrom: profile.gradientFrom || profile.lanyardCardColor || profile.cardColor,
+              gradientTo: profile.gradientTo || profile.lanyardStrapColor || cardColor
+            })
           }}
         >
           <img

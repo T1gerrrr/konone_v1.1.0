@@ -664,7 +664,8 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
   width: 100%;
   max-width: 560px;
   border-radius: 26px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: none !important;
+  outline: none;
   padding: 36px 32px 32px;
   text-align: center;
   transition: all 0.3s ease;
@@ -674,14 +675,18 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
 
 /* Kính mờ: nền sau thẻ bị làm mờ, phủ lớp trắng nhạt, viền sáng mảnh (như guns.lol) */
 .guns-basic-card.guns-glass,
-.guns-style-demo-card.guns-glass {
+.guns-style-demo-card.guns-glass,
+.guns-audio-player-card.guns-glass,
+.demo-audio-player-card.guns-glass {
   position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.14) !important;
+  border: none !important;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28) !important;
 }
 
 .guns-basic-card.guns-glass::before,
-.guns-style-demo-card.guns-glass::before {
+.guns-style-demo-card.guns-glass::before,
+.guns-audio-player-card.guns-glass::before,
+.demo-audio-player-card.guns-glass::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -692,12 +697,17 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
 }
 
 .guns-basic-card.guns-glass > *,
-.guns-style-demo-card.guns-glass > * {
+.guns-style-demo-card.guns-glass > *,
+.guns-audio-player-card.guns-glass > *,
+.demo-audio-player-card.guns-glass > * {
   position: relative;
   z-index: 1;
 }
 
 .guns-basic-info {
+  /* .profile-card-info có viền phải/dưới 2px trắng: bỏ hẳn ở thẻ Basic */
+  border: none !important;
+  border-radius: 0 !important;
   padding: 0 !important;
   display: flex;
   flex-direction: column;
@@ -760,11 +770,10 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
   align-items: center;
   justify-content: center;
   gap: 9px;
-  padding: 6px 15px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.055);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  /* Chỉ icon phát sáng, không khung viền */
+  padding: 4px 0;
+  background: none;
+  border: none !important;
   margin-bottom: 14px;
 }
 
@@ -1107,11 +1116,9 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
   align-items: center;
   justify-content: center;
   gap: 10px;
-  padding: 9px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(10px);
+  padding: 4px 0;
+  background: none;
+  border: none !important;
 }
 
 .web-hero-badges-pill .guns-badge-ico,
@@ -1307,6 +1314,92 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
   font-weight: 800;
   line-height: 1.2;
   letter-spacing: -0.01em;
+}
+
+/* Trang Giới thiệu ở giữa */
+.web-about-section {
+  padding-top: 70px;
+}
+
+.web-about-container {
+  width: 100%;
+  max-width: 820px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 44px 48px;
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+  text-align: left;
+}
+
+.web-about-text {
+  font-size: 17px;
+  line-height: 1.85;
+  overflow-wrap: anywhere;
+}
+
+/* Shop: danh sách liên kết */
+.web-shop-wrap {
+  width: 100%;
+  max-width: 710px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.web-shop-heading {
+  text-align: center;
+  margin: 0;
+}
+
+.web-shop-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.web-shop-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 18px 20px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.13);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0 22px rgba(255, 255, 255, 0.07);
+  text-decoration: none;
+  text-align: center;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.web-shop-item:hover {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.19);
+  box-shadow: 0 0 30px rgba(255, 255, 255, 0.14);
+}
+
+.web-shop-item-title {
+  font-size: 17px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.web-shop-item-url {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .web-about-container {
+    padding: 28px 22px;
+  }
 }
 
 .web-intro-body-text {

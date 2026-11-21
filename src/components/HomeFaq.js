@@ -18,8 +18,8 @@ export default function HomeFaq() {
     {
       q: L('KonOne có miễn phí không?', 'Is KonOne free?'),
       a: L(
-        'Có. Gói FREE dùng trọn đời với các tính năng cơ bản, bao gồm tối đa 3 liên kết. Khi cần thêm bố cục, hiệu ứng và tùy chỉnh nâng cao, bạn có thể nâng cấp lên PREMIUM.',
-        'Yes. The FREE plan is yours for life with the core features, including up to 3 links. When you need more layouts, effects and advanced customization, you can upgrade to PREMIUM.'
+        'Có. Gói FREE dùng trọn đời với các tính năng cơ bản, bao gồm tối đa 5 liên kết. Khi cần thêm bố cục, hiệu ứng và tùy chỉnh nâng cao, bạn có thể nâng cấp lên PREMIUM.',
+        'Yes. The FREE plan is yours for life with the core features, including up to 5 links. When you need more layouts, effects and advanced customization, you can upgrade to PREMIUM.'
       )
     },
     {
