@@ -25,7 +25,7 @@ export function getYouTubeEmbedUrl(url) {
   const videoId = getYouTubeVideoId(url);
   if (!videoId) return null;
   
-  return `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&mute=0`;
+  return `https://www.youtube.com/embed/${videoId}?autoplay=1&loop=1&playlist=${videoId}&controls=0&modestbranding=1&rel=0&mute=0&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0`;
 }
 
 // Check if URL is a valid YouTube URL

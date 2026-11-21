@@ -2302,6 +2302,22 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
   width: 100% !important;
   height: 100% !important;
   border: 0;
+  pointer-events: none;
+}
+
+/* Điện thoại: lần chạm đầu phải rơi vào YouTube để được phát tiếng. Phóng iframe lớn 4 lần và
+   canh giữa để tiêu đề/nút ở góc nằm ngoài màn hình, chỗ người dùng chạm chỉ là vùng giữa video. */
+.yt-audio-host.is-tap-target {
+  overflow: hidden;
+}
+
+.yt-audio-host.is-tap-target iframe {
+  position: absolute !important;
+  width: 400% !important;
+  height: 400% !important;
+  left: -150% !important;
+  top: -150% !important;
+  pointer-events: auto;
 }
 
 /* Video nền dạng file trực tiếp (mp4/webm) */

@@ -374,12 +374,26 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
           controls: 0,
           modestbranding: 1,
           rel: 0,
-          playsinline: 1
+          playsinline: 1,
+          disablekb: 1,
+          fs: 0,
+          iv_load_policy: 3,
+          cc_load_policy: 0
         },
         events: {
           onReady: (event) => {
             if (disposed) return;
             window.youtubePlayer = event.target;
+            // Không cho focus bằng phím Tab (Space/K sẽ tạm dừng và hiện giao diện YouTube)
+            try {
+              const frame = event.target.getIframe && event.target.getIframe();
+              if (frame) {
+                frame.setAttribute('tabindex', '-1');
+                frame.setAttribute('aria-hidden', 'true');
+              }
+            } catch (e) {
+              // ignore
+            }
             setPlayerReady(true);
             event.target.setVolume(volumeRef.current);
             // Thử tự phát ngay khi vào trang
@@ -858,10 +872,11 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
       {backgroundVideoId && isPremium && (
         <div className="background-video-container">
           <iframe
-            src={`https://www.youtube.com/embed/${backgroundVideoId}?autoplay=1&loop=1&playlist=${backgroundVideoId}&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1`}
+            src={`https://www.youtube.com/embed/${backgroundVideoId}?autoplay=1&loop=1&playlist=${backgroundVideoId}&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0`}
             frameBorder="0"
             allow="autoplay; encrypted-media"
-            allowFullScreen
+            tabIndex={-1}
+            aria-hidden="true"
             className="background-video"
             title={L("Video nền", "Background Video")}
           />
