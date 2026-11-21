@@ -146,6 +146,7 @@ function cleanTemplate(t) {
       musicBoxColor: preset.musicBoxColor ? cssValue(preset.musicBoxColor, '') : '',
       musicAccentColor: preset.musicAccentColor ? cssValue(preset.musicAccentColor, '') : '',
       socialPosition: preset.socialPosition === 'outside' ? 'outside' : 'inside',
+      sampleSocials: Boolean(preset.sampleSocials),
       ...URL_FIELDS.reduce((acc, k) => {
         const u = str(preset[k], 600);
         acc[k] = /^(https?:\/\/|\/)/i.test(u) ? u : '';

@@ -28,6 +28,7 @@ import { RevealText, TypeText } from './ProfileTextFx';
 import { dateKey } from '../utils/dateKey';
 import { musicBoxSyncStyle } from '../utils/color';
 import GamePresence from './GamePresence';
+import WebAboutAdvanced from './WebAboutAdvanced';
 import { PREMIUM_LAYOUTS, FREE_LINK_LIMIT, isPremiumActive } from '../constants/premium';
 import { PLATFORM_BY_KEY } from '../constants/socialPlatforms';
 import { resolveProfileBadges } from '../constants/badges';
@@ -254,6 +255,55 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
   const userPausedRef = useRef(false); // người dùng tự bấm tắt nhạc
   const playerHostRef = useRef(null);
   const [playerReady, setPlayerReady] = useState(false);
+
+  // Video nền YouTube: giữ iframe ẩn cho tới khi YouTube báo "đang phát", để giao diện của YouTube
+  // (nút Trước / Tạm dừng / Sau lúc đang tải) không bao giờ lộ ra khi tải lại trang.
+  const bgFrameRef = useRef(null);
+  const [bgPlaying, setBgPlaying] = useState(false);
+  const bgVideoUrl = profile?.backgroundVideo || '';
+  useEffect(() => {
+    setBgPlaying(false);
+    if (!bgVideoUrl || !getYouTubeVideoId(bgVideoUrl)) return undefined;
+    const ORIGIN = 'https://www.youtube.com';
+    const post = (msg) => {
+      try {
+        const w = bgFrameRef.current && bgFrameRef.current.contentWindow;
+        if (w) w.postMessage(JSON.stringify(msg), ORIGIN);
+      } catch (e) {
+        // ignore
+      }
+    };
+    const onMessage = (e) => {
+      if (e.origin !== ORIGIN) return;
+      if (!bgFrameRef.current || e.source !== bgFrameRef.current.contentWindow) return;
+      let d = e.data;
+      if (typeof d === 'string') {
+        try {
+          d = JSON.parse(d);
+        } catch (err) {
+          return;
+        }
+      }
+      if (!d) return;
+      const state = d.event === 'onStateChange' ? d.info : d.info && d.info.playerState;
+      if (state === 1) setBgPlaying(true);
+      else if (state === 0) {
+        // Tự lặp (không dùng playlist vì nó làm YouTube hiện nút Trước/Sau)
+        post({ event: 'command', func: 'seekTo', args: [0, true] });
+        post({ event: 'command', func: 'playVideo', args: [] });
+      }
+    };
+    window.addEventListener('message', onMessage);
+    // Đăng ký nhận sự kiện từ player; gửi lặp lại tới khi nhận được trạng thái đầu tiên
+    const ping = setInterval(() => post({ event: 'listening', id: 1, channel: 'widget' }), 400);
+    // Phòng khi không nhận được tín hiệu: vẫn hiện video sau 8 giây
+    const fallback = setTimeout(() => setBgPlaying(true), 8000);
+    return () => {
+      window.removeEventListener('message', onMessage);
+      clearInterval(ping);
+      clearTimeout(fallback);
+    };
+  }, [bgVideoUrl]);
   const overlayOpenRef = useRef(true);
   overlayOpenRef.current = showEnterOverlay;
 
@@ -370,8 +420,6 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
         videoId: youtubeVideoId,
         playerVars: {
           autoplay: 1,
-          loop: 1,
-          playlist: youtubeVideoId,
           controls: 0,
           modestbranding: 1,
           rel: 0,
@@ -418,7 +466,17 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
               } catch (e) {
                 // ignore
               }
-            } else if (event.data === YTS.PAUSED || event.data === YTS.ENDED) setIsPlaying(false);
+            } else if (event.data === YTS.ENDED) {
+              // Tự lặp bằng lệnh (không dùng tham số playlist vì nó làm YouTube hiện nút Trước/Sau)
+              if (!userPausedRef.current) {
+                try {
+                  event.target.seekTo(0, true);
+                  event.target.playVideo();
+                } catch (e) {
+                  setIsPlaying(false);
+                }
+              } else setIsPlaying(false);
+            } else if (event.data === YTS.PAUSED) setIsPlaying(false);
           }
         }
       });
@@ -692,7 +750,8 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
 
   // Bố cục WEB: trang Giới thiệu (tùy chọn) + Shop dạng danh sách + Poster/chữ cũ ở cuối
   const webAboutText = String(profile.webAboutText || '').trim();
-  const webAboutOn = Boolean(profile.webAboutEnabled) && webAboutText.length > 0;
+  const webAboutAdvanced = profile.webAboutMode === 'advanced';
+  const webAboutOn = Boolean(profile.webAboutEnabled) && (webAboutText.length > 0 || webAboutAdvanced);
   const webShopItems = (Array.isArray(profile.webShopItems) ? profile.webShopItems : [])
     .filter((it) => it && /^https?:\/\//i.test(String(it.url || '').trim()))
     .slice(0, 30);
@@ -873,7 +932,9 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
       {backgroundVideoId && isPremium && (
         <div className="background-video-container">
           <iframe
-            src={`https://www.youtube.com/embed/${backgroundVideoId}?autoplay=1&loop=1&playlist=${backgroundVideoId}&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0`}
+            ref={bgFrameRef}
+            style={{ opacity: bgPlaying ? 1 : 0, transition: 'opacity 0.6s ease' }}
+            src={`https://www.youtube.com/embed/${backgroundVideoId}?autoplay=1&mute=1&controls=0&showinfo=0&rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(window.location.origin)}&disablekb=1&fs=0&iv_load_policy=3&cc_load_policy=0`}
             frameBorder="0"
             allow="autoplay; encrypted-media"
             tabIndex={-1}
@@ -956,7 +1017,9 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
                   opacity: 0.01,
                   zIndex: -1,
                   pointerEvents: 'none',
-                  overflow: 'hidden'
+                  overflow: 'hidden',
+                  // Cắt hết phần hiển thị (vẫn giữ kích thước 200x200 để nhạc không bị dừng): giao diện YouTube không thể lộ ra
+                  clipPath: 'inset(100%)'
                 }
           }
         ></div>
@@ -1499,23 +1562,28 @@ export default function PublicProfile({ previewProfile = null, applyCursor = fal
             {/* PHẦN 2 (tùy chọn): TRANG GIỚI THIỆU Ở GIỮA — nhập nhiều chữ */}
             {webAboutOn && (
               <section id="web-about" className="web-showcase-section web-about-section">
-                <div className="web-about-container" style={{ ...webPanelStyle, color: effectiveTextColor }}>
-                  <span className="web-intro-eyebrow" style={{ color: profile.lanyardStrapColor || '#22c55e' }}>
-                    {L("GIỚI THIỆU", "ABOUT")}
-                  </span>
-                  <h2
-                    className="web-intro-heading"
-                    style={{
-                      color: effectiveTextColor,
-                      textShadow: glowOn.username !== false ? `0 0 16px ${effectiveTextColor}55` : 'none'
-                    }}
-                  >
-                    {profile.webAboutTitle || L('Về tôi', 'About me')}
+                {webAboutAdvanced ? (
+                  <WebAboutAdvanced
+                    profile={profile}
+                    badges={profileBadges}
+                    textColor={effectiveTextColor}
+                    glowBadges={glowOn.badges !== false}
+                  />
+                ) : (
+                <div className="web-about-container" style={{ color: effectiveTextColor }}>
+                  <h2 className="web-about-title" style={{ color: effectiveTextColor }}>
+                    {profile.webAboutTitle || L('Về tôi', 'About Me')}
                   </h2>
-                  <div className="web-intro-body-text web-about-text" style={{ color: `${effectiveTextColor}dd` }}>
+                  {String(profile.webAboutSubtitle || '').trim() && (
+                    <p className="web-about-subtitle" style={{ color: `${effectiveTextColor}88` }}>
+                      {profile.webAboutSubtitle}
+                    </p>
+                  )}
+                  <div className="web-about-text" style={{ color: effectiveTextColor }}>
                     {webAboutText}
                   </div>
                 </div>
+                )}
               </section>
             )}
 

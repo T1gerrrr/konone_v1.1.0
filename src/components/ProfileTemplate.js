@@ -6,7 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
 import { isPremiumActive } from '../constants/premium';
-import { TEMPLATE_FIELDS } from '../constants/templates';
+import { TEMPLATE_FIELDS, withSampleSocials } from '../constants/templates';
 import AppSidebar from './AppSidebar';
 import DiamondIcon from './DiamondIcon';
 import PublicProfile from './PublicProfile';
@@ -75,7 +75,11 @@ function buildPreviewProfile(tpl, mine, sampleBio) {
     backgroundVideo: (tpl.preset && tpl.preset.backgroundVideo) || '',
     isHidden: false,
     isPremium: true,
-    premiumExpiresAt: new Date(Date.now() + 86400000)
+    premiumExpiresAt: new Date(Date.now() + 86400000),
+    // Mẫu bật "icon mạng xã hội mẫu": tự hiện 5 icon
+    ...(tpl.preset && tpl.preset.sampleSocials
+      ? { socialLinks: withSampleSocials(mine && mine.socialLinks) }
+      : {})
   };
 }
 

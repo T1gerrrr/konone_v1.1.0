@@ -8,6 +8,7 @@ import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
 import { isPremiumActive } from '../constants/premium';
 import PublicProfile from './PublicProfile';
 import DiamondIcon from './DiamondIcon';
+import { withSampleSocials } from '../constants/templates';
 import {
   readList, tplKeys, toggleFavoriteId, pushRecentId, applyTemplateToProfile
 } from '../utils/applyTemplate';
@@ -126,7 +127,10 @@ export default function TemplateView() {
       avatar: mine.avatar || (tpl.preset && tpl.preset.avatar) || '',
       isHidden: false,
       isPremium: true,
-      premiumExpiresAt: new Date(Date.now() + 86400000)
+      premiumExpiresAt: new Date(Date.now() + 86400000),
+      ...(tpl.preset && tpl.preset.sampleSocials
+        ? { socialLinks: withSampleSocials(mine.socialLinks) }
+        : {})
     };
   }, [tpl, profile, hasRealName, identity, sampleBio]);
 

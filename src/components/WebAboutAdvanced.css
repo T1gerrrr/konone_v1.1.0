@@ -1,0 +1,210 @@
+/* Trang Giới thiệu nâng cao (bố cục WEB) */
+.wa-wrap {
+  width: 100%;
+  max-width: 1040px;
+  padding: 0 36px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.wa-title {
+  margin: 0 0 4px;
+  font-size: 44px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.wa-card {
+  border-radius: 32px;
+  background: rgba(8, 8, 10, 0.62);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-sizing: border-box;
+}
+
+.wa-text-card {
+  padding: 30px 34px;
+  font-size: 19px;
+  line-height: 1.6;
+}
+
+.wa-text-card p {
+  margin: 0 0 10px;
+  overflow-wrap: anywhere;
+}
+
+.wa-text-card p:last-child {
+  margin-bottom: 0;
+}
+
+.wa-text-card .wa-blank {
+  margin: 0;
+  line-height: 1.2;
+}
+
+.wa-text-card a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wa-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.wa-row.is-single {
+  grid-template-columns: 1fr;
+}
+
+/* Thẻ hồ sơ */
+.wa-profile-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 24px 26px;
+  min-width: 0;
+}
+
+.wa-avatar {
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.wa-profile-meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.wa-profile-name-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.wa-profile-name-row strong {
+  font-size: 24px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.wa-badge-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.wa-badge-box .guns-badge-ico,
+.wa-badge-box .guns-badge-ico svg {
+  width: 17px;
+  height: 17px;
+}
+
+.wa-status {
+  font-size: 15px;
+  opacity: 0.55;
+}
+
+/* Thẻ đồng hồ */
+.wa-clock-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 24px 26px;
+  min-width: 0;
+}
+
+.wa-clock-label {
+  position: absolute;
+  top: 16px;
+  right: 22px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  opacity: 0.35;
+}
+
+.wa-clock-face {
+  width: 86px;
+  height: 86px;
+  flex-shrink: 0;
+}
+
+.wa-clock-text {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.wa-clock-text strong {
+  font-size: 22px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.wa-clock-text span {
+  font-size: 15px;
+  opacity: 0.8;
+}
+
+.wa-clock-text small {
+  font-size: 13px;
+  opacity: 0.4;
+}
+
+/* Chip */
+.wa-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wa-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 18px;
+  border-radius: 999px;
+  background: rgba(8, 8, 10, 0.62);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  font-size: 16px;
+}
+
+.wa-chip img {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+@media (max-width: 860px) {
+  .wa-wrap {
+    padding: 0 20px;
+  }
+  .wa-title {
+    font-size: 34px;
+  }
+  .wa-row {
+    grid-template-columns: 1fr;
+  }
+  .wa-text-card {
+    padding: 22px;
+    font-size: 17px;
+  }
+}

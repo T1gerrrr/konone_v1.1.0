@@ -38,6 +38,28 @@ export const TEMPLATE_FIELDS = [
   'musicUrl'
 ];
 
+// Mẫu bật "icon mạng xã hội mẫu": tự hiện 5 icon này (đúng thứ tự). Link chỉ là trang chủ, người dùng sửa sau.
+export const TEMPLATE_SAMPLE_SOCIALS = [
+  ['tiktok', 'https://www.tiktok.com/'],
+  ['twitter', 'https://x.com/'],
+  ['discord', 'https://discord.com/'],
+  ['instagram', 'https://www.instagram.com/'],
+  ['youtube', 'https://www.youtube.com/']
+];
+
+// Trộn 5 icon mẫu vào socialLinks: link thật của người dùng luôn được giữ, chỉ điền chỗ còn trống
+export function withSampleSocials(socialLinks) {
+  const cur = socialLinks || {};
+  const out = {};
+  TEMPLATE_SAMPLE_SOCIALS.forEach(([key, url]) => {
+    out[key] = cur[key] && String(cur[key]).trim() ? cur[key] : url;
+  });
+  Object.keys(cur).forEach((k) => {
+    if (!(k in out)) out[k] = cur[k];
+  });
+  return out;
+}
+
 export const TEMPLATE_LAYOUTS = [
   ['card', 'Basic (Thẻ)'],
   ['lanyard', 'Lanyard (Premium)'],

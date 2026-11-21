@@ -1321,22 +1321,36 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
   padding-top: 70px;
 }
 
+/* Trang Giới thiệu: chỉ chữ trên nền, không khung/viền/nền */
 .web-about-container {
   width: 100%;
-  max-width: 820px;
+  max-width: 1040px;
+  padding: 0 36px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 44px 48px;
-  border-radius: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.55);
+  align-items: flex-start;
   text-align: left;
 }
 
+.web-about-title {
+  margin: 0;
+  font-size: 44px;
+  font-weight: 700;
+  line-height: 1.15;
+}
+
+.web-about-subtitle {
+  margin: 14px 0 0;
+  font-size: 18px;
+}
+
 .web-about-text {
+  margin-top: 38px;
+  padding-left: 36px;
+  max-width: 720px;
   font-size: 17px;
-  line-height: 1.85;
+  line-height: 1.75;
+  white-space: pre-line;
   overflow-wrap: anywhere;
 }
 
@@ -1398,7 +1412,13 @@ body.pp-hide-scrollbar::-webkit-scrollbar,
 
 @media (max-width: 768px) {
   .web-about-container {
-    padding: 28px 22px;
+    padding: 0 22px;
+  }
+  .web-about-title {
+    font-size: 34px;
+  }
+  .web-about-text {
+    padding-left: 0;
   }
 }
 

@@ -34,6 +34,7 @@ import SlideCommit from './SlideCommit';
 import { musicBoxSyncStyle } from '../utils/color';
 import GamePresence from './GamePresence';
 import { GAME_PRESETS, isHttpUrl } from '../constants/games';
+import { ABOUT_ROLES, ABOUT_TAGS_BY_ROLE, ABOUT_TIMEZONES, resolveAboutTag, tagIconUrl } from '../constants/aboutTags';
 import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
 import './ProfileEditor.css';
 
@@ -275,7 +276,14 @@ export default function ProfileEditor() {
     webIntroText: '',
     webAboutEnabled: false,
     webAboutTitle: '',
+    webAboutSubtitle: '',
     webAboutText: '',
+    webAboutMode: 'simple',
+    webAboutRole: '',
+    webAboutTags: [],
+    webAboutClock: true,
+    webAboutTimezone: 'Asia/Ho_Chi_Minh',
+    webAboutStatus: '',
     webShopEnabled: false,
     webShopTitle: '',
     webShopItems: [],
@@ -355,6 +363,13 @@ export default function ProfileEditor() {
             webIntroText: profileData.webIntroText || '',
             webAboutEnabled: Boolean(profileData.webAboutEnabled),
             webAboutTitle: profileData.webAboutTitle || '',
+            webAboutSubtitle: profileData.webAboutSubtitle || '',
+            webAboutMode: profileData.webAboutMode === 'advanced' ? 'advanced' : 'simple',
+            webAboutRole: profileData.webAboutRole || '',
+            webAboutTags: Array.isArray(profileData.webAboutTags) ? profileData.webAboutTags : [],
+            webAboutClock: profileData.webAboutClock !== false,
+            webAboutTimezone: profileData.webAboutTimezone || 'Asia/Ho_Chi_Minh',
+            webAboutStatus: profileData.webAboutStatus || '',
             webAboutText: profileData.webAboutText || '',
             webShopEnabled: Boolean(profileData.webShopEnabled),
             webShopTitle: profileData.webShopTitle || '',
@@ -613,6 +628,16 @@ export default function ProfileEditor() {
         webIntroText: String(formData.webIntroText || ''),
         webAboutEnabled: Boolean(formData.webAboutEnabled),
         webAboutTitle: String(formData.webAboutTitle || '').slice(0, 80),
+        webAboutSubtitle: String(formData.webAboutSubtitle || '').slice(0, 120),
+        webAboutMode: formData.webAboutMode === 'advanced' ? 'advanced' : 'simple',
+        webAboutRole: ['developer', 'gamer', 'streamer'].includes(formData.webAboutRole) ? formData.webAboutRole : '',
+        webAboutTags: (Array.isArray(formData.webAboutTags) ? formData.webAboutTags : [])
+          .map((x) => String(x || '').slice(0, 50))
+          .filter(Boolean)
+          .slice(0, 16),
+        webAboutClock: formData.webAboutClock !== false,
+        webAboutTimezone: ABOUT_TIMEZONES.includes(formData.webAboutTimezone) ? formData.webAboutTimezone : 'Asia/Ho_Chi_Minh',
+        webAboutStatus: String(formData.webAboutStatus || '').slice(0, 80),
         webAboutText: String(formData.webAboutText || '').slice(0, 5000),
         webShopEnabled: Boolean(formData.webShopEnabled),
         webShopTitle: String(formData.webShopTitle || '').slice(0, 60),
@@ -3111,6 +3136,27 @@ export default function ProfileEditor() {
                     </label>
                     {formData.webAboutEnabled && (
                       <div className="web-intro-fields-col">
+                        <div className="web-about-mode-switch" role="tablist">
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={formData.webAboutMode !== 'advanced'}
+                            className={formData.webAboutMode !== 'advanced' ? 'active' : ''}
+                            onClick={() => setFormData((prev) => ({ ...prev, webAboutMode: 'simple' }))}
+                          >
+                            {L('Đơn giản', 'Simple')}
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={formData.webAboutMode === 'advanced'}
+                            className={formData.webAboutMode === 'advanced' ? 'active' : ''}
+                            onClick={() => setFormData((prev) => ({ ...prev, webAboutMode: 'advanced' }))}
+                          >
+                            {L('Giới thiệu nâng cao', 'Advanced about')}
+                          </button>
+                        </div>
+
                         <div className="custom-dark-field">
                           <label>{L('Tiêu đề', 'Title')}</label>
                           <div className="dark-input-box">
@@ -3119,10 +3165,24 @@ export default function ProfileEditor() {
                               maxLength={80}
                               value={formData.webAboutTitle}
                               onChange={(e) => setFormData((prev) => ({ ...prev, webAboutTitle: e.target.value }))}
-                              placeholder={L('Về tôi', 'About me')}
+                              placeholder={L('Về tôi', 'About Me')}
                             />
                           </div>
                         </div>
+                        {formData.webAboutMode !== 'advanced' && (
+                          <div className="custom-dark-field">
+                            <label>{L('Dòng phụ (tùy chọn)', 'Subtitle (optional)')}</label>
+                            <div className="dark-input-box">
+                              <input
+                                type="text"
+                                maxLength={120}
+                                value={formData.webAboutSubtitle}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, webAboutSubtitle: e.target.value }))}
+                                placeholder={L('Tôi làm game', 'I make games')}
+                              />
+                            </div>
+                          </div>
+                        )}
                         <div className="custom-dark-field">
                           <label>{L('Nội dung (nhập nhiều chữ, xuống dòng được)', 'Content (long text, line breaks allowed)')}</label>
                           <textarea
@@ -3133,8 +3193,152 @@ export default function ProfileEditor() {
                             onChange={(e) => setFormData((prev) => ({ ...prev, webAboutText: e.target.value }))}
                             placeholder={L('Viết giới thiệu chi tiết về bạn, dự án, câu chuyện...', 'Write a detailed introduction about you, projects, your story...')}
                           />
-                          <small className="web-extra-count">{(formData.webAboutText || '').length}/5000</small>
+                          <small className="web-extra-count">
+                            {(formData.webAboutText || '').length}/5000
+                            {formData.webAboutMode === 'advanced' && (
+                              <> · {L('Định dạng: **đậm**, *nghiêng*, [chữ](https://link)', 'Format: **bold**, *italic*, [text](https://link)')}</>
+                            )}
+                          </small>
                         </div>
+
+                        {formData.webAboutMode === 'advanced' && (
+                          <>
+                            <div className="custom-dark-field">
+                              <label>{L('Dòng trạng thái ở thẻ hồ sơ', 'Status line on the profile card')}</label>
+                              <div className="dark-input-box">
+                                <input
+                                  type="text"
+                                  maxLength={80}
+                                  value={formData.webAboutStatus}
+                                  onChange={(e) => setFormData((prev) => ({ ...prev, webAboutStatus: e.target.value }))}
+                                  placeholder={L('Mặc định: @tên-đăng-nhập', 'Default: @username')}
+                                />
+                              </div>
+                            </div>
+
+                            <label className="web-extra-toggle">
+                              <input
+                                type="checkbox"
+                                checked={formData.webAboutClock !== false}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, webAboutClock: e.target.checked }))}
+                              />
+                              <span>{L('Hiện thẻ đồng hồ múi giờ', 'Show the timezone clock card')}</span>
+                            </label>
+                            {formData.webAboutClock !== false && (
+                              <div className="custom-dark-field">
+                                <label>{L('Múi giờ của bạn', 'Your timezone')}</label>
+                                <div className="dark-input-box">
+                                  <select
+                                    value={formData.webAboutTimezone}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, webAboutTimezone: e.target.value }))}
+                                  >
+                                    {ABOUT_TIMEZONES.map((z) => (
+                                      <option key={z} value={z}>{z}</option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="custom-dark-field">
+                              <label>{L('Bạn là...', 'You are a...')}</label>
+                              <div className="web-about-mode-switch">
+                                {ABOUT_ROLES.map((r) => (
+                                  <button
+                                    type="button"
+                                    key={r.id || 'none'}
+                                    className={(formData.webAboutRole || '') === r.id ? 'active' : ''}
+                                    onClick={() => setFormData((prev) => ({ ...prev, webAboutRole: r.id }))}
+                                  >
+                                    {L(r.vi, r.en)}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {formData.webAboutRole && (
+                              <div className="custom-dark-field">
+                                <label>
+                                  {formData.webAboutRole === 'developer'
+                                    ? L('Ngôn ngữ / công nghệ (chọn tối đa 16)', 'Languages / tech (up to 16)')
+                                    : formData.webAboutRole === 'gamer'
+                                      ? L('Game bạn chơi (chọn tối đa 16)', 'Games you play (up to 16)')
+                                      : L('Nền tảng / công cụ (chọn tối đa 16)', 'Platforms / tools (up to 16)')}
+                                </label>
+                                <div className="game-picker-grid">
+                                  {(ABOUT_TAGS_BY_ROLE[formData.webAboutRole] || []).map((t) => {
+                                    const on = (formData.webAboutTags || []).includes(t.id);
+                                    return (
+                                      <button
+                                        type="button"
+                                        key={t.id}
+                                        className={`game-picker-item${on ? ' active' : ''}`}
+                                        onClick={() => setFormData((prev) => {
+                                          const cur = prev.webAboutTags || [];
+                                          if (cur.includes(t.id)) return { ...prev, webAboutTags: cur.filter((x) => x !== t.id) };
+                                          if (cur.length >= 16) return prev;
+                                          return { ...prev, webAboutTags: [...cur, t.id] };
+                                        })}
+                                      >
+                                        {t.slug ? (
+                                          <img src={tagIconUrl(t)} alt="" referrerPolicy="no-referrer" onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                                        ) : (
+                                          <i>{t.name.slice(0, 2)}</i>
+                                        )}
+                                        <span>{t.name}</span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="custom-dark-field">
+                              <label>{L('Chip tự nhập', 'Custom chip')}</label>
+                              <form
+                                className="web-shop-edit-row"
+                                style={{ gridTemplateColumns: '1fr auto' }}
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  const input = e.currentTarget.elements.customChip;
+                                  const v = String(input.value || '').trim().slice(0, 30);
+                                  if (!v) return;
+                                  setFormData((prev) => {
+                                    const cur = prev.webAboutTags || [];
+                                    const raw = `custom:${v}`;
+                                    if (cur.length >= 16 || cur.includes(raw)) return prev;
+                                    return { ...prev, webAboutTags: [...cur, raw] };
+                                  });
+                                  input.value = '';
+                                }}
+                              >
+                                <input name="customChip" type="text" maxLength={30} placeholder={L('VD: Blender', 'e.g. Blender')} />
+                                <button type="submit" className="splash-preset-btn"><span>+ {L('Thêm', 'Add')}</span></button>
+                              </form>
+                            </div>
+
+                            {(formData.webAboutTags || []).length > 0 && (
+                              <div className="web-about-selected">
+                                {(formData.webAboutTags || []).map((raw) => {
+                                  const tag = resolveAboutTag(raw);
+                                  if (!tag) return null;
+                                  return (
+                                    <span key={raw} className="web-about-selected-chip">
+                                      {tag.name}
+                                      <button
+                                        type="button"
+                                        aria-label={L('Bỏ', 'Remove')}
+                                        onClick={() => setFormData((prev) => ({ ...prev, webAboutTags: (prev.webAboutTags || []).filter((x) => x !== raw) }))}
+                                      >
+                                        ✕
+                                      </button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3394,7 +3598,8 @@ export default function ProfileEditor() {
                       {/* Trang Giới thiệu (tùy chọn) */}
                       {formData.webAboutEnabled && (
                         <div className="demo-web-about" style={{ color: textColor }}>
-                          <h4 style={{ color: textColor }}>{formData.webAboutTitle || L('Về tôi', 'About me')}</h4>
+                          <h4 style={{ color: textColor }}>{formData.webAboutTitle || L('Về tôi', 'About Me')}</h4>
+                          {formData.webAboutSubtitle && <small style={{ color: `${textColor}88` }}>{formData.webAboutSubtitle}</small>}
                           <p style={{ color: `${textColor}cc` }}>
                             {(formData.webAboutText || '').trim() || L('Nội dung giới thiệu của bạn...', 'Your introduction text...')}
                           </p>

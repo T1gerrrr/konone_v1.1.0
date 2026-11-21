@@ -1,5 +1,6 @@
 import { updateDoc, doc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { withSampleSocials } from '../constants/templates';
 
 // Danh sách yêu thích / dùng gần đây lưu trên trình duyệt, theo từng tài khoản
 export function readList(key) {
@@ -44,6 +45,10 @@ export async function applyTemplateToProfile(profileDocId, tpl, currentProfile) 
   const preset = { ...(tpl.preset || {}) };
   if (!preset.musicUrl) delete preset.musicUrl;
   if (!preset.avatar || currentProfile?.avatar) delete preset.avatar; // không ghi đè avatar của người dùng
+  // Mẫu "icon mạng xã hội mẫu": điền 5 icon, giữ nguyên link thật của người dùng
+  const wantSocials = Boolean(preset.sampleSocials);
+  delete preset.sampleSocials;
+  if (wantSocials) preset.socialLinks = withSampleSocials(currentProfile?.socialLinks);
   await updateDoc(doc(db, 'profiles', profileDocId), { ...preset, updatedAt: new Date() });
 }
 

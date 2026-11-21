@@ -801,6 +801,7 @@ const EMPTY_TEMPLATE = {
   glowUsername: true,
   glowSocials: true,
   glowBadges: true,
+  sampleSocials: false, // tự hiện 5 icon: TikTok, X, Discord, Instagram, YouTube
   extra: {} // video, nhạc, con trỏ, hiệu ứng chuột, ảnh nền... (lấy y chang từ hồ sơ hoặc nhập tay)
 };
 
@@ -808,7 +809,7 @@ const EMPTY_TEMPLATE = {
 const MANAGED_PRESET_KEYS = [
   'layout', 'cardColor', 'lanyardCardColor', 'lanyardStrapColor', 'textColor', 'bgColor', 'iconColor', 'effect',
   'profileOpacity', 'profileBlur', 'profileGradient', 'gradientFrom', 'gradientTo', 'textFontFamily', 'text3DEffect',
-  'glowSettings', 'nameScale', 'bioScale'
+  'glowSettings', 'nameScale', 'bioScale', 'sampleSocials'
 ];
 
 const hex6 = (v, fallback) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback);
@@ -834,7 +835,8 @@ function buildPreset(f) {
     text3DEffect: f.text3D,
     nameScale: Number(f.nameScale),
     bioScale: Number(f.bioScale),
-    glowSettings: { username: f.glowUsername, socials: f.glowSocials, badges: f.glowBadges }
+    glowSettings: { username: f.glowUsername, socials: f.glowSocials, badges: f.glowBadges },
+    sampleSocials: Boolean(f.sampleSocials)
   };
 }
 
@@ -887,7 +889,8 @@ function templateToForm(t) {
     bioScale: pr.bioScale ?? 100,
     glowUsername: g.username !== false,
     glowSocials: g.socials !== false,
-    glowBadges: g.badges !== false
+    glowBadges: g.badges !== false,
+    sampleSocials: Boolean(pr.sampleSocials)
   };
 }
 
@@ -1159,6 +1162,11 @@ function Templates({ call }) {
           <label className="adm-check"><input type="checkbox" checked={f.glowUsername} onChange={(e) => set({ glowUsername: e.target.checked })} /> Phát sáng tên</label>
           <label className="adm-check"><input type="checkbox" checked={f.glowSocials} onChange={(e) => set({ glowSocials: e.target.checked })} /> Phát sáng icon</label>
           <label className="adm-check"><input type="checkbox" checked={f.glowBadges} onChange={(e) => set({ glowBadges: e.target.checked })} /> Phát sáng huy hiệu</label>
+        </div>
+        <div className="adm-row">
+          <label className="adm-check" title="Mẫu sẽ tự hiện 5 icon TikTok, X, Discord, Instagram, YouTube (cả ở bản xem trước lẫn khi người dùng áp dụng mẫu)">
+            <input type="checkbox" checked={Boolean(f.sampleSocials)} onChange={(e) => set({ sampleSocials: e.target.checked })} /> + Thêm link mạng xã hội: tự hiện 5 icon (TikTok, X, Discord, Instagram, YouTube)
+          </label>
         </div>
 
         <details className="adm-details">
