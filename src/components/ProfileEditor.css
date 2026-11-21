@@ -3469,3 +3469,117 @@ button.premium-banner-link:hover {
 .premium-frame .guns-switch.on {
   background: #ff5757;
 }
+
+/* ===== Bảng chọn hiệu ứng chuột (bên phải) — danh sách gọn, mượt ===== */
+.cursor-fx-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 16px;
+  align-items: start;
+}
+
+.cursor-fx-main {
+  min-width: 0;
+}
+
+.cursor-fx-picker {
+  position: sticky;
+  top: 12px;
+}
+
+.cursor-fx-picker-title {
+  margin: 0 2px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.cursor-fx-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.cursor-fx-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 8px 8px 16px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: #1a1a1a;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+
+.cursor-fx-item:hover {
+  background: #222;
+  transform: translateX(2px);
+}
+
+.cursor-fx-item.selected {
+  border-color: rgba(255, 110, 110, 0.55);
+  background: #211a1a;
+}
+
+.cursor-fx-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cursor-fx-name .tab-on-dot {
+  flex: none;
+  width: 6px;
+  height: 6px;
+}
+
+.cursor-fx-go {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background: #2a2a2a;
+  color: #fff;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.cursor-fx-item:hover .cursor-fx-go {
+  transform: translateX(2px);
+}
+
+.cursor-fx-item.selected .cursor-fx-go {
+  background: linear-gradient(95deg, #ff5757 0%, #dc2626 100%);
+}
+
+@media (max-width: 760px) {
+  .cursor-fx-layout {
+    grid-template-columns: 1fr;
+  }
+  .cursor-fx-picker {
+    position: static;
+    order: -1;
+  }
+  .cursor-fx-list {
+    max-height: 300px;
+  }
+}

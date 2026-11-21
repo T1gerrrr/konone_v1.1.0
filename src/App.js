@@ -22,6 +22,7 @@ import Admin from './components/Admin';
 import RouteTracker from './components/RouteTracker';
 import Community from './components/Community';
 import ProfileTemplate from './components/ProfileTemplate';
+import TemplateView from './components/TemplateView';
 import LinksPage from './components/LinksPage';
 import Leaderboard from './components/Leaderboard';
 import './App.css';
@@ -117,6 +118,18 @@ function App() {
                     </PrivateRoute>
                   ) : (
                     // Trang Mẫu đang tạm ẩn -> chuyển về Bảng điều khiển
+                    <Navigate to="/dashboard" replace />
+                  )
+                }
+              />
+              <Route
+                path="/template/:id"
+                element={
+                  FEATURES.profileTemplate ? (
+                    <PrivateRoute>
+                      <TemplateView />
+                    </PrivateRoute>
+                  ) : (
                     <Navigate to="/dashboard" replace />
                   )
                 }

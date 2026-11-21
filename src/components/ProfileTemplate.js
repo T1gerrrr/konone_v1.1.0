@@ -1,36 +1,19 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { notifyError, notifySuccess } from '../notify/notify';
+import { notifyError, notifySuccess, confirmDialog } from '../notify/notify';
 import { isPremiumActive } from '../constants/premium';
 import { TEMPLATE_FIELDS } from '../constants/templates';
 import AppSidebar from './AppSidebar';
 import DiamondIcon from './DiamondIcon';
 import PublicProfile from './PublicProfile';
+import { readList, writeList, applyTemplateToProfile, normalizeSearch } from '../utils/applyTemplate';
 import './ProfileTemplate.css';
 
 const TABS = ['library', 'favorites', 'recent', 'mine'];
-
-function readList(key) {
-  try {
-    const v = JSON.parse(localStorage.getItem(key) || '[]');
-    return Array.isArray(v) ? v : [];
-  } catch (e) {
-    return [];
-  }
-}
-
-function writeList(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (e) {
-    /* bỏ qua nếu trình duyệt chặn lưu trữ */
-  }
-}
 
 // Bản xem trước thu nhỏ của mẫu
 function MiniPreview({ tpl }) {
@@ -147,7 +130,6 @@ export default function ProfileTemplate() {
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newTags, setNewTags] = useState('');
-  const [previewTpl, setPreviewTpl] = useState(null);
 
   useEffect(() => {
     if (!currentUser) return undefined;
@@ -176,7 +158,7 @@ export default function ProfileTemplate() {
           return { id: d.id, ...data, _created: created };
         });
         rows.sort((a, b) => b._created - a._created);
-        setLibrary(rows);
+        setLibrary(rows.filter((r) => r.published !== false));
       })
       .catch((err) => {
         console.error('Load templates error:', err);
@@ -193,10 +175,6 @@ export default function ProfileTemplate() {
   const premium = isPremiumActive(profile);
 
   const sampleBio = L('Mô tả của bạn sẽ hiển thị ở đây', 'Your description will appear here');
-  const previewProfile = useMemo(
-    () => (previewTpl ? buildPreviewProfile(previewTpl, profile, sampleBio) : null),
-    [previewTpl, profile, sampleBio]
-  );
 
   const allTemplates = useMemo(() => [...mine, ...library], [mine, library]);
 
@@ -207,11 +185,11 @@ export default function ProfileTemplate() {
     else if (tab === 'mine') list = mine;
     else list = library;
 
-    const q = search.trim().toLowerCase();
+    const q = normalizeSearch(search);
     if (q) {
       list = list.filter((t) => {
-        const name = `${(t.name && t.name.vi) || ''} ${(t.name && t.name.en) || ''}`.toLowerCase();
-        return name.includes(q) || (t.tags || []).some((g) => g.toLowerCase().includes(q));
+        const hay = [(t.name && t.name.vi) || '', (t.name && t.name.en) || '', ...(t.tags || []), ...(t.keywords || [])];
+        return hay.some((x) => normalizeSearch(x).includes(q));
       });
     }
     const sorted = [...list];
@@ -230,6 +208,17 @@ export default function ProfileTemplate() {
   }
 
   async function applyTemplate(tpl) {
+    const tplName = (tpl.name && (tpl.name[language === 'vi' ? 'vi' : 'en'] || tpl.name.vi || tpl.name.en)) || tpl.id;
+    const ok = await confirmDialog({
+      title: L('Sử dụng mẫu này?', 'Use this template?'),
+      message: L(
+        `Thiết kế của hồ sơ sẽ được thay bằng mẫu "${tplName}". Tên, ảnh đại diện, mô tả và liên kết của bạn được giữ nguyên.`,
+        `Your profile design will be replaced by "${tplName}". Your name, avatar, bio and links stay the same.`
+      ),
+      confirmText: L('Sử dụng', 'Use'),
+      cancelText: L('Hủy', 'Cancel')
+    });
+    if (!ok) return;
     if (!profileDocId || profile?.isStub) {
       notifyError(L('Hãy tạo hồ sơ trước khi dùng mẫu.', 'Please create your profile before using a template.'));
       navigate('/edit-profile');
@@ -242,7 +231,7 @@ export default function ProfileTemplate() {
     }
     setApplyingId(tpl.id);
     try {
-      await updateDoc(doc(db, 'profiles', profileDocId), { ...(tpl.preset || {}), updatedAt: new Date() });
+      await applyTemplateToProfile(profileDocId, tpl);
       setRecent((prev) => {
         const next = [tpl.id, ...prev.filter((x) => x !== tpl.id)].slice(0, 12);
         writeList(recentKey, next);
@@ -393,14 +382,14 @@ export default function ProfileTemplate() {
                       <p className="tp-author">{tpl.author}</p>
                       <div className="tp-tags">
                         {(tpl.tags || []).map((g) => (
-                          <span key={g}>{g}</span>
+                          <span key={g}>#{g}</span>
                         ))}
                       </div>
                       <div className="tp-actions">
                         <button type="button" className="tp-use" disabled={applyingId === tpl.id} onClick={() => applyTemplate(tpl)}>
-                          {applyingId === tpl.id ? L('Đang áp dụng...', 'Applying...') : L('Dùng mẫu', 'Use Template')}
+                          {applyingId === tpl.id ? L('Đang áp dụng...', 'Applying...') : L('Sử dụng', 'Use')}
                         </button>
-                        <button type="button" className="tp-eye" onClick={() => setPreviewTpl(tpl)} aria-label={L('Xem trước', 'Preview')} title={L('Xem trước trên hồ sơ của bạn', 'Preview on your profile')}>
+                        <button type="button" className="tp-eye" onClick={() => navigate(`/template/${tpl.id}`)} aria-label={L('Xem', 'View')} title={L('Xem mẫu trên trang riêng', 'View this template on its own page')}>
                           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                             <circle cx="12" cy="12" r="3" />
@@ -423,38 +412,6 @@ export default function ProfileTemplate() {
             </div>
           )}
         </div>
-
-        {previewTpl && createPortal(
-          <div className="tp-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setPreviewTpl(null); }}>
-            <div className="tp-preview-modal" role="dialog" aria-modal="true">
-              <div className="tp-preview-head">
-                <strong>
-                  {(previewTpl.name && (previewTpl.name[language === 'vi' ? 'vi' : 'en'] || previewTpl.name.vi || previewTpl.name.en)) || previewTpl.id}
-                </strong>
-                <button type="button" className="tp-preview-x" onClick={() => setPreviewTpl(null)} aria-label={L('Đóng', 'Close')}>✕</button>
-              </div>
-              <RealPreview previewProfile={previewProfile} />
-              <p className="tp-modal-note">
-                {L('Đây là hồ sơ thật của bạn khi áp dụng mẫu này.', 'This is your real profile with this template applied.')}
-              </p>
-              <div className="tp-modal-foot">
-                <button type="button" className="tp-btn" onClick={() => setPreviewTpl(null)}>{L('Đóng', 'Close')}</button>
-                <button
-                  type="button"
-                  className="tp-btn primary"
-                  disabled={applyingId === previewTpl.id}
-                  onClick={async () => {
-                    await applyTemplate(previewTpl);
-                    setPreviewTpl(null);
-                  }}
-                >
-                  {L('Dùng mẫu', 'Use Template')}
-                </button>
-              </div>
-            </div>
-          </div>,
-          document.body
-        )}
 
         {showCreate && (
           <div className="tp-modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) setShowCreate(false); }}>

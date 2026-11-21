@@ -63,6 +63,7 @@ function dayKey(d) {
 // ===== Mẫu hồ sơ (collection `templates`) =====
 const TEMPLATE_LAYOUTS = ['card', 'lanyard', 'web'];
 const TEMPLATE_EFFECTS = ['none', 'snow', 'particles', 'confetti', 'fireworks', 'rain', 'stars', 'leaves', 'aurora', 'matrix', 'nebula'];
+const CURSOR_FX_IDS = ['bubble', 'rainbow', 'trail3d', 'canvas'];
 const CSS_SAFE = /^[#a-zA-Z0-9(),.%\s-]{1,200}$/;
 
 function str(v, max) {
@@ -114,6 +115,8 @@ function cleanTemplate(t) {
     author: str(src.author, 40) || 'KonOne',
     tags: (Array.isArray(src.tags) ? src.tags : []).map((x) => str(x, 20)).filter(Boolean).slice(0, 6),
     premium: Boolean(src.premium),
+    published: src.published !== false,
+    keywords: (Array.isArray(src.keywords) ? src.keywords : []).map((x) => str(x, 30)).filter(Boolean).slice(0, 12),
     preview: {
       bg: cssValue(prev.bg, '#0a0a0c'),
       card: cssValue(prev.card, '#18161c'),
@@ -150,7 +153,12 @@ function cleanTemplate(t) {
       }, {}),
       otherSettings: cleanDeep(preset.otherSettings, 2) || {},
       splashCursor: cleanDeep(preset.splashCursor, 3) || {},
-      blobCursor: cleanDeep(preset.blobCursor, 3) || {}
+      blobCursor: cleanDeep(preset.blobCursor, 3) || {},
+      cursorFx: (() => {
+        const fx = cleanDeep(preset.cursorFx, 2) || {};
+        return { ...fx, id: CURSOR_FX_IDS.includes(fx.id) ? fx.id : '' };
+      })(),
+      musicUrl: /^https?:///i.test(str(preset.musicUrl, 400)) ? str(preset.musicUrl, 400) : ''
     }
   };
 }

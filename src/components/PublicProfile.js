@@ -22,6 +22,8 @@ import LanyardCard from './LanyardCard';
 import WakeSlider from './WakeSlider';
 import SplashCursor from './SplashCursor';
 import BlobCursor from './BlobCursor';
+import CursorFx from './CursorFx';
+import { isDirectVideoUrl } from '../utils/video';
 import { RevealText, TypeText } from './ProfileTextFx';
 import { dateKey } from '../utils/dateKey';
 import { musicBoxBg } from '../utils/color';
@@ -51,6 +53,7 @@ function applyFreePlan(p) {
     backgroundVideo: '',
     splashCursor: p.splashCursor ? { ...p.splashCursor, enabled: false } : p.splashCursor,
     blobCursor: p.blobCursor ? { ...p.blobCursor, enabled: false } : p.blobCursor,
+    cursorFx: p.cursorFx ? { ...p.cursorFx, id: '' } : p.cursorFx,
     socialLinks,
     customLinks
   };
@@ -610,6 +613,7 @@ export default function PublicProfile({ previewProfile = null }) {
 
   // Get background video ID
   const backgroundVideoId = profile.backgroundVideo ? getYouTubeVideoId(profile.backgroundVideo) : null;
+  const backgroundVideoFile = !backgroundVideoId && isDirectVideoUrl(profile.backgroundVideo) ? profile.backgroundVideo.trim() : null;
   const socialModes = profile.socialModes || {};
   const isInsideSocial = (profile.socialPosition || 'inside') === 'inside';
   const hasAnySocialOrCustom =
@@ -787,8 +791,24 @@ export default function PublicProfile({ previewProfile = null }) {
         </div>
       )}
 
+      {backgroundVideoFile && isPremium && (
+        <div className="background-video-container">
+          <video
+            className="background-video-file"
+            src={backgroundVideoFile}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+          />
+          <div className="video-overlay"></div>
+        </div>
+      )}
+
       {/* Background Overlay */}
-      {(profile.backgroundImage || backgroundVideoId) && (
+      {(profile.backgroundImage || backgroundVideoId || (backgroundVideoFile && isPremium)) && (
         <div className="background-overlay"></div>
       )}
 
@@ -898,6 +918,18 @@ export default function PublicProfile({ previewProfile = null }) {
           shadow={Boolean(profile.blobCursor.shadow)}
           hideCursor={profile.blobCursor.hideCursor !== false}
           style={{ position: 'fixed', inset: 0, zIndex: 48 }}
+        />
+      )}
+
+      {profile.cursorFx?.id && !profile.splashCursor?.enabled && !profile.blobCursor?.enabled && (
+        <CursorFx
+          id={profile.cursorFx.id}
+          length={Number(profile.cursorFx.length ?? 20)}
+          size={Number(profile.cursorFx.size ?? 3)}
+          trailSpeed={Number(profile.cursorFx.trailSpeed ?? 0.4)}
+          particles={Number(profile.cursorFx.particles ?? 15)}
+          rate={Number(profile.cursorFx.rate ?? 0.4)}
+          zIndex={48}
         />
       )}
 

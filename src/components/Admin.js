@@ -7,7 +7,8 @@ import UserMenu from './UserMenu';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { db } from '../firebase';
 import { uploadToCloudinary } from '../config/cloudinary';
-import { TEMPLATE_FIELDS, TEMPLATE_LAYOUTS, TEMPLATE_EFFECTS, TEMPLATE_FONTS } from '../constants/templates';
+import { TEMPLATE_FIELDS, TEMPLATE_LAYOUTS, TEMPLATE_EFFECTS, TEMPLATE_FONTS, TEMPLATE_CURSOR_PRESETS, TEMPLATE_CURSOR_EFFECTS, SPLASH_DEFAULTS, BLOB_DEFAULTS, templatePremiumReasons } from '../constants/templates';
+import DiamondIcon from './DiamondIcon';
 import './Admin.css';
 
 const TABS = [
@@ -777,11 +778,10 @@ const EMPTY_TEMPLATE = {
   id: '',
   nameVi: '',
   nameEn: '',
-  author: 'KonOne',
-  tags: '',
+  tags: '', // hashtag, VD: #onepiece #anime
+  keywords: '', // từ khóa tìm kiếm, VD: One Piece, luffy, hải tặc
+  published: true,
   premium: false,
-  bg1: '#0a0a0c',
-  bg2: '#18181d',
   layout: 'card',
   cardColor: '#18161c',
   strapColor: '#f65c5c',
@@ -796,61 +796,65 @@ const EMPTY_TEMPLATE = {
   gradientTo: '#f65c5c',
   font: 'Arial',
   text3D: false,
+  nameScale: 100,
+  bioScale: 100,
   glowUsername: true,
   glowSocials: true,
   glowBadges: true,
-  extra: {} // các thiết lập thiết kế còn lại (ảnh nền, khung avatar, hiệu ứng chuột...) lấy y chang từ hồ sơ
+  extra: {} // video, nhạc, con trỏ, hiệu ứng chuột, ảnh nền... (lấy y chang từ hồ sơ hoặc nhập tay)
 };
 
 // Các trường đã có ô riêng trong form; phần còn lại nằm trong `extra`
 const MANAGED_PRESET_KEYS = [
   'layout', 'cardColor', 'lanyardCardColor', 'lanyardStrapColor', 'textColor', 'bgColor', 'iconColor', 'effect',
-  'profileOpacity', 'profileBlur', 'profileGradient', 'gradientFrom', 'gradientTo', 'textFontFamily', 'text3DEffect', 'glowSettings'
+  'profileOpacity', 'profileBlur', 'profileGradient', 'gradientFrom', 'gradientTo', 'textFontFamily', 'text3DEffect',
+  'glowSettings', 'nameScale', 'bioScale'
 ];
 
 const hex6 = (v, fallback) => (/^#[0-9a-f]{6}$/i.test(v || '') ? v : fallback);
+const splitList = (v, sep) => String(v || '').split(sep).map((x) => x.trim().replace(/^#/, '')).filter(Boolean);
+
+function buildPreset(f) {
+  return {
+    ...f.extra,
+    layout: f.layout,
+    cardColor: f.cardColor,
+    lanyardCardColor: f.cardColor,
+    lanyardStrapColor: f.strapColor,
+    textColor: f.textColor,
+    bgColor: f.bgColor,
+    iconColor: f.iconColor,
+    effect: f.effect,
+    profileOpacity: Number(f.profileOpacity),
+    profileBlur: Number(f.profileBlur),
+    profileGradient: f.profileGradient,
+    gradientFrom: f.profileGradient ? f.gradientFrom : '',
+    gradientTo: f.profileGradient ? f.gradientTo : '',
+    textFontFamily: f.font,
+    text3DEffect: f.text3D,
+    nameScale: Number(f.nameScale),
+    bioScale: Number(f.bioScale),
+    glowSettings: { username: f.glowUsername, socials: f.glowSocials, badges: f.glowBadges }
+  };
+}
 
 function formToTemplate(f) {
+  const preset = buildPreset(f);
   return {
     name: { vi: f.nameVi, en: f.nameEn },
-    author: f.author,
-    tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean),
-    premium: f.premium,
-    preview: {
-      bg: `linear-gradient(160deg,${f.bg1},${f.bg2})`,
-      card: f.cardColor,
-      accent: f.strapColor,
-      text: f.textColor
-    },
-    preset: {
-      ...f.extra,
-      layout: f.layout,
-      cardColor: f.cardColor,
-      lanyardCardColor: f.cardColor,
-      lanyardStrapColor: f.strapColor,
-      textColor: f.textColor,
-      bgColor: f.bgColor,
-      iconColor: f.iconColor,
-      effect: f.effect,
-      profileOpacity: Number(f.profileOpacity),
-      profileBlur: Number(f.profileBlur),
-      profileGradient: f.profileGradient,
-      gradientFrom: f.profileGradient ? f.gradientFrom : '',
-      gradientTo: f.profileGradient ? f.gradientTo : '',
-      textFontFamily: f.font,
-      text3DEffect: f.text3D,
-      glowSettings: { username: f.glowUsername, socials: f.glowSocials, badges: f.glowBadges }
-    }
+    author: 'KonOne',
+    tags: splitList(f.tags, /[\s,]+/),
+    keywords: splitList(f.keywords, ','),
+    published: f.published,
+    premium: f.premium || templatePremiumReasons(preset).length > 0,
+    preview: { bg: f.bgColor, card: f.cardColor, accent: f.strapColor, text: f.textColor },
+    preset
   };
 }
 
 function templateToForm(t) {
   const pr = t.preset || {};
-  const pv = t.preview || {};
   const g = pr.glowSettings || {};
-  // preview.bg dạng "linear-gradient(160deg,#aaa,#bbb)" -> lấy lại 2 màu
-  const m = /#[0-9a-f]{6}/gi.exec(pv.bg || '');
-  const all = String(pv.bg || '').match(/#[0-9a-f]{6}/gi) || [];
   const extra = {};
   Object.keys(pr).forEach((k) => {
     if (!MANAGED_PRESET_KEYS.includes(k)) extra[k] = pr[k];
@@ -861,11 +865,10 @@ function templateToForm(t) {
     id: t.id,
     nameVi: (t.name && t.name.vi) || '',
     nameEn: (t.name && t.name.en) || '',
-    author: t.author || 'KonOne',
-    tags: (t.tags || []).join(', '),
-    premium: Boolean(t.premium),
-    bg1: hex6(all[0] || (m && m[0]), EMPTY_TEMPLATE.bg1),
-    bg2: hex6(all[1], EMPTY_TEMPLATE.bg2),
+    tags: (t.tags || []).map((x) => `#${x}`).join(' '),
+    keywords: (t.keywords || []).join(', '),
+    published: t.published !== false,
+    premium: false, // tự suy ra từ các tính năng đang dùng
     layout: pr.layout || 'card',
     cardColor: hex6(pr.cardColor, EMPTY_TEMPLATE.cardColor),
     strapColor: hex6(pr.lanyardStrapColor, EMPTY_TEMPLATE.strapColor),
@@ -880,10 +883,18 @@ function templateToForm(t) {
     gradientTo: hex6(pr.gradientTo, EMPTY_TEMPLATE.gradientTo),
     font: pr.textFontFamily || 'Arial',
     text3D: Boolean(pr.text3DEffect),
+    nameScale: pr.nameScale ?? 100,
+    bioScale: pr.bioScale ?? 100,
     glowUsername: g.username !== false,
     glowSocials: g.socials !== false,
     glowBadges: g.badges !== false
   };
+}
+
+// Icon kim cương: báo hiệu phần này cần Premium
+function Pm({ show = true }) {
+  if (!show) return null;
+  return <span title="Cần Premium" style={{ marginLeft: 6, display: 'inline-flex', verticalAlign: 'middle' }}><DiamondIcon className="pro-diamond" size={14} /></span>;
 }
 
 function ColorField({ label, value, onChange }) {
@@ -963,6 +974,15 @@ function Templates({ call }) {
       }
     }));
   const editing = Boolean(f.id);
+  const premiumReasons = templatePremiumReasons(buildPreset(f));
+  const cursorEffect = f.extra.cursorFx?.id || (f.extra.splashCursor?.enabled ? 'splash' : f.extra.blobCursor?.enabled ? 'blob' : '');
+  // Chỉ 1 hiệu ứng chuột được bật
+  const setCursorEffect = (id) =>
+    setExtra({
+      splashCursor: id === 'splash' ? { ...SPLASH_DEFAULTS, ...(f.extra.splashCursor || {}), enabled: true } : { ...(f.extra.splashCursor || {}), enabled: false },
+      blobCursor: id === 'blob' ? { ...BLOB_DEFAULTS, ...(f.extra.blobCursor || {}), enabled: true } : { ...(f.extra.blobCursor || {}), enabled: false },
+      cursorFx: { length: 20, size: 3, trailSpeed: 0.4, particles: 15, rate: 0.4, ...(f.extra.cursorFx || {}), id: ['bubble', 'rainbow', 'trail3d', 'canvas'].includes(id) ? id : '' }
+    });
 
   async function save(e) {
     e.preventDefault();
@@ -1001,35 +1021,19 @@ function Templates({ call }) {
         return;
       }
       const p = snap.docs[0].data();
-      const next = templateToForm({
-        id: f.id,
-        name: { vi: f.nameVi, en: f.nameEn },
-        author: f.author,
-        tags: f.tags.split(',').map((x) => x.trim()).filter(Boolean),
-        premium: f.premium,
-        preview: { bg: `linear-gradient(160deg,${p.bgColor || f.bg1},${f.bg2})` },
-        preset: {
-          ...TEMPLATE_FIELDS.reduce((acc, k) => {
-            if (p[k] !== undefined) acc[k] = p[k];
-            return acc;
-          }, {}),
-          layout: p.layout,
-          cardColor: p.lanyardCardColor || p.cardColor,
-          lanyardStrapColor: p.lanyardStrapColor,
-          textColor: p.textColor,
-          bgColor: p.bgColor,
-          iconColor: p.iconColor,
-          effect: p.effect,
-          profileOpacity: p.profileOpacity,
-          profileBlur: p.profileBlur,
-          profileGradient: p.profileGradient,
-          gradientFrom: p.gradientFrom,
-          gradientTo: p.gradientTo,
-          textFontFamily: p.textFontFamily,
-          text3DEffect: p.text3DEffect,
-          glowSettings: p.glowSettings
-        }
-      });
+      const preset = TEMPLATE_FIELDS.reduce((acc, k) => {
+        if (p[k] !== undefined) acc[k] = p[k];
+        return acc;
+      }, {});
+      preset.cardColor = p.lanyardCardColor || p.cardColor;
+      const next = {
+        ...templateToForm({ id: f.id, name: { vi: f.nameVi, en: f.nameEn }, preset }),
+        nameVi: f.nameVi,
+        nameEn: f.nameEn,
+        tags: f.tags,
+        keywords: f.keywords,
+        published: f.published
+      };
       setF(next);
       setMsg({ ok: true, text: 'Đã sao chép y chang thiết kế từ hồ sơ của bạn (kể cả ảnh nền, khung avatar, hiệu ứng chuột...). Hãy đặt tên rồi lưu.' });
     } catch (err) {
@@ -1051,83 +1055,136 @@ function Templates({ call }) {
         </div>
 
         <div className="adm-row">
-          <label>Tên (Tiếng Việt)
-            <input className="adm-input" maxLength={60} value={f.nameVi} onChange={(e) => set({ nameVi: e.target.value })} placeholder="VD: Kính đỏ Crimson" />
+          <label>Tên Template (Tiếng Việt)
+            <input className="adm-input" maxLength={60} value={f.nameVi} onChange={(e) => set({ nameVi: e.target.value })} placeholder="VD: Hải tặc One Piece" />
           </label>
-          <label>Tên (English)
-            <input className="adm-input" maxLength={60} value={f.nameEn} onChange={(e) => set({ nameEn: e.target.value })} placeholder="e.g. Crimson Glass" />
+          <label>Tên Template (English)
+            <input className="adm-input" maxLength={60} value={f.nameEn} onChange={(e) => set({ nameEn: e.target.value })} placeholder="e.g. One Piece Pirates" />
           </label>
-          <label>Tác giả
-            <input className="adm-input" maxLength={40} value={f.author} onChange={(e) => set({ author: e.target.value })} />
+        </div>
+        <div className="adm-row">
+          <label>Hashtag (cách nhau bằng dấu cách)
+            <input className="adm-input" value={f.tags} onChange={(e) => set({ tags: e.target.value })} placeholder="#onepiece #anime #dark" />
           </label>
-          <label>Thẻ (cách nhau bằng dấu phẩy)
-            <input className="adm-input" value={f.tags} onChange={(e) => set({ tags: e.target.value })} placeholder="free, dark, bio" />
+          <label>Từ khóa tìm kiếm (cách nhau bằng dấu phẩy)
+            <input className="adm-input" value={f.keywords} onChange={(e) => set({ keywords: e.target.value })} placeholder="onepiece, one piece, luffy, hải tặc" />
           </label>
-          <label className="adm-check"><input type="checkbox" checked={f.premium} onChange={(e) => set({ premium: e.target.checked })} /> Chỉ dành cho Premium</label>
         </div>
 
-        <h3 className="adm-subhead">Hình xem trước</h3>
+        <h3 className="adm-subhead">Bố cục</h3>
         <div className="adm-row">
-          <ColorField label="Nền (màu 1)" value={f.bg1} onChange={(v) => set({ bg1: v })} />
-          <ColorField label="Nền (màu 2)" value={f.bg2} onChange={(v) => set({ bg2: v })} />
-        </div>
-
-        <h3 className="adm-subhead">Ảnh &amp; video</h3>
-        <div className="adm-row">
-          <MediaField label="Ảnh nền" kind="image" value={f.extra.backgroundImage} onChange={(u) => setExtra({ backgroundImage: u })} hint="Tối đa 10MB" />
-          <MediaField label="Video nền" kind="video" value={f.extra.backgroundVideo} onChange={(u) => setExtra({ backgroundVideo: u })} hint="Tối đa 50MB (mp4/webm)" />
-          <MediaField label="Khung avatar" kind="image" value={f.extra.avatarFrame} onChange={setFrame} hint="PNG trong suốt, tối đa 10MB" />
-          <MediaField label="Ảnh bìa" kind="image" value={f.extra.coverImage} onChange={(u) => setExtra({ coverImage: u })} hint="Tối đa 10MB" />
-        </div>
-
-        <h3 className="adm-subhead">Thiết kế áp dụng cho hồ sơ</h3>
-        <div className="adm-row">
-          <label>Bố cục
+          <label>Bố cục <Pm show={f.layout !== 'card'} />
             <select className="adm-input" value={f.layout} onChange={(e) => set({ layout: e.target.value })}>
               {TEMPLATE_LAYOUTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </label>
-          <label>Hiệu ứng nền
-            <select className="adm-input" value={f.effect} onChange={(e) => set({ effect: e.target.value })}>
-              {TEMPLATE_EFFECTS.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+        </div>
+
+        <h3 className="adm-subhead">Avatar</h3>
+        <div className="adm-row">
+          <MediaField label="Upload khung avatar" kind="image" value={f.extra.avatarFrame} onChange={setFrame} hint="PNG/GIF trong suốt phủ quanh avatar, tối đa 10MB. Ảnh avatar vẫn là của người dùng." />
+        </div>
+
+        <h3 className="adm-subhead">Video nền <Pm /></h3>
+        <div className="adm-row">
+          <MediaField label="Link video (mp4 hoặc YouTube)" kind="video" value={f.extra.backgroundVideo} onChange={(u) => setExtra({ backgroundVideo: u })} hint="Dán link .mp4 / YouTube, hoặc tải lên (tối đa 50MB)" />
+        </div>
+
+        <h3 className="adm-subhead">Nhạc</h3>
+        <div className="adm-row">
+          <label>Link nhạc (YouTube)
+            <input className="adm-input" value={f.extra.musicUrl || ''} onChange={(e) => setExtra({ musicUrl: e.target.value })} placeholder="https://www.youtube.com/watch?v=..." />
+          </label>
+        </div>
+
+        <h3 className="adm-subhead">Con trỏ chuột <Pm show={Boolean(f.extra.cursorIcon)} /></h3>
+        <div className="adm-row">
+          <label>Chọn mẫu có sẵn
+            <select className="adm-input" value={TEMPLATE_CURSOR_PRESETS.some(([u]) => u === (f.extra.cursorIcon || '')) ? (f.extra.cursorIcon || '') : '__custom'} onChange={(e) => { if (e.target.value !== '__custom') setExtra({ cursorIcon: e.target.value }); }}>
+              {TEMPLATE_CURSOR_PRESETS.map(([u, n]) => <option key={u || 'none'} value={u}>{n}</option>)}
+              <option value="__custom">Ảnh riêng (bên dưới)</option>
             </select>
           </label>
+          <MediaField label="Hoặc tải ảnh con trỏ riêng" kind="image" value={f.extra.cursorIcon} onChange={(u) => setExtra({ cursorIcon: u })} hint="PNG/SVG trong suốt, tối đa 10MB" />
+        </div>
+
+        <h3 className="adm-subhead">Hiệu ứng chuột <Pm show={cursorEffect !== ''} /></h3>
+        <div className="adm-row">
+          <label>Hiệu ứng
+            <select className="adm-input" value={cursorEffect} onChange={(e) => setCursorEffect(e.target.value)}>
+              {TEMPLATE_CURSOR_EFFECTS.map(([k, v]) => <option key={k || 'none'} value={k}>{k ? '◆ ' : ''}{v}</option>)}
+            </select>
+          </label>
+        </div>
+        <small className="adm-muted">Dùng thông số mặc định; muốn tinh chỉnh chi tiết, chỉnh ở Dashboard rồi bấm "Lấy từ hồ sơ của tôi".</small>
+
+        <h3 className="adm-subhead">Hiệu ứng Background <Pm show={f.effect !== 'none'} /></h3>
+        <div className="adm-row">
+          <label>Hiệu ứng nền
+            <select className="adm-input" value={f.effect} onChange={(e) => set({ effect: e.target.value })}>
+              {TEMPLATE_EFFECTS.map(([k, v]) => <option key={k} value={k}>{k !== 'none' ? '◆ ' : ''}{v}</option>)}
+            </select>
+          </label>
+        </div>
+
+        <h3 className="adm-subhead">Tùy chỉnh chữ</h3>
+        <div className="adm-row">
           <label>Phông chữ
             <select className="adm-input" value={f.font} onChange={(e) => set({ font: e.target.value })}>
               {TEMPLATE_FONTS.map((x) => <option key={x} value={x}>{x}</option>)}
             </select>
           </label>
+          <label>Cỡ tên ({f.nameScale}%)
+            <input type="range" min="60" max="160" value={f.nameScale} onChange={(e) => set({ nameScale: e.target.value })} />
+          </label>
+          <label>Cỡ mô tả ({f.bioScale}%)
+            <input type="range" min="60" max="160" value={f.bioScale} onChange={(e) => set({ bioScale: e.target.value })} />
+          </label>
         </div>
         <div className="adm-row">
-          <ColorField label="Màu thẻ" value={f.cardColor} onChange={(v) => set({ cardColor: v })} />
-          <ColorField label="Màu nhấn / dây đeo" value={f.strapColor} onChange={(v) => set({ strapColor: v })} />
-          <ColorField label="Màu chữ" value={f.textColor} onChange={(v) => set({ textColor: v })} />
-          <ColorField label="Màu nền" value={f.bgColor} onChange={(v) => set({ bgColor: v })} />
-          <ColorField label="Màu icon" value={f.iconColor} onChange={(v) => set({ iconColor: v })} />
-        </div>
-        <div className="adm-row">
-          <label>Độ trong suốt thẻ ({f.profileOpacity})
-            <input type="range" min="0" max="100" value={f.profileOpacity} onChange={(e) => set({ profileOpacity: e.target.value })} />
-          </label>
-          <label>Độ mờ thẻ ({f.profileBlur})
-            <input type="range" min="0" max="100" value={f.profileBlur} onChange={(e) => set({ profileBlur: e.target.value })} />
-          </label>
           <label className="adm-check"><input type="checkbox" checked={f.text3D} onChange={(e) => set({ text3D: e.target.checked })} /> Chữ nổi 3D</label>
-        </div>
-        <div className="adm-row">
-          <label className="adm-check"><input type="checkbox" checked={f.profileGradient} onChange={(e) => set({ profileGradient: e.target.checked })} /> Nền chuyển sắc</label>
-          {f.profileGradient && (
-            <>
-              <ColorField label="Màu chuyển 1" value={f.gradientFrom} onChange={(v) => set({ gradientFrom: v })} />
-              <ColorField label="Màu chuyển 2" value={f.gradientTo} onChange={(v) => set({ gradientTo: v })} />
-            </>
-          )}
-        </div>
-        <div className="adm-row">
           <label className="adm-check"><input type="checkbox" checked={f.glowUsername} onChange={(e) => set({ glowUsername: e.target.checked })} /> Phát sáng tên</label>
           <label className="adm-check"><input type="checkbox" checked={f.glowSocials} onChange={(e) => set({ glowSocials: e.target.checked })} /> Phát sáng icon</label>
           <label className="adm-check"><input type="checkbox" checked={f.glowBadges} onChange={(e) => set({ glowBadges: e.target.checked })} /> Phát sáng huy hiệu</label>
         </div>
+
+        <details className="adm-details">
+          <summary>Màu sắc &amp; tùy chọn nâng cao</summary>
+          <div className="adm-row">
+            <ColorField label="Màu thẻ" value={f.cardColor} onChange={(v) => set({ cardColor: v })} />
+            <ColorField label="Màu nhấn / dây đeo" value={f.strapColor} onChange={(v) => set({ strapColor: v })} />
+            <ColorField label="Màu chữ" value={f.textColor} onChange={(v) => set({ textColor: v })} />
+            <ColorField label="Màu nền" value={f.bgColor} onChange={(v) => set({ bgColor: v })} />
+            <ColorField label="Màu icon" value={f.iconColor} onChange={(v) => set({ iconColor: v })} />
+          </div>
+          <div className="adm-row">
+            <label>Độ trong suốt thẻ ({f.profileOpacity})
+              <input type="range" min="0" max="100" value={f.profileOpacity} onChange={(e) => set({ profileOpacity: e.target.value })} />
+            </label>
+            <label>Độ mờ thẻ ({f.profileBlur})
+              <input type="range" min="0" max="100" value={f.profileBlur} onChange={(e) => set({ profileBlur: e.target.value })} />
+            </label>
+            <label className="adm-check"><input type="checkbox" checked={f.profileGradient} onChange={(e) => set({ profileGradient: e.target.checked })} /> Nền chuyển sắc</label>
+            {f.profileGradient && (
+              <>
+                <ColorField label="Màu chuyển 1" value={f.gradientFrom} onChange={(v) => set({ gradientFrom: v })} />
+                <ColorField label="Màu chuyển 2" value={f.gradientTo} onChange={(v) => set({ gradientTo: v })} />
+              </>
+            )}
+          </div>
+          <div className="adm-row">
+            <MediaField label="Ảnh nền" kind="image" value={f.extra.backgroundImage} onChange={(u) => setExtra({ backgroundImage: u })} hint="Tối đa 10MB" />
+            <MediaField label="Ảnh bìa" kind="image" value={f.extra.coverImage} onChange={(u) => setExtra({ coverImage: u })} hint="Tối đa 10MB" />
+          </div>
+        </details>
+
+        <div className="adm-row">
+          <label className="adm-check"><input type="checkbox" checked={f.published} onChange={(e) => set({ published: e.target.checked })} /> Xuất bản (hiện ở trang Template của người dùng)</label>
+          <label className="adm-check"><input type="checkbox" checked={f.premium} onChange={(e) => set({ premium: e.target.checked })} /> Ép là Premium</label>
+        </div>
+        {premiumReasons.length > 0 && (
+          <div className="adm-note"><Pm /> Template sẽ là <b>Premium</b> vì dùng: {premiumReasons.join(', ')}.</div>
+        )}
 
         <div className="adm-row">
           <button type="submit" className="adm-btn" disabled={busy || (!f.nameVi.trim() && !f.nameEn.trim())}>
@@ -1144,7 +1201,7 @@ function Templates({ call }) {
         </div>
         <div className="adm-table-wrap">
           <table className="adm-table static">
-            <thead><tr><th>Xem trước</th><th>Tên</th><th>Tác giả</th><th>Thẻ</th><th>Loại</th><th>Ngày tạo</th><th /></tr></thead>
+            <thead><tr><th>Xem trước</th><th>Tên</th><th>Hashtag</th><th>Từ khóa</th><th>Trạng thái</th><th>Loại</th><th>Ngày tạo</th><th /></tr></thead>
             <tbody>
               {data.templates.map((t) => (
                 <tr key={t.id}>
@@ -1154,8 +1211,9 @@ function Templates({ call }) {
                     </span>
                   </td>
                   <td><b>{(t.name && (t.name.vi || t.name.en)) || t.id}</b></td>
-                  <td>{t.author || '—'}</td>
-                  <td>{(t.tags || []).join(', ') || '—'}</td>
+                  <td>{(t.tags || []).map((x) => `#${x}`).join(' ') || '—'}</td>
+                  <td>{(t.keywords || []).join(', ') || '—'}</td>
+                  <td><span className={`adm-tag ${t.published === false ? 'warn' : 'ok'}`}>{t.published === false ? 'Nháp' : 'Đã xuất bản'}</span></td>
                   <td><span className={`adm-tag ${t.premium ? 'warn' : 'ok'}`}>{t.premium ? 'Premium' : 'Miễn phí'}</span></td>
                   <td>{fmt(t.createdAt)}</td>
                   <td>
@@ -1164,7 +1222,7 @@ function Templates({ call }) {
                   </td>
                 </tr>
               ))}
-              {!data.templates.length && <tr><td colSpan={7} className="adm-muted">Chưa có mẫu nào — hãy thêm mẫu đầu tiên ở form phía trên.</td></tr>}
+              {!data.templates.length && <tr><td colSpan={8} className="adm-muted">Chưa có mẫu nào — hãy thêm mẫu đầu tiên ở form phía trên.</td></tr>}
             </tbody>
           </table>
         </div>

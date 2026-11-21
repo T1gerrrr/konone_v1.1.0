@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- Thỏ placeholder: thay file này bằng ảnh của bạn (PNG/SVG/WebP nền trong suốt) -->
+  <ellipse cx="22" cy="14" rx="7" ry="16" fill="#fff" stroke="#333" stroke-width="2"/>
+  <ellipse cx="42" cy="14" rx="7" ry="16" fill="#fff" stroke="#333" stroke-width="2"/>
+  <ellipse cx="22" cy="15" rx="3" ry="10" fill="#ffb6c1"/>
+  <ellipse cx="42" cy="15" rx="3" ry="10" fill="#ffb6c1"/>
+  <circle cx="32" cy="42" r="19" fill="#fff" stroke="#333" stroke-width="2"/>
+  <circle cx="25" cy="39" r="2.5" fill="#333"/>
+  <circle cx="39" cy="39" r="2.5" fill="#333"/>
+  <ellipse cx="32" cy="46" rx="3" ry="2" fill="#ff8fa3"/>
+  <path d="M32 48 q-3 4 -6 2 M32 48 q3 4 6 2" fill="none" stroke="#333" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

@@ -10,6 +10,8 @@ import { t } from '../translations';
 import LanyardCard from './LanyardCard';
 import SplashCursor from './SplashCursor';
 import BlobCursor from './BlobCursor';
+import CursorFx from './CursorFx';
+import { CURSOR_EFFECTS, CURSOR_FX_IDS } from '../constants/cursorEffects';
 import { PLATFORM_BY_KEY } from '../constants/socialPlatforms';
 import { resolveProfileBadges } from '../constants/badges';
 import { PREMIUM_LAYOUTS, countLinks, premiumViolations } from '../constants/premium';
@@ -197,13 +199,32 @@ export default function ProfileEditor() {
   const [cursorTab, setCursorTab] = useState('splash');
   const [showCursorTuning, setShowCursorTuning] = useState(false);
 
-  // Chỉ 1 loại chuột được bật: bật Splash thì tắt Blob và ngược lại
+  // Hiệu ứng chuột dạng canvas: id = '' | 'bubble' | 'rainbow' | 'trail3d'
+  const [cursorFx, setCursorFx] = useState({
+    id: '',
+    length: 20, size: 3, trailSpeed: 0.4, // rainbow
+    particles: 15, rate: 0.4              // trail3d
+  });
+
+  // Chỉ 1 loại chuột được bật: bật loại này thì tắt các loại kia
   useEffect(() => {
-    if (splashCursor.enabled) setBlobCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+    if (splashCursor.enabled) {
+      setBlobCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+      setCursorFx((prev) => (prev.id ? { ...prev, id: '' } : prev));
+    }
   }, [splashCursor.enabled]);
   useEffect(() => {
-    if (blobCursor.enabled) setSplashCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+    if (blobCursor.enabled) {
+      setSplashCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+      setCursorFx((prev) => (prev.id ? { ...prev, id: '' } : prev));
+    }
   }, [blobCursor.enabled]);
+  useEffect(() => {
+    if (cursorFx.id) {
+      setSplashCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+      setBlobCursor((prev) => (prev.enabled ? { ...prev, enabled: false } : prev));
+    }
+  }, [cursorFx.id]);
 
   const [formData, setFormData] = useState({
     username: '',
@@ -380,6 +401,11 @@ export default function ProfileEditor() {
               setCursorTab('blob');
             }
           }
+          if (profileData.cursorFx && typeof profileData.cursorFx === 'object') {
+            const fxId = CURSOR_FX_IDS.includes(profileData.cursorFx.id) ? profileData.cursorFx.id : '';
+            setCursorFx((prev) => ({ ...prev, ...profileData.cursorFx, id: fxId }));
+            if (fxId) setCursorTab(fxId);
+          }
         } else {
           setIsStubProfile(true);
         }
@@ -455,7 +481,7 @@ export default function ProfileEditor() {
           {
             layout: formData.layout,
             effect: formData.effect,
-            splashEnabled: splashCursor.enabled,
+            splashEnabled: splashCursor.enabled || Boolean(cursorFx.id),
             blobEnabled: blobCursor.enabled,
             backgroundVideo: formData.backgroundVideo,
             linkCount: countLinks(formData.socialLinks, customLinks)
@@ -594,6 +620,14 @@ export default function ProfileEditor() {
           regrow: Number(blobCursor.regrow ?? 0.5),
           shadow: Boolean(blobCursor.shadow),
           hideCursor: Boolean(blobCursor.hideCursor)
+        },
+        cursorFx: {
+          id: CURSOR_FX_IDS.includes(cursorFx.id) ? cursorFx.id : '',
+          length: Number(cursorFx.length ?? 20),
+          size: Number(cursorFx.size ?? 3),
+          trailSpeed: Number(cursorFx.trailSpeed ?? 0.4),
+          particles: Number(cursorFx.particles ?? 15),
+          rate: Number(cursorFx.rate ?? 0.4)
         },
         isHidden: Boolean(isHidden),
         isStub: false,
@@ -896,7 +930,7 @@ export default function ProfileEditor() {
                   ) : (
                     <div className="bg-modal-body">
                       <label className="bg-modal-label">
-                        {L('Video nền YouTube', 'YouTube background video')}{' '}<DiamondIcon className="pro-diamond" />
+                        {L('Video nền (YouTube hoặc link .mp4)', 'Background video (YouTube or .mp4 link)')}{' '}<DiamondIcon className="pro-diamond" />
                       </label>
                       <div className="dark-input-box">
                         <input
@@ -904,7 +938,7 @@ export default function ProfileEditor() {
                           name="backgroundVideo"
                           value={formData.backgroundVideo}
                           onChange={handleChange}
-                          placeholder={isPremium ? 'https://www.youtube.com/watch?v=...' : 'https://www.youtube.com/watch?v=... (Premium để lưu)'}
+                          placeholder={isPremium ? 'https://youtube.com/watch?v=... hoặc https://.../video.mp4' : 'Link YouTube / .mp4 (Premium để lưu)'}
                           autoFocus
                         />
                       </div>
@@ -1140,6 +1174,7 @@ export default function ProfileEditor() {
                         >
                           <option value="">{L('Con trỏ mặc định', 'Default Cursor')}</option>
                           <option value="https://raw.githubusercontent.com/T1gerrrr/konone/refs/heads/main/icon_1.png">KonOne Cursor 1</option>
+                          <option value="/cursor.svg">{L('Con thỏ', 'Bunny')}</option>
                         </select>
                       </div>
 
@@ -2124,11 +2159,11 @@ export default function ProfileEditor() {
                           name="backgroundVideo"
                           value={formData.backgroundVideo}
                           onChange={handleChange}
-                          placeholder={isPremium ? 'https://www.youtube.com/watch?v=...' : 'https://www.youtube.com/watch?v=... (Premium để lưu)'}
+                          placeholder={isPremium ? 'https://youtube.com/watch?v=... hoặc https://.../video.mp4' : 'Link YouTube / .mp4 (Premium để lưu)'}
                         />
                       </div>
                       <p className="bg-modal-note video-fx-note">
-                        {L('Dán link video YouTube để làm video nền cho hồ sơ.', 'Paste a YouTube link to use as your profile background video.')}
+                        {L('Dán link YouTube hoặc link video trực tiếp (.mp4, .webm) để làm video nền.', 'Paste a YouTube link or a direct video link (.mp4, .webm) as your background video.')}
                       </p>
                     </div>
 
@@ -2156,34 +2191,63 @@ export default function ProfileEditor() {
                     <DiamondIcon className="pro-diamond" size={16} style={{ marginLeft: 8 }} />
                   </h2>
 
-                  <div className="cursor-mode-tabs">
-                    <button
-                      type="button"
-                      className={`cursor-tab-btn ${cursorTab === 'splash' ? 'active' : ''}`}
-                      onClick={() => setCursorTab('splash')}
-                    >
-                      <svg className="cursor-tab-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2.7s6 6.4 6 11.3a6 6 0 0 1-12 0c0-4.9 6-11.3 6-11.3z" />
-                      </svg>
-                      <span>Splash Cursor</span>
-                      {splashCursor.enabled && <span className="tab-on-dot" />}
-                    </button>
-                    <button
-                      type="button"
-                      className={`cursor-tab-btn ${cursorTab === 'blob' ? 'active' : ''}`}
-                      onClick={() => setCursorTab('blob')}
-                    >
-                      <svg className="cursor-tab-ico" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <circle cx="9" cy="10" r="5.5" />
-                        <circle cx="17" cy="16" r="3.5" />
-                      </svg>
-                      <span>Blob Cursor</span>
-                      {blobCursor.enabled && <span className="tab-on-dot" />}
-                    </button>
-                  </div>
                 </div>
 
-                {cursorTab === 'splash' ? (
+                <div className="cursor-fx-layout">
+                <div className="cursor-fx-main">
+                {CURSOR_FX_IDS.includes(cursorTab) ? (
+                <div className="guns-panel">
+                  <div className="cursor-panel-topbar">
+                    <span className="cursor-panel-subtitle">
+                      {cursorTab === 'bubble' && L('Bong bóng bay lên theo chuột', 'Bubbles float up from the cursor')}
+                      {cursorTab === 'rainbow' && L('Vệt cầu vồng đuổi theo chuột', 'Rainbow trail following the cursor')}
+                      {cursorTab === 'trail3d' && L('Chuỗi con trỏ nối đuôi nhau', 'A chain of cursors trailing behind')}
+                      {cursorTab === 'canvas' && L('Dây sáng nhiều màu uốn lượn theo chuột', 'Glowing multicolor ribbons following the cursor')}
+                    </span>
+                    <div className="splash-master-toggle">
+                      <span>{cursorFx.id === cursorTab ? L('Đang bật', 'Enabled') : L('Đang tắt', 'Disabled')}</span>
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={cursorFx.id === cursorTab}
+                        className={`guns-switch ${cursorFx.id === cursorTab ? 'on' : ''}`}
+                        onClick={() => setCursorFx((prev) => ({ ...prev, id: prev.id === cursorTab ? '' : cursorTab }))}
+                      >
+                        <span className="switch-knob" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {(cursorTab === 'rainbow' || cursorTab === 'trail3d') && (
+                    <div className="splash-sliders-grid">
+                      {(cursorTab === 'rainbow'
+                        ? [
+                            ['length', L('Độ dài vệt', 'Trail length'), 5, 40, 1],
+                            ['size', L('Độ dày', 'Thickness'), 1, 8, 0.5],
+                            ['trailSpeed', L('Độ đuổi theo', 'Follow speed'), 0.1, 0.9, 0.05]
+                          ]
+                        : [
+                            ['particles', L('Số lượng', 'Count'), 5, 30, 1],
+                            ['rate', L('Độ đuổi theo', 'Follow speed'), 0.1, 0.9, 0.05]
+                          ]
+                      ).map(([key, label, min, max, step]) => (
+                        <div className="custom-dark-field" key={key}>
+                          <label>{label}: <strong>{cursorFx[key]}</strong></label>
+                          <div className="guns-slider-wrap">
+                            <input
+                              type="range" min={min} max={max} step={step}
+                              value={cursorFx[key]}
+                              onChange={(e) => setCursorFx((prev) => ({ ...prev, id: cursorTab, [key]: Number(e.target.value) }))}
+                              className="guns-range-slider"
+                              style={{ '--val': `${((cursorFx[key] - min) / (max - min)) * 100}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                ) : cursorTab === 'splash' ? (
                 <div className="guns-panel">
                   <div className="cursor-panel-topbar">
                     <span className="cursor-panel-subtitle">
@@ -2721,6 +2785,44 @@ export default function ProfileEditor() {
                   )}
                 </div>
                 )}
+                </div>
+
+                {/* Bảng chọn hiệu ứng (bên phải) — thêm effect mới ở src/constants/cursorEffects.js */}
+                <aside className="cursor-fx-picker" aria-label={L('Chọn hiệu ứng chuột', 'Pick cursor effect')}>
+                  <div className="cursor-fx-picker-title">{L('Chọn hiệu ứng', 'Effects')}</div>
+                  <div className="cursor-fx-list">
+                    <button
+                      type="button"
+                      className={`cursor-fx-item ${!splashCursor.enabled && !blobCursor.enabled && !cursorFx.id ? 'selected' : ''}`}
+                      onClick={() => {
+                        setCursorFx((prev) => ({ ...prev, id: '' }));
+                        setSplashCursor((prev) => ({ ...prev, enabled: false }));
+                        setBlobCursor((prev) => ({ ...prev, enabled: false }));
+                      }}
+                    >
+                      <span className="cursor-fx-name">{L('Tắt', 'None')}</span>
+                      <span className="cursor-fx-go"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></span>
+                    </button>
+                    {CURSOR_EFFECTS.map((fx) => {
+                      const on = fx.id === 'splash' ? splashCursor.enabled : fx.id === 'blob' ? blobCursor.enabled : cursorFx.id === fx.id;
+                      return (
+                        <button
+                          key={fx.id}
+                          type="button"
+                          className={`cursor-fx-item ${cursorTab === fx.id ? 'selected' : ''}`}
+                          onClick={() => {
+                            setCursorTab(fx.id);
+                            if (CURSOR_FX_IDS.includes(fx.id)) setCursorFx((prev) => ({ ...prev, id: fx.id }));
+                          }}
+                        >
+                          <span className="cursor-fx-name">{fx.name}{on && <span className="tab-on-dot" />}</span>
+                          <span className="cursor-fx-go"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
+                </div>
               </section>
 
               {/* ================= SECTION 5: BỐ CỤC WEB — POSTER ĐỨNG & CHỮ GIỚI THIỆU ================= */}
@@ -2918,6 +3020,17 @@ export default function ProfileEditor() {
                       quality={splashCursor.quality || 'high'}
                       intro
                       contained={true}
+                    />
+                  )}
+                  {cursorFx.id && (
+                    <CursorFx
+                      id={cursorFx.id}
+                      contained
+                      length={cursorFx.length}
+                      size={cursorFx.size}
+                      trailSpeed={cursorFx.trailSpeed}
+                      particles={cursorFx.particles}
+                      rate={cursorFx.rate}
                     />
                   )}
                   {blobCursor.enabled && (
