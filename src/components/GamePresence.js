@@ -8,10 +8,11 @@ export default function GamePresence({ profile, textColor = '#ffffff', demo = fa
   const { language } = useLanguage();
   const game = resolveGame(profile);
   const [logoFailed, setLogoFailed] = useState(false);
+  const logoUrl = game ? game.logo : '';
 
   useEffect(() => {
     setLogoFailed(false);
-  }, [game && game.logo]);
+  }, [logoUrl]);
 
   if (!game) return null;
 
